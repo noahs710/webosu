@@ -15,6 +15,7 @@ const { estimatePP } = require("./pp");
 const { validate: validateReplay } = require("./validate");
 
 const ROOT = path.join(__dirname, "..");
+const DIST = path.join(ROOT, "dist"); // vite build output (production)
 const DATA_DIR = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : path.join(__dirname, "..", "data");
@@ -274,14 +275,21 @@ function buildApp({ serveStatic = true } = {}) {
   });
 
   // ---------- static frontend ----------
+  // Production serves the Vite build (dist/) when present; dev falls back to
+  // the source tree (Vite's own dev server is the frontend in dev, so this only
+  // matters when hitting :8080 directly or in the Fly.io deploy).
   if (serveStatic) {
+    const staticRoot = fs.existsSync(path.join(DIST, "index.html")) ? DIST : ROOT;
     app.register(fastifyStatic, {
-      root: ROOT,
+      root: staticRoot,
       prefix: "/",
       index: "index.html",
       cacheControl: false,
       setHeaders: (res, p) => {
-        if (/\.(ogg|wav|png|jpg|jpeg|svg|woff2|ttf|cur)$/.test(p))
+        // content-hashed Vite assets (dist/assets/*-[hash].*) are immutable
+        if (staticRoot === DIST && /[\\/]assets[\\/][^\\/]+-[A-Za-z0-9_]{6,}\.[A-Za-z0-9]+$/.test(p))
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        else if (/\.(ogg|wav|png|jpg|jpeg|svg|woff2|ttf|cur)$/.test(p))
           res.setHeader("Cache-Control", "public, max-age=86400");
       },
     });

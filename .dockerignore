@@ -9,3 +9,6 @@ data
 .coderabbit
 .env
 test-*.png
+
+dist
+docs

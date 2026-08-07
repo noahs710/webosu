@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/copy-static.mjs",
     "preview": "vite preview",
     "server": "node server/index.js",
     "test": "node server/test/smoke.js",
@@ -22,7 +22,9 @@
     "headless:hotnew": "node scripts/headless-hotnew.js",
     "headless:skins": "node scripts/headless-skins.js",
     "headless:settings": "node scripts/headless-settings.js",
-    "headless:settings-page": "node scripts/headless-settings-page.js"
+    "headless:settings-page": "node scripts/headless-settings-page.js",
+    "headless:build": "node scripts/headless-build.js",
+    "headless:build:play": "node scripts/headless-build-play.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
