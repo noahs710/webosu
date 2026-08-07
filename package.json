@@ -33,7 +33,8 @@
     "headless:integration": "node scripts/headless-integration.js",
     "headless:settings-sync": "node scripts/headless-settings-sync.js",
     "headless:build-all": "node scripts/headless-build-all.js",
-    "headless:settings-pull": "node scripts/headless-settings-pull.js"
+    "headless:settings-pull": "node scripts/headless-settings-pull.js",
+    "headless:account-dist": "node scripts/headless-account-dist.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
