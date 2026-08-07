@@ -49,6 +49,8 @@ window.beatmaplistLoadedCallback = function () {
 								window.liked_sid_set = item;
 							else
 								window.liked_sid_set = new Set();
+							if (!window.liked_sid_set_callbacks)
+								window.liked_sid_set_callbacks = [];
 							for (let i = 0; i < window.liked_sid_set_callbacks.length; ++i)
 								window.liked_sid_set_callbacks[i]();
 							window.liked_sid_set_callbacks = [];
