@@ -4,7 +4,7 @@ import { LitElement, html, css } from "lit";
 import { api } from "./api.js";
 
 class Leaderboard extends LitElement {
-  static properties = { bid: {}, _rows: { state: true }, _err: { state: true }, _loading: { state: true } };
+  static properties = { bid: {}, mods: {}, _rows: { state: true }, _err: { state: true }, _loading: { state: true } };
   static styles = css`
     :host { display: block; color: var(--lazer-text); }
     table { width: 100%; border-collapse: collapse; background: var(--lazer-panel); border-radius: var(--lazer-radius); overflow: hidden; }
@@ -23,7 +23,7 @@ class Leaderboard extends LitElement {
   async _load() {
     if (this.bid == null) { this._err = "no beatmap id"; return; }
     this._loading = true; this._err = "";
-    try { this._rows = await api.leaderboard(this.bid); }
+    try { this._rows = await api.leaderboard(this.bid, this.mods != null ? this.mods : 0); }
     catch (e) { this._err = String(e.message || e); }
     this._loading = false;
   }

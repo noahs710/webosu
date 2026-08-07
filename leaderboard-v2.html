@@ -16,7 +16,10 @@
 <script type="module">
   import "./src/shell/account-widget.js";
   import "./src/shell/leaderboard.js";
-  const bid = new URLSearchParams(location.search).get("bid") || "4174364";
-  document.getElementById("board").setAttribute("bid", bid);
+  const params = new URLSearchParams(location.search);
+  const bid = params.get("bid") || "4174364";
+  const board = document.getElementById("board");
+  board.setAttribute("bid", bid);
+  if (params.get("mods") != null) board.setAttribute("mods", params.get("mods"));
 </script>
 </body></html>
