@@ -26,7 +26,8 @@
     "headless:build": "node scripts/headless-build.js",
     "headless:build:play": "node scripts/headless-build-play.js",
     "test:realtime": "node server/test/ws-sse.js",
-    "headless:bench": "node scripts/headless-bench.js"
+    "headless:bench": "node scripts/headless-bench.js",
+    "headless:home": "node scripts/headless-home.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",

@@ -13,7 +13,6 @@
 <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/font.css">
                 <script src="js/downloader.js"></script>
-    <script src="js/addbeatmaplist.js"></script>
     <script src="js/settings.js"></script>
     <!-- ESM game bootstrap (Phase 2): classic libs set globals (PIXI/sounds/makeSound/_/localforage/zip/mp3Parser); the ESM entry wires the game + launchers. -->
     <script src="js/lib/mp3parse.min.js"></script>
@@ -96,41 +95,31 @@
                 <h2>Popular beatmaps</h2>
                 <a href="hot-v2.html" class="more">See more Popular Beatmaps</a>
                 <hr/>
-                <div class="beatmap-list" id="beatmap-list-hot">
-                <!-- Beatmaps will be here -->
-                </div>
+                <beatmap-list id="beatmap-list-hot" class="beatmap-list" src="https://catboy.best/api/v2/search?q=&limit=6&offset=20&status=3&mode=0" limit="6"></beatmap-list>
             </div>
             <div class="index-area">
                 <h2>Recently Played</h2>
                 <a href="history-v2.html" class="more">See your play history</a>
                 <hr/>
-                <div class="beatmap-list" id="beatmap-list-history">
-                <!-- Beatmaps will be here -->
-                </div>
+                <beatmap-list id="beatmap-list-history" class="beatmap-list" limit="6" empty-message="You haven'"'"'t played any Beatmaps yet! Click on a Beatmap and select the difficulty to start playing!"></beatmap-list>
             </div>
             <div class="index-area">
                 <h2>Favorited Beatmaps</h2>
                 <a href="liked-v2.html" class="more">See all favorited Beatmaps</a>
                 <hr/>
-                <div class="beatmap-list" id="beatmap-list-liked">
-                <!-- Beatmaps will be here -->
-                </div>
+                <beatmap-list id="beatmap-list-liked" class="beatmap-list" limit="6" empty-message="You haven'"'"'t favorited any Beatmaps yet! Click on the heart in the lower right corner of the Beatmap to save it."></beatmap-list>
             </div>
             <div class="index-area">
                 <h2>Latest Beatmaps</h2>
                 <a href="new-v2.html" class="more">See all latest Beatmaps</a>
                 <hr/>
-                <div class="beatmap-list" id="beatmap-list-new">
-                <!-- Beatmaps will be here -->
-                </div>
+                <beatmap-list id="beatmap-list-new" class="beatmap-list" src="https://catboy.best/api/v2/search?q=&limit=6&status=4&mode=0" limit="6"></beatmap-list>
             </div>
             <div class="index-area">
                 <a onclick="genRandomList()" class="more" style="cursor:pointer;">Get new random Beatmaps</a>
                 <h2>Random Beatmaps<h2>
                 <hr/>
-                <div class="beatmap-list" id="beatmap-list-random">
-                <!-- to be filled in script -->
-                </div>
+                <beatmap-list id="beatmap-list-random" class="beatmap-list" limit="6"></beatmap-list>
             </div>
             <!--Loader progress-->
             <div class="statuslines" id="statuslines">
@@ -157,90 +146,54 @@
             </div>
         </div>
         <script>
-        //Make enter work
+        // username widget (classic): type your name + press enter to save
         const input = document.getElementById("userreg");
-        const username = window.localStorage.getItem("username")
-        if(username) input.value = username;
-        input.addEventListener("keypress", function(event) {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                saveUser();
-            }
+        const username = window.localStorage.getItem("username");
+        if (username) input.value = username;
+        input.addEventListener("keypress", function (event) {
+            if (event.key === "Enter") { event.preventDefault(); saveUser(); }
         });
-        //Store username in localstorage
-        function saveUser( name ) {
-            const player = document.getElementById('userreg').value;
+        function saveUser() {
+            const player = document.getElementById("userreg").value;
             window.localStorage.setItem("username", player);
-            document.cookie = 'username=' + player;
+            document.cookie = "username=" + player;
         }
-        //Recently played
-        if (window.localforage) {
-            let listhistory = document.getElementById("beatmap-list-history");
-            localforage.getItem("playhistory1000", function (err, item) {
-                if (err) {
-                    listhistory.innerText = "Failed to load your recently played";
-                    return;
-                }
-                if (item && item.length) {
-                    item = item.reverse();
-                    sid = [];
-                    for (let i = 0; i < item.length; i++) {
-                        if(item[i].sid) sid.push(item[i].sid);
-                    }
-                    sid = [...new Set(sid)]; // uniq
-                    sid.length = Math.min(sid.length, 6)
-                    addBeatmapSids(sid, listhistory)
-                } else {
-                    listhistory.innerText =
-                        "You haven't played any Beatmaps yet! Click on a Beatmap and select the difficulty to start playing!";
-                    }
-                })
-            }
-        // Get new beatmaps
-        addBeatmapList("https://catboy.best/api/v2/search?q=&limit=6&status=4&mode=0",
-            document.getElementById("beatmap-list-new"),
-            function (t) {
-                return (t.modes & 1) != 0;
-            }, 6);
-        // Get random beatmaps
-        function genRandomList() {
-            // Wipe Random List
-            let list = document.getElementById("beatmap-list-random");
-            list.innerHTML = ''
-            // Re-fill Random List
-            let randquery = Math.random().toString(36).replace(/[^a-p]+/g, '').substr(1, 5);
-            addBeatmapList("https://catboy.best/api/v2/search?q=" + randquery + "&limit=6&offset=20&status=3&status=4&status=1&status=-2&mode=0", list,
-                function (t) {
-                    while (list.firstChild) list.removeChild(list.firstChild);
-                    return (t.modes & 1) != 0;
-                }, 6);
-        }
-        genRandomList();
-        // Get hot beatmaps
-        addBeatmapList("https://catboy.best/api/v2/search?q=&limit=6&offset=20&status=3&mode=0", document.getElementById(
-            "beatmap-list-hot"));
-        // Favorite beatmaps
+        </script>
+        <script type="module">
+        // Phase 3: home lists on lit <beatmap-list>. URL lists use src; liked +
+        // recently-played are sid-driven from localforage. Difficulty click
+        // dispatches beatmap-launch -> fetch .osz -> window.launchGame.
+        import "/src/shell/beatmap-list.js";
+        document.addEventListener("beatmap-launch", async (e) => {
+            const { setId, beatmapId, version } = e.detail;
+            try {
+                const r = await fetch("https://catboy.best/d/" + setId + "n");
+                const blob = new Blob([await r.arrayBuffer()]);
+                window.launchGame(blob, beatmapId, version);
+            } catch (err) { console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
+        });
+        const likedList = document.getElementById("beatmap-list-liked");
+        const historyList = document.getElementById("beatmap-list-history");
         if (window.localforage) {
             window.localforage.getItem("likedsidset", function (err, val) {
-                if (err) {
-                    document.getElementById("beatmap-list-liked").innerText =
-                        "Failed to load favorites list.";
-                    return;
-                }
-                if (val && val.size) {
-                    let listlike = document.getElementById("beatmap-list-liked");
-                    list = Array.from(val);
-                    list.length = Math.min(list.length, 6)
-                    addBeatmapSids(list, listlike);
-                } else {
-                    document.getElementById("beatmap-list-liked").innerText =
-                        "You haven't favorited any Beatmaps yet! Click on the heart in the lower right corner of the Beatmap to save it.";
-                }
+                if (!err && val && val.size) { const list = Array.from(val); list.length = Math.min(list.length, 6); likedList.sids = list; }
+                else { likedList.sids = []; }
             });
-        } else {
-            alert("Oh no, localforage isn't supported on this browser")
-            }
-    </script>
+            window.localforage.getItem("playhistory1000", function (err, item) {
+                if (!err && item && item.length) {
+                    const sids = []; for (let i = 0; i < item.length; i++) { if (item[i].sid) sids.push(item[i].sid); }
+                    historyList.sids = [...new Set(sids)].slice(0, 6);
+                } else { historyList.sids = []; }
+            });
+        } else { likedList.sids = []; historyList.sids = []; }
+        const randomList = document.getElementById("beatmap-list-random");
+        function genRandomList() {
+            const randquery = Math.random().toString(36).replace(/[^a-p]+/g, "").substr(1, 5);
+            randomList.src = "https://catboy.best/api/v2/search?q=" + randquery + "&limit=6&offset=20&status=3&status=4&status=1&status=-2&mode=0";
+        }
+        window.genRandomList = genRandomList;
+        genRandomList();
+        </script>
 <script src="js/api.js"></script>
 <script src="js/accounts.js"></script>
 <script src="js/activity.js"></script>

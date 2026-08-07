@@ -7,32 +7,52 @@ import { LitElement, html } from "lit";
 class BeatmapList extends LitElement {
   static properties = {
     src: {},
+    sids: {},
     limit: {},
+    emptyMessage: {},
     _sets: { state: true },
     _error: { state: true },
+    _loading: { state: true },
   };
   constructor() {
     super();
     this.limit = 12;
+    this.sids = null;
+    this.emptyMessage = "";
     this._sets = [];
+    this._loading = false;
   }
   createRenderRoot() {
     return this; // light DOM -> global lazer CSS applies + queryable
   }
   connectedCallback() { super.connectedCallback(); this._load(); }
-  updated(changed) { if (changed.has("src")) this._load(); }
+  updated(changed) { if (changed.has("src") || changed.has("sids")) this._load(); }
   async _load() {
-    if (!this.src) return;
+    if (!this.src && !this.sids) return;
     this._error = "";
+    this._loading = true;
     try {
-      const r = await fetch(this.src);
-      if (!r.ok) throw new Error("search " + r.status);
-      let sets = await r.json();
-      sets = sets.filter((s) => s.beatmaps && s.beatmaps.some((b) => b.mode === "osu"));
+      let sets;
+      if (this.sids && this.sids.length) {
+        const url = "https://catboy.best/api/v2/beatmapsets?ids=" + this.sids.join("&ids=");
+        const r = await fetch(url);
+        if (!r.ok) throw new Error("sets " + r.status);
+        sets = await r.json();
+      } else if (this.sids) {
+        // sids explicitly empty -> show empty state, no fetch
+        this._sets = []; this._loading = false; return;
+      } else {
+        const r = await fetch(this.src);
+        if (!r.ok) throw new Error("search " + r.status);
+        sets = await r.json();
+      }
+      sets = (sets || []).filter((s) => s.beatmaps && s.beatmaps.some((b) => b.mode === "osu"));
       this._sets = sets.slice(0, this.limit);
     } catch (e) {
       this._error = String(e);
       console.warn("beatmap-list load failed:", e);
+    } finally {
+      this._loading = false;
     }
   }
   _stars(rating) { return (Math.round(rating * 100) / 100).toFixed(2); }
@@ -43,6 +63,8 @@ class BeatmapList extends LitElement {
   }
   render() {
     if (this._error) return html`<div class="beatmap-list-error">Failed to load: ${this._error}</div>`;
+    if (!this._loading && !this._sets.length && this.emptyMessage)
+      return html`<div class="beatmap-list-empty">${this.emptyMessage}</div>`;
     return html`${this._sets.map((s) => html`
       <article class="beatmap-card beatmapbox">
         <img class="beatmapcover" src="https://assets.ppy.sh/beatmaps/${s.id}/covers/card@2x.jpg" alt="" loading="lazy" onerror="this.style.display='none'"/>
