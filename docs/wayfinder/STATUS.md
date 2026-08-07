@@ -99,7 +99,10 @@ work (commit a6662e2 + the 13 increments below).
    the backend requires numbers — score submission would have 400'd for every
    player (2fbb808); (b) copy-static didn't copy hitsounds/ → the production
    build had no hitsounds + replay-watch's soundReady guard never resolved
-   (73a9dfb).
+(73a9dfb); (c) the v2 leaderboard page was always empty — the component fetched
+   /api/leaderboards/:bid with no mods, the backend parsed modsNum=null, and its
+   query matched no rows (scores have mods_num=0); fixed by defaulting mods to 0
+   (ac3d390).
 
 ## Verification commands
 - `npm test` — backend inject suite (39/39)
@@ -114,6 +117,7 @@ work (commit a6662e2 + the 13 increments below).
 - `npm run headless:integration` — core loop (play→submit→leaderboard→replay-watch) end-to-end
 - `npm run headless:settings-sync` — ESM gamesettings server-sync round-trip
 - `npm run headless:build-all` — all 11 v2 shell pages on the built dist (lit upgrades, 0 fatal)
+- `npm run headless:shell-backend` — leaderboard/profile/skins render real backend data on dist
 - `npm run headless:offline` — PWA offline shell
 - `npm run smoke` — dev stack (14/14)
 - `npm run dev` — Vite dev (:5173, proxies /api+/ws to :8080)
