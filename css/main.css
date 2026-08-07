@@ -1882,3 +1882,264 @@ body:not(.sound-ready) .difficulty-item {
    color: #f6c060;
    margin-top: 4px;
 }
+/* ============================================================
+   osu!lazer-style theme (additive override; layout preserved)
+   ============================================================ */
+:root {
+  --lazer-bg: #13131b;
+  --lazer-panel: #1c1c28;
+  --lazer-panel2: #23232f;
+  --lazer-text: #ececf4;
+  --lazer-dim: #9a9ab4;
+  --lazer-pink: #ff66aa;
+  --lazer-purple: #885090;
+  --lazer-radius: 12px;
+}
+
+body { background: var(--lazer-bg); color: var(--lazer-text); }
+
+/* ---- top nav ---- */
+nav {
+  background: linear-gradient(180deg, #1c1c28, #14141e);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.4);
+  height: 50px;
+  align-items: center;
+}
+nav .brand { color: var(--lazer-pink); font-weight: 800; }
+nav .pseudo.button {
+  background: transparent;
+  color: var(--lazer-text);
+  border-radius: 20px;
+  margin-top: 0;
+  height: 36px;
+  line-height: 36px;
+  padding: 0 14px;
+  border-bottom: none !important;
+  transition: background 0.15s, color 0.15s;
+}
+nav .pseudo.button:hover,
+nav .pseudo.button.active {
+  background: rgba(255, 102, 170, 0.16);
+  color: #fff;
+  border-bottom: none !important;
+  box-shadow: none;
+}
+#userreg {
+  background: var(--lazer-panel2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  color: var(--lazer-text);
+  padding: 0 12px;
+  height: 34px;
+}
+#userreg:focus { border-color: var(--lazer-pink); outline: none; }
+.searchbar input,
+form input[type="text"] {
+  background: var(--lazer-panel2) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px !important;
+  color: var(--lazer-text);
+}
+form input[type="text"]:focus { border-color: var(--lazer-pink); outline: none; }
+
+/* ---- webosu account widget ---- */
+#webosu-account button,
+#skin-share-btn {
+  background: var(--lazer-pink);
+  color: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 4px 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(255, 102, 170, 0.35);
+  transition: filter 0.15s, transform 0.12s;
+}
+#webosu-account button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+#webosu-account .wa-name { color: var(--lazer-pink); font-weight: 700; }
+.wa-card {
+  background: var(--lazer-panel);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+.wa-card h3 { color: var(--lazer-pink); }
+.wa-input { background: var(--lazer-panel2); border-color: rgba(255, 255, 255, 0.12); color: var(--lazer-text); }
+.wa-err { color: #ff6b6b; }
+
+/* ---- beatmap cards ---- */
+.beatmapbox {
+  background: var(--lazer-panel);
+  border-radius: var(--lazer-radius);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
+}
+.beatmapbox:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.6);
+  border-color: rgba(255, 102, 170, 0.35);
+}
+.beatmapcover-overlay {
+  background-image: linear-gradient(180deg, rgba(19, 19, 27, 0.1), rgba(19, 19, 27, 0.94));
+}
+.beatmaptitle, .beatmapartist { color: #f4f4fa; }
+.beatmapcreator { color: var(--lazer-dim); }
+.beatmapapproved { color: var(--lazer-pink); font-weight: 700; letter-spacing: 0.04em; }
+.beatmaplike { filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.55)); }
+
+/* ---- difficulty selection ---- */
+.difficulty-box {
+  background: rgba(18, 18, 26, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.65);
+  padding: 8px;
+}
+.difficulty-item {
+  background: var(--lazer-panel2);
+  border-radius: 10px;
+  color: var(--lazer-text);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: none;
+  transition: background 0.15s, transform 0.12s, border-color 0.15s;
+}
+.difficulty-item:hover {
+  background: rgba(255, 102, 170, 0.16);
+  transform: translateX(3px);
+  border-color: rgba(255, 102, 170, 0.35);
+}
+.diff-leaderboard { color: var(--lazer-pink); }
+.bigringbase { background: #2b2b3a; }
+.bigring { background: #2b2b3a; border-width: 5px; }
+.bigring.easy { border-color: #62d36b; box-shadow: 0 0 10px rgba(98, 211, 107, 0.5); }
+.bigring.normal { border-color: #4aa3e8; box-shadow: 0 0 10px rgba(74, 163, 232, 0.5); }
+.bigring.hard { border-color: #f5a623; box-shadow: 0 0 10px rgba(245, 166, 35, 0.5); }
+.bigring.insane { border-color: #ff5e8a; box-shadow: 0 0 12px rgba(255, 94, 138, 0.55); }
+.bigring.expert { border-color: #a259d6; box-shadow: 0 0 12px rgba(162, 89, 214, 0.55); }
+.bigring.expert-plus { border-color: #4a4a5a; box-shadow: 0 0 10px rgba(0, 0, 0, 0.6); }
+
+/* ---- panels (settings) + headers ---- */
+.panel {
+  background: var(--lazer-panel);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+.panel table h3 { color: var(--lazer-pink); }
+.option-name { color: var(--lazer-text); }
+
+/* ---- range sliders: lazer pink ---- */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: #2a2a38;
+  border-radius: 6px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lazer-pink);
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(255, 102, 170, 0.5);
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--lazer-pink);
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+.range-indicator { background: var(--lazer-pink); border-radius: 4px; color: #fff; }
+
+/* ---- checkboxes: lazer pink toggle ---- */
+input[type="checkbox"] + span {
+  background: #2a2a38 !important;
+  border-radius: 12px;
+}
+input[type="checkbox"]:checked + span {
+  background: var(--lazer-pink) !important;
+}
+
+/* ---- generic buttons ---- */
+input[type="button"] {
+  background: var(--lazer-panel2);
+  color: var(--lazer-text);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  transition: background 0.15s, border-color 0.15s;
+}
+input[type="button"]:hover { border-color: var(--lazer-pink); }
+input[type="button"].warnbtn { background: #2a1418; border-color: #6a2330; }
+input[type="button"].warnbtn:hover { background: #a11; color: #fff; }
+
+/* ---- results / grading screen ---- */
+.grading .top {
+  background: linear-gradient(180deg, rgba(20, 20, 28, 0.85), rgba(10, 10, 16, 0.6));
+}
+.grading .grade.SS,
+.grading .grade.S { color: #ffd75e; }
+.grading .grade.A { color: #62d36b; }
+.grading .grade.B { color: #4aa3e8; }
+.grading .grade.C { color: #a259d6; }
+.grading .grade.D { color: #ff5e8a; }
+.grading .grade.F { color: #ff6b6b; }
+.block.score { background: linear-gradient(135deg, #885090, #5a3473); }
+.block.acc { background: linear-gradient(135deg, #62d36b, #3a9a4a); }
+.block.great { background: linear-gradient(135deg, #62d36b, #3a9a4a); }
+.block.good { background: linear-gradient(135deg, #4aa3e8, #2a6aa8); }
+.block.meh { background: linear-gradient(135deg, #f5a623, #b9741a); }
+.block.miss { background: linear-gradient(135deg, #ff5e8a, #b0344a); }
+.grading .btn.retry { background: linear-gradient(135deg, #62d36b, #3a9a4a); }
+.grading .btn.quit { background: linear-gradient(135deg, #ff5e8a, #b0344a); }
+.grading .btn.lb,
+.grading .btn.prof { background: linear-gradient(135deg, #885090, #5a3473); }
+.grading .btn { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45); }
+
+/* ---- activity feed (index) ---- */
+.activity-feed {
+  background: var(--lazer-panel);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.activity-title { color: var(--lazer-pink) !important; }
+.activity-row { border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important; }
+.activity-row .a-user { color: var(--lazer-pink) !important; }
+
+/* ---- progress loaders ---- */
+.progress { background: var(--lazer-panel2) !important; border-radius: 8px; }
+.progress.finished { box-shadow: 0 0 12px rgba(255, 102, 170, 0.35); }
+
+/* ---- skins gallery cards ---- */
+#skin-grid > div {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  transition: transform 0.15s, border-color 0.15s;
+}
+#skin-grid > div:hover { transform: translateY(-2px); border-color: var(--lazer-pink) !important; }
+#skin-grid a.pseudo.button {
+  background: var(--lazer-pink);
+  color: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+/* ---- leaderboard / profile tables ---- */
+#lb-body table th { color: var(--lazer-dim); text-align: left; padding: 4px 8px; }
+#lb-body table td { color: var(--lazer-text); border-bottom: 1px solid rgba(255, 255, 255, 0.05); padding: 4px 8px; }
+#lb-body a { color: var(--lazer-pink); }
+
+/* ---- announcement + footer ---- */
+.announcement { background: rgba(255, 102, 170, 0.12); border: 1px solid rgba(255, 102, 170, 0.2); }
+.footer { color: var(--lazer-dim); }
+
+/* smooth page feel */
+.beatmapbox, .difficulty-item, nav .pseudo.button, input[type="button"] { -webkit-tap-highlight-color: transparent; }
