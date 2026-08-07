@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>webosu render benchmark</title>
+<title>webosu render benchmark (Pixi 8)</title>
 <style>
   html,body{margin:0;background:#111;color:#eee;font:13px/1.4 monospace;overflow:hidden}
   #hud{position:fixed;top:0;left:0;right:0;padding:8px 10px;background:rgba(0,0,0,.7);
@@ -17,6 +17,7 @@
   #ctrl input[type=number]{width:70px;background:#222;color:#eee;border:1px solid #444;padding:2px}
   #ctrl button{background:#333;color:#eee;border:1px solid #555;padding:4px 8px;cursor:pointer}
   #ctrl button.on{background:#2a6;color:#fff}
+  .note{color:#9a9ab4}
   a{color:#7df}
 </style>
 </head>
@@ -33,153 +34,145 @@
 </div>
 <div id="ctrl">
   <label>sprite count <input id="n" type="number" value="400" step="50" min="0"></label>
-  <label><input id="zorder" type="checkbox" checked> z-order churn (cursor-trail)</label>
+  <label><input id="zorder" type="checkbox" checked> z-order churn (per-sprite re-parent)</label>
   <label><input id="pool" type="checkbox" checked> object pool (no alloc)</label>
-  <button id="interact" class="on">interaction: ON</button>
   <button id="reset">restart</button>
-  <span>render: Pixi <b id="ver">--</b> &middot; <a href="MODERNIZATION-PLAN.md">plan</a> &middot; ticket 01</span>
+  <span class="note">render: Pixi <b id="ver">--</b> &middot; v8 has no InteractionManager (win #1 inherent) &middot; <a href="MODERNIZATION-PLAN.md">plan</a></span>
 </div>
-<script src="js/lib/pixi.min.js"></script>
-<script>
-// webosu render benchmark — mirrors the game's hot path on a 9*-density profile.
-// Spawn approach-circle-like sprites, animate + re-z-order each frame, and measure
-// frame timing. Toggle interaction/pooling/z-order to isolate each win (ticket 01).
-(function () {
-  document.getElementById("ver").textContent = PIXI.VERSION;
+<script type="module">
+// webosu render benchmark (Pixi 8) — mirrors the game's hot path on a 9*-density
+// profile. Spawn approach-circle-like sprites, animate + re-z-order each frame,
+// and measure frame timing. Toggle z-order/pooling to isolate each render win.
+// (v8 removed InteractionManager, so the old "interaction" toggle is gone — win
+// #1 is inherent to the v8 stack; this bench measures wins #2 cursor-trail
+// z-order and #4 pooling on the actual render choice.)
+import * as PIXI from "pixi.js";
 
-  var stageEl = document.getElementById("stage");
-  var app = new PIXI.Application({
-    width: window.innerWidth, height: window.innerHeight,
-    backgroundColor: 0x111111, antialias: true, autoDensity: true,
-    resolution: Math.min(window.devicePixelRatio || 1, 2),
-  });
-  stageEl.appendChild(app.view);
+const ver = document.getElementById("ver");
 
-  // game field: same fit logic as playback.calcSize (512x384, 80%)
-  var gfx = {};
-  function calcSize() {
-    var w = window.innerWidth, h = window.innerHeight;
-    if (w / 512 > h / 384) w = (h / 384) * 512; else h = (w / 512) * 384;
-    w *= 0.8; h *= 0.8;
-    gfx.w = w; gfx.h = h; gfx.x = (window.innerWidth - w) / 2; gfx.y = (window.innerHeight - h) / 2;
+const stageEl = document.getElementById("stage");
+const app = new PIXI.Application();
+await app.init({
+  width: window.innerWidth, height: window.innerHeight,
+  background: 0x111111, antialias: true, autoDensity: true,
+  resolution: Math.min(window.devicePixelRatio || 1, 2),
+});
+ver.textContent = PIXI.VERSION;
+stageEl.appendChild(app.canvas);
+
+// game field: same fit logic as playback.calcSize (512x384, 80%)
+const gfx = {};
+function calcSize() {
+  let w = window.innerWidth, h = window.innerHeight;
+  if (w / 512 > h / 384) w = (h / 384) * 512; else h = (w / 512) * 384;
+  w *= 0.8; h *= 0.8;
+  gfx.w = w; gfx.h = h; gfx.x = (window.innerWidth - w) / 2; gfx.y = (window.innerHeight - h) / 2;
+}
+calcSize();
+window.addEventListener("resize", function () {
+  app.renderer.resize(window.innerWidth, window.innerHeight); calcSize();
+  field.x = gfx.x; field.y = gfx.y; field.scale.set(gfx.w / 512);
+});
+
+const field = new PIXI.Container(); field.x = gfx.x; field.y = gfx.y;
+field.scale.set(gfx.w / 512);
+app.stage.addChild(field);
+
+// build an approach-circle texture once (ring + faint fill), like createHitCircle
+function makeTex() {
+  const g = new PIXI.Graphics();
+  g.circle(50, 50, 46);              // approach ring
+  g.stroke({ width: 6, color: 0xffffff });
+  g.circle(50, 50, 46);              // circle body fill
+  g.fill({ color: 0x2a7, alpha: 0.25 });
+  g.circle(50, 50, 14);              // inner ring
+  g.stroke({ width: 4, color: 0xffffff });
+  return app.renderer.generateTexture(g);
+}
+const tex = makeTex();
+
+const sprites = [];
+const pool = [];
+let N = 400;
+let zorder = true, usePool = true;
+
+function spawn() {
+  const s = (usePool && pool.length) ? pool.pop() : new PIXI.Sprite(tex);
+  s.anchor.set(0.5);
+  s.x = Math.random() * 512; s.y = Math.random() * 384;
+  s.life = 0; s.dur = 600 + Math.random() * 400;   // ms approach lifetime
+  s.scale.set(3);                                   // start wide, shrink to 1
+  s.baseScale = 0.3 + Math.random() * 0.2;
+  s.tint = [0xffcc22,0x66ccff,0xff66aa,0x88ff66][Math.floor(Math.random()*4)] | 0;
+  field.addChild(s);
+  return s;
+}
+function recycle(s) { field.removeChild(s); if (usePool) pool.push(s); else s.destroy(); }
+
+function setCount(n) {
+  N = n;
+  while (sprites.length < n) sprites.push(spawn());
+  while (sprites.length > n) { const s = sprites.pop(); recycle(s); }
+  document.getElementById("cnt").textContent = sprites.length;
+}
+
+// ---- measurement ----
+let times = []; let last = performance.now(); let frame = 0; let dropped = 0; let lastUI = 0;
+function pct(arr, p) {
+  if (!arr.length) return 0;
+  const s = arr.slice().sort((a, b) => a - b);
+  return s[Math.floor((s.length - 1) * p)];
+}
+app.ticker.add(() => {
+  const now = performance.now();
+  const dt = now - last; last = now;
+  times.push(dt); if (times.length > 240) times.shift();
+  if (dt > 33) dropped++; // a "long" frame (>33ms = <30fps moment)
+
+  // animate + z-order churn, mimicking playback.render + cursor trail
+  for (let i = 0; i < sprites.length; i++) {
+    const s = sprites[i];
+    s.life += dt;
+    const t = s.life / s.dur;
+    if (t >= 1) { s.life = 0; s.x = Math.random() * 512; s.y = Math.random() * 384; }
+    const tt = s.life / s.dur;
+    s.scale.set(3 - 2 * tt + s.baseScale);
   }
-  calcSize();
-  window.addEventListener("resize", function () {
-    app.renderer.resize(window.innerWidth, window.innerHeight); calcSize();
-  });
-
-  var field = new PIXI.Container(); field.x = gfx.x; field.y = gfx.y;
-  field.scale.set(gfx.w / 512);
-  app.stage.addChild(field);
-
-  // build an approach-circle texture once (ring + faint fill), like createHitCircle
-  function makeTex() {
-    var g = new PIXI.Graphics();
-    g.lineStyle(6, 0xffffff, 1).drawCircle(50, 50, 46);          // approach ring
-    g.beginFill(0x2a7, 0.25).drawCircle(50, 50, 46).endFill();   // circle body
-    g.lineStyle(4, 0xffffff, 1).drawCircle(50, 50, 14);         // inner
-    return app.renderer.generateTexture(g);
-  }
-  var tex = makeTex();
-
-  var sprites = [];
-  var pool = [];
-  var N = 400;
-  var zorder = true, usePool = true;
-
-  function spawn() {
-    var s = (usePool && pool.length) ? pool.pop() : new PIXI.Sprite(tex);
-    s.anchor.set(0.5);
-    s.x = Math.random() * 512; s.y = Math.random() * 384;
-    s.life = 0; s.dur = 600 + Math.random() * 400;   // ms approach lifetime
-    s.scale.set(3);                                   // start wide, shrink to 1
-    s.baseScale = 0.3 + Math.random() * 0.2;           // tint variety
-    s.tint = [0xffcc22,0x66ccff,0xff66aa,0x88ff66][Math.floor(Math.random()*4)] | 0;
-    field.addChild(s);
-    return s;
-  }
-  function recycle(s) { field.removeChild(s); if (usePool) pool.push(s); else s.destroy(); }
-
-  function setCount(n) {
-    N = n;
-    while (sprites.length < n) sprites.push(spawn());
-    while (sprites.length > n) { var s = sprites.pop(); recycle(s); }
-    document.getElementById("cnt").textContent = sprites.length;
-  }
-
-  // ---- interaction toggle (the headline win) ----
-  // PIXI 6's InteractionManager auto-adds update() to the ticker every frame.
-  // Removing that callback is the "disable interaction" win the plan proposes.
-  var interactOn = true;
-  function interactionManager() { return app.renderer.plugins.interaction; }
-  function setInteraction(on) {
-    var im = interactionManager(); if (!im) return;
-    interactOn = on;
-    var btn = document.getElementById("interact");
-    btn.textContent = "interaction: " + (on ? "ON" : "OFF");
-    btn.className = on ? "on" : "";
-    if (on) { im._useSystemTicker = true; im.addTickerListener(); }
-    else { im._useSystemTicker = false; im.removeTickerListener(); }
-  }
-  document.getElementById("interact").onclick = function () { setInteraction(!interactOn); };
-
-  // ---- measurement ----
-  var times = []; var last = performance.now(); var frame = 0; var dropped = 0; var lastUI = 0;
-  function pct(arr, p) {
-    if (!arr.length) return 0;
-    var s = arr.slice().sort(function (a, b) { return a - b; });
-    return s[Math.floor((s.length - 1) * p)];
-  }
-  app.ticker.add(function () {
-    var now = performance.now();
-    var dt = now - last; last = now;
-    times.push(dt); if (times.length > 240) times.shift();
-    if (dt > 33) dropped++; // a "long" frame (>33ms = <30fps moment)
-
-    // animate + z-order churn, mimicking playback.render + cursor trail
-    for (var i = 0; i < sprites.length; i++) {
-      var s = sprites[i];
-      s.life += dt;
-      var t = s.life / s.dur;
-      if (t >= 1) { s.life = 0; s.x = Math.random() * 512; s.y = Math.random() * 384; t = 0; }
-      s.scale.set(3 - 2 * t + s.baseScale);
+  if (zorder) {
+    // mimic 8 cursor-trail per-sprite re-parents per frame (the pattern render
+    // win #2 replaced with a single cursorLayer re-parent in the real game)
+    for (let k = 0; k < 8; k++) {
+      const c = sprites[(frame + k * 37) % sprites.length];
+      if (c) { field.removeChild(c); field.addChild(c); }
     }
-    if (zorder) {
-      // mimic 8 cursor-trail bringToFront re-parents per frame
-      for (var k = 0; k < 8; k++) {
-        var c = sprites[(frame + k * 37) % sprites.length];
-        if (c) { field.removeChild(c); field.addChild(c); }
-      }
-    }
-    frame++;
+  }
+  frame++;
 
-    if (now - lastUI > 250) {
-      lastUI = now;
-      document.getElementById("fps").textContent = (1000 / (times.reduce(function (a, b) { return a + b; }, 0) / times.length)).toFixed(0);
-      document.getElementById("p50").textContent = pct(times, 0.5).toFixed(1);
-      var p95 = pct(times, 0.95); document.getElementById("p95").textContent = p95.toFixed(1);
-      document.getElementById("p99").textContent = pct(times, 0.99).toFixed(1);
-      document.getElementById("drop").textContent = dropped;
-      document.getElementById("p95").className = p95 > 16.6 ? "bad" : "";
-      document.getElementById("mode").textContent =
-        (interactOn ? "interact " : "noInteract ") + (usePool ? "pool " : "alloc ") + (zorder ? "zorder" : "noZ");
-    }
-  });
+  if (now - lastUI > 250) {
+    lastUI = now;
+    document.getElementById("fps").textContent = (1000 / (times.reduce((a, b) => a + b, 0) / times.length)).toFixed(0);
+    document.getElementById("p50").textContent = pct(times, 0.5).toFixed(1);
+    const p95 = pct(times, 0.95); document.getElementById("p95").textContent = p95.toFixed(1);
+    document.getElementById("p99").textContent = pct(times, 0.99).toFixed(1);
+    document.getElementById("drop").textContent = dropped;
+    document.getElementById("p95").className = p95 > 16.6 ? "bad" : "";
+    document.getElementById("mode").textContent =
+      (usePool ? "pool " : "alloc ") + (zorder ? "zorder" : "noZ");
+  }
+});
 
-  // ---- controls ----
-  document.getElementById("n").onchange = function () { setCount(Math.max(0, +this.value || 0)); };
-  document.getElementById("zorder").onchange = function () { zorder = this.checked; };
-  document.getElementById("pool").onchange = function () {
-    usePool = this.checked;
-    if (!usePool) { while (pool.length) pool.pop().destroy(); }
-  };
-  document.getElementById("reset").onclick = function () {
-    times = []; dropped = 0; frame = 0; last = performance.now();
-    setCount(N);
-  };
-  setInteraction(true);
+// ---- controls ----
+document.getElementById("n").onchange = function () { setCount(Math.max(0, +this.value || 0)); };
+document.getElementById("zorder").onchange = function () { zorder = this.checked; };
+document.getElementById("pool").onchange = function () {
+  usePool = this.checked;
+  if (!usePool) { while (pool.length) pool.pop().destroy(); }
+};
+document.getElementById("reset").onclick = function () {
+  times = []; dropped = 0; frame = 0; last = performance.now();
   setCount(N);
-})();
+};
+setCount(N);
 </script>
 </body>
 </html>
