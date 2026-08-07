@@ -70,12 +70,26 @@ async function main() {
   if (!legacy.lazerPink) console.log("  WARN: legacy page missing --lazer-pink (tokens.css not wired)");
   e3.slice(0, 4).forEach((e) => console.log("    " + e.slice(0, 160)));
 
-  const fatal = (arr) => arr.filter((e) => !/catboy|assets\.ppy|ERR_|net::|Failed to fetch|api\/activity|blocked by client/i.test(e)).length;
+  // legacy AMD fallback pages (browse/leaderboard) also load on the built dist
+  async function legacyPage(file) {
+    const pg = await ctx.newPage();
+    const er = await load(pg, "http://localhost:5180/" + file);
+    try { await pg.waitForFunction(() => typeof window.require !== "undefined", null, { timeout: 8000 }); } catch (e) {}
+    const st = await pg.evaluate(() => ({ hasRequire: typeof window.require, lazerPink: getComputedStyle(document.documentElement).getPropertyValue("--lazer-pink").trim() }));
+    const f = fatal(er);
+    console.log("=== " + file + " legacy (built) ===");
+    console.log("  ", JSON.stringify(st), "pageerrors:", er.length, "fatal:", f);
+    await pg.close();
+    return f;
+  }
+  const fatal = (arr) => arr.filter((e) => !/catboy|assets\.ppy|ERR_|net::|Failed to fetch|api\/activity|blocked by client|404/i.test(e)).length;
   const f1 = fatal(e1), f2 = fatal(e2), f3 = fatal(e3);
-  console.log("\nFATAL: browse-v2", f1, " index-v2", f2, " legacy", f3);
+  const f4 = await legacyPage("browse.html");
+  const f5 = await legacyPage("leaderboard.html");
+  console.log("\nFATAL: browse-v2", f1, " index-v2", f2, " legacy-index", f3, " legacy-browse", f4, " legacy-leaderboard", f5);
   await b.close();
   for (const k of kids) try { k.kill("SIGTERM"); } catch (e) {}
-  const ok = cards > 0 && lazer.length > 0 && fontCheck.isComfortaa && gfontsRequested.length === 0 && f1 === 0 && f2 === 0 && f3 === 0;
+  const ok = cards > 0 && lazer.length > 0 && fontCheck.isComfortaa && gfontsRequested.length === 0 && f1 === 0 && f2 === 0 && f3 === 0 && f4 === 0 && f5 === 0;
   process.exit(ok ? 0 : 1);
 }
 main().catch(async (e) => { console.error("FATAL", e); for (const k of kids) try { k.kill(); } catch (_) {} process.exit(2); });
