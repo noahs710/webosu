@@ -252,43 +252,177 @@ function setOptionPanel() {
       });
    }
    function soundCheck(id) {
-      let s = document.getElementById(id);
-      let sampleFiles = [
-         "normal-hitnormal.ogg",
-         "normal-hitwhistle.ogg",
-         "normal-hitfinish.ogg",
-         "normal-hitclap.ogg",
-         "normal-slidertick.ogg",
-         "soft-hitnormal.ogg",
-         "soft-hitwhistle.ogg",
-         "soft-hitfinish.ogg",
-         "soft-hitclap.ogg",
-         "soft-slidertick.ogg",
-         "drum-hitnormal.ogg",
-         "drum-hitwhistle.ogg",
-         "drum-hitfinish.ogg",
-         "drum-hitclap.ogg",
-         "drum-slidertick.ogg",
-         "combobreak.ogg",
+      const input = document.getElementById(id);
+      const dropzone = document.getElementById("oskdrop");
+      const statusEl = document.getElementById("oskstatus");
+      const hitsoundNames = [
+         "normal-hitnormal",
+         "normal-hitwhistle",
+         "normal-hitfinish",
+         "normal-hitclap",
+         "normal-slidertick",
+         "soft-hitnormal",
+         "soft-hitwhistle",
+         "soft-hitfinish",
+         "soft-hitclap",
+         "soft-slidertick",
+         "drum-hitnormal",
+         "drum-hitwhistle",
+         "drum-hitfinish",
+         "drum-hitclap",
+         "drum-slidertick",
+         "combobreak",
       ];
-      gamesettings.restoreCallbacks.push(function () {
-         undefined;
-      });
-      s.onchange = async function () {
-         let soundFiles = s.files;
-         let newFiles = {};
-         for (file in soundFiles) {
-            if (sampleFiles.includes(soundFiles[file].name)) {
-               let a = await soundFiles[file].arrayBuffer();
-               newFiles[soundFiles[file].name] = arrayBufferToBase64(a);
-            }
+      // osu! skin hitsounds may be .wav or .ogg; match by name without extension
+      function canonicalName(filename) {
+         const base = filename
+            .split("/")
+            .pop()
+            .replace(/\.[^.]+$/, "")
+            .toLowerCase();
+         return hitsoundNames.indexOf(base) !== -1 ? base : null;
+      }
+      function setStatus(text, ok) {
+         if (statusEl) {
+            statusEl.textContent = text;
+            statusEl.classList.toggle("ok", !!ok);
          }
-         if (Object.keys(newFiles).length == sampleFiles.length) {
-            gamesettings["soundNames"] = newFiles;
+      }
+      function applyAndSave(map) {
+         const keys = Object.keys(map);
+         if (!keys.length) {
+            setStatus("No hitsounds found in that file.");
+            return;
          }
+         const existing =
+            gamesettings["soundNames"] &&
+            typeof gamesettings["soundNames"] === "object"
+               ? gamesettings["soundNames"]
+               : {};
+         gamesettings["soundNames"] = Object.assign({}, existing, map);
          gamesettings.loadToGame();
          saveToLocal();
+         setStatus(
+            "Loaded " +
+               keys.length +
+               " hitsound" +
+               (keys.length > 1 ? "s" : "") +
+               ": " +
+               keys.join(", "),
+            true
+         );
+      }
+      // extract hitsounds from a .osk (zip) using the bundled zip.js library
+      function importOsk(file) {
+         if (!window.zip) {
+            return Promise.reject(new Error("zip library not loaded"));
+         }
+         if (!zip.workerScriptsPath) zip.workerScriptsPath = "js/lib/";
+         return new Promise(function (resolve, reject) {
+            const zfs = new zip.fs.FS();
+            zfs.root.importBlob(
+               file,
+               function () {
+                  const matches = [];
+                  (function walk(entry) {
+                     if (typeof entry.getBlob === "function") {
+                        const cn = canonicalName(entry.name);
+                        if (cn) matches.push({ entry: entry, name: cn });
+                        return;
+                     }
+                     const kids = entry.children || [];
+                     for (let i = 0; i < kids.length; i++) walk(kids[i]);
+                  })(zfs.root);
+                  if (!matches.length) {
+                     resolve({});
+                     return;
+                  }
+                  const result = {};
+                  let pending = matches.length;
+                  matches.forEach(function (m) {
+                     m.entry.getBlob(
+                        "application/octet-stream",
+                        function (blob) {
+                           blob.arrayBuffer()
+                              .then(function (ab) {
+                                 result[m.name] = arrayBufferToBase64(ab);
+                              })
+                              .catch(function (err) {
+                                 console.error(
+                                    "hitsound extract failed",
+                                    m.name,
+                                    err
+                                 );
+                              })
+                              .finally(function () {
+                                 if (--pending === 0) resolve(result);
+                              });
+                        }
+                     );
+                  });
+               },
+               function (err) {
+                  reject(err);
+               }
+            );
+         });
+      }
+      async function handleFiles(files) {
+         const map = {};
+         for (const f of files) {
+            if (f.name.toLowerCase().endsWith(".osk")) {
+               try {
+                  Object.assign(map, await importOsk(f));
+               } catch (e) {
+                  console.error(e);
+                  setStatus("Failed to read .osk: " + (e.message || e));
+                  return;
+               }
+            } else {
+               const cn = canonicalName(f.name);
+               if (cn) {
+                  try {
+                     map[cn] = arrayBufferToBase64(await f.arrayBuffer());
+                  } catch (e) {
+                     console.error("hitsound import failed", f.name, e);
+                  }
+               }
+            }
+         }
+         applyAndSave(map);
+      }
+      input.onchange = async function () {
+         const files = Array.from(input.files);
+         input.value = "";
+         if (!files.length) return;
+         setStatus("Processing...");
+         await handleFiles(files);
       };
+      if (dropzone) {
+         dropzone.addEventListener("dragover", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.add("drag");
+         });
+         dropzone.addEventListener("dragleave", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove("drag");
+         });
+         dropzone.addEventListener("drop", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            dropzone.classList.remove("drag");
+            const files = e.dataTransfer ? Array.from(e.dataTransfer.files) : [];
+            if (!files.length) return;
+            setStatus("Processing...");
+            handleFiles(files);
+         });
+      }
+      gamesettings.restoreCallbacks.push(function () {
+         gamesettings["soundNames"] = undefined;
+         if (statusEl) statusEl.textContent = "";
+      });
    }
    // gameplay settings
    bindrange("dim-range", "dim", function (v) {

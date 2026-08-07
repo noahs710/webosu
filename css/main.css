@@ -1807,3 +1807,53 @@ body:not(.sound-ready) .difficulty-item {
    line-height: 0.8em;
    animation: none;
 }
+
+/* custom hitsound drag-and-drop (.osk) */
+.osk-dropzone {
+   display: block;
+   clear: both;
+   box-sizing: border-box;
+   width: 100%;
+   min-height: 56px;
+   margin-top: 0.4em;
+   padding: 14px 12px;
+   border: 2px dashed #555;
+   border-radius: 6px;
+   background: #1f1f1f;
+   color: #bbb;
+   text-align: center;
+   cursor: pointer;
+   transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.osk-dropzone:hover {
+   border-color: #9d7dcc;
+   color: #fff;
+}
+.osk-dropzone.drag {
+   border-color: #9d7dcc;
+   background: #2a2036;
+   color: #fff;
+}
+.osk-dropzone .osk-dropzone-text b {
+   color: #9d7dcc;
+}
+/* keep the wrapped file input clickable but invisible */
+.osk-dropzone input[type="file"] {
+   position: absolute;
+   opacity: 0;
+   width: 0.1px;
+   height: 0.1px;
+   overflow: hidden;
+}
+.osk-status {
+   clear: both;
+   width: 100%;
+   margin-top: 6px;
+   font-size: 0.85em;
+   color: #999;
+   min-height: 1em;
+   word-break: break-word;
+}
+.osk-status.ok {
+   color: #39af3c;
+}

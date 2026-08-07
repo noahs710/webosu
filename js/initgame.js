@@ -106,6 +106,56 @@ require(["osu", "underscore", "sound", "playback"], function (
       "hitsounds/drum-slidertick.ogg",
       "hitsounds/combobreak.ogg",
    ];
+   // override default hitsounds with any custom sounds the user imported (settings page)
+   function applyCustomHitsounds() {
+      const sn = window.gamesettings && window.gamesettings.soundNames;
+      if (!sn || typeof sn !== "object") return;
+      const slots = {
+         "normal-hitnormal": [1, "hitnormal"],
+         "normal-hitwhistle": [1, "hitwhistle"],
+         "normal-hitfinish": [1, "hitfinish"],
+         "normal-hitclap": [1, "hitclap"],
+         "normal-slidertick": [1, "slidertick"],
+         "soft-hitnormal": [2, "hitnormal"],
+         "soft-hitwhistle": [2, "hitwhistle"],
+         "soft-hitfinish": [2, "hitfinish"],
+         "soft-hitclap": [2, "hitclap"],
+         "soft-slidertick": [2, "slidertick"],
+         "drum-hitnormal": [3, "hitnormal"],
+         "drum-hitwhistle": [3, "hitwhistle"],
+         "drum-hitfinish": [3, "hitfinish"],
+         "drum-hitclap": [3, "hitclap"],
+         "drum-slidertick": [3, "slidertick"],
+         "combobreak": "combo",
+      };
+      for (const key in sn) {
+         const slot = slots[key];
+         if (slot === undefined) continue;
+         const b64 = sn[key];
+         if (!b64) continue;
+         try {
+            const bin = window.atob(b64);
+            const buffer = new ArrayBuffer(bin.length);
+            const view = new Uint8Array(buffer);
+            for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+            const snd = makeSound(
+               key,
+               function () {
+                  if (slot === "combo") window.game.sampleComboBreak = snd;
+                  else window.game.sample[slot[0]][slot[1]] = snd;
+               },
+               false,
+               { response: buffer },
+               function (src, err) {
+                  console.warn("custom hitsound decode failed", src, err);
+               }
+            );
+         } catch (e) {
+            console.warn("custom hitsound failed", key, e);
+         }
+      }
+   }
+
    sounds.whenLoaded = function () {
       game.sample[1].hitnormal = sounds["hitsounds/normal-hitnormal.ogg"];
       game.sample[1].hitwhistle = sounds["hitsounds/normal-hitwhistle.ogg"];
@@ -126,6 +176,7 @@ require(["osu", "underscore", "sound", "playback"], function (
       window.soundReady = true;
       document.getElementById("sound-progress").classList.add("finished");
       document.body.classList.add("sound-ready");
+      applyCustomHitsounds();
    };
    sounds.load(sample);
 

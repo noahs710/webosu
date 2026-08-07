@@ -18,6 +18,8 @@
          rel="stylesheet"
       />
       <script src="js/settings.js"></script>
+      <script src="js/lib/zip.js"></script>
+      <script src="js/lib/zip-fs.js"></script>
    </head>
    <!--Nav Bar-->
    <nav id="main-nav">
@@ -369,25 +371,25 @@
             </td>
             <tr>
                <td>
-                  <div class="option-name">
-                     Custom hitsounds [LIKELY WON'T WORK]
-                  </div>
-                  <div class="option-control">
+                  <div class="option-name">Custom hitsounds</div>
+                  <label class="osk-dropzone" id="oskdrop">
                      <input
                         id="skinhitsound"
-                        style="
-                           padding: 10px 10px 30px 10px;
-                           padding-right: 100px;
-                           padding-top: 25px;
-                        "
                         type="file"
-                        accept=".ogg,.wav"
+                        accept=".osk,.ogg,.wav"
                         name="skin[]"
                         multiple
-                     /><span></span>
-                  </div>
+                     />
+                     <span class="osk-dropzone-text"
+                        >Drop a <b>.osk</b> here, or click to choose hitsound
+                        files</span
+                     >
+                  </label>
+                  <div class="osk-status" id="oskstatus"></div>
                   <div style="font-size: 0.8em; color: #999; margin-top: 2.2em">
-                     Thanks to
+                     Extracts hitsounds from an osu! skin (<code>.osk</code>) or
+                     individual <code>.ogg</code>/<code>.wav</code> files. Applied
+                     on your next game. Thanks to
                      <a style="color: #9d7dcc" href="https://github.com/txst54"
                         >txst54</a
                      >
