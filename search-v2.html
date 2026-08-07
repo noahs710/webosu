@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head>
+<title>Search (lit shell v2)</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/picnic.min.css"><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/font.css">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+</head><body>
+<nav id="main-nav">
+  <div class="nav-link"><a href="index-v2.html" class="brand">webosu!</a><a href="browse-v2.html" class="pseudo button">Browse</a><a href="search-v2.html" class="pseudo button active">Search</a><a href="leaderboard-v2.html" class="pseudo button">Leaderboard</a></div>
+  <div class="nav-search"><form id="searchform"><container id="searchbar" class="searchbar"><input type="text" id="q" placeholder="Search for a beatmap or enter a Set ID" /></container></form></div>
+  <div class="nav-tool"><account-widget></account-widget></div>
+</nav>
+<div class="main-page"><div class="main-content">
+  <h2>Search <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
+  <hr/>
+  <beatmap-list id="list"></beatmap-list>
+</div></div>
+<script type="module">
+  import "./src/shell/account-widget.js";
+  import "./src/shell/beatmap-list.js";
+  const list = document.getElementById("list");
+  const q = new URLSearchParams(location.search).get("q") || "";
+  document.getElementById("q").value = q;
+  function run(query) {
+    list.setAttribute("src", "https://catboy.best/api/v2/search?q=" + encodeURIComponent(query) + "&limit=24&mode=0");
+  }
+  run(q);
+  document.getElementById("searchform").addEventListener("submit", (e) => { e.preventDefault(); run(document.getElementById("q").value); });
+</script>
+</body></html>

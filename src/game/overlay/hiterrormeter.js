@@ -1,0 +1,75 @@
+class ErrorMeter extends PIXI.Container {
+  constructor(r300, r100, r50) {
+    super();
+
+
+      const barheight = 220;
+      const color300 = 0x66ccff;
+      const color100 = 0x88b300;
+      const color50 = 0xffcc22;
+      this.lscale = barheight / 2 / r50; // pixel per millisecond
+
+      let newbarpiece = function (height, tint) {
+         let piece = new PIXI.Sprite(Skin["errormeterbar.png"]);
+         piece.width = 2;
+         piece.height = height;
+         piece.tint = tint;
+         piece.anchor.set(0.5);
+         piece.x = 0;
+         piece.y = 0;
+         return piece;
+      };
+      this.addChild(newbarpiece(barheight, color50));
+      this.addChild(newbarpiece((barheight * r100) / r50, color100));
+      this.addChild(newbarpiece((barheight * r300) / r50, color300));
+
+      let centerline = new PIXI.Sprite(Skin["errormeterbar.png"]);
+      centerline.width = 5;
+      centerline.height = 2;
+      centerline.anchor.set(0, 0.5);
+      centerline.tint = color300;
+      centerline.x = 0;
+      centerline.y = 0;
+      this.addChild(centerline);
+
+      this.avgmarker = new PIXI.Sprite(Skin["reversearrow.png"]);
+      this.avgmarker.scale.set(0.08);
+      this.avgmarker.anchor.set(0.5);
+      this.avgmarker.x = -8;
+      this.avgmarker.y = 0;
+      this.addChild(this.avgmarker);
+
+      this.ticks = [];
+      this.poolsize = 20;
+      for (let i = 0; i < this.poolsize; ++i) {
+         let tick = new PIXI.Sprite(Skin["errormeterindicator.png"]);
+         tick.scale.set(0.2);
+         tick.anchor.set(0, 0.5);
+         tick.alpha = 0;
+         tick.t0 = -23333;
+         tick.x = 2;
+         this.ticks.push(tick);
+         this.addChild(tick);
+      }
+      this.poolptr = 0;
+      this.avgerror = 0;
+   
+  }
+  destroy(options) {
+      PIXI.Container.prototype.destroy.call(this, options);
+     }
+  update(time) {
+      for (let i = 0; i < this.poolsize; ++i) {
+         this.ticks[i].alpha = Math.exp(-(time - this.ticks[i].t0) / 1000);
+      }
+     }
+  hit(hiterror, time) {
+      let tick = this.ticks[this.poolptr];
+      this.poolptr = (this.poolptr + 1) % this.poolsize;
+      tick.t0 = time;
+      tick.y = hiterror * this.lscale;
+      this.avgerror = this.avgerror * 0.9 + hiterror * 0.1;
+      this.avgmarker.y = this.avgerror * this.lscale;
+     }
+}
+export default ErrorMeter;

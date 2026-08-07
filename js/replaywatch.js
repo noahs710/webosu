@@ -8,7 +8,6 @@
   function whenReady(cb) {
     if (
       window.Osu &&
-      window.zip &&
       window.scriptReady &&
       window.skinReady &&
       window.soundReady &&

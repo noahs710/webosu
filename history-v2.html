@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en"><head>
+<title>History (lit shell v2)</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/picnic.min.css"><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/font.css">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+<script src="js/lib/localforage.min.js"></script>
+</head><body>
+<nav id="main-nav">
+  <div class="nav-link"><a href="index-v2.html" class="brand">webosu!</a><a href="browse-v2.html" class="pseudo button">Browse</a><a href="liked-v2.html" class="pseudo button">Favorites</a><a href="history-v2.html" class="pseudo button active">History</a></div>
+  <div class="nav-tool"><account-widget></account-widget></div>
+</nav>
+<div class="main-page"><div class="main-content">
+  <h2>Recently Played <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
+  <hr/>
+  <div id="empty" hidden style="color:var(--lazer-dim);padding:18px">No play history yet.</div>
+  <beatmap-list id="list" limit="60"></beatmap-list>
+</div></div>
+<script type="module">
+  import "./src/shell/account-widget.js";
+  import "./src/shell/beatmap-list.js";
+  const list = document.getElementById("list");
+  const empty = document.getElementById("empty");
+  (async () => {
+    let sids = [];
+    try { const hist = await localforage.getItem("playhistory1000"); if (Array.isArray(hist)) sids = [...new Set(hist.map(h => h.sid).filter(Boolean))]; } catch (e) {}
+    if (!sids.length) { empty.hidden = false; return; }
+    list.setAttribute("src", "https://catboy.best/api/v2/beatmapsets?ids=" + sids.join("&ids="));
+  })();
+</script>
+</body></html>

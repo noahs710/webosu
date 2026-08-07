@@ -1970,8 +1970,7 @@ form input[type="text"]:focus { border-color: var(--lazer-pink); outline: none; 
 .beatmapbox {
   background: var(--lazer-panel);
   border-radius: var(--lazer-radius);
-  overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.05);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
 }

@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>api-probe</title></head>
+<body><script type="module">
+import { api } from "/src/shell/api.js";
+(async () => {
+  const out = {};
+  try {
+    const u = await api.register("shellprobe", "pw123456");
+    out.register = u && u.username;
+    out.loggedIn = api.isLoggedIn();
+    out.me = (await api.me()).user.username;
+    api.logout();
+    out.afterLogout = api.isLoggedIn();
+    // a guarded call that needs auth -> should clear token
+    out.pp = (await api.ppEstimate({ stars: 5, acc: 98 })).pp;
+    window.__apiResult = out;
+  } catch (e) { window.__apiResult = { error: String(e) }; }
+})();
+</script></body></html>

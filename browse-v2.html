@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <title>Browse (lit shell v2)</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="img/favicon.png">
+  <link rel="stylesheet" href="css/picnic.min.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/font.css">
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+  <!-- ESM game bootstrap (so clicking a card can launch the game) -->
+  <script src="js/lib/localforage.min.js"></script>
+  <script src="js/lib/mp3parse.min.js"></script>
+  <script type="module" src="/src/game/pixi.js"></script>
+    <script type="module" src="/src/game/sound.js"></script>
+    <script type="module" src="/src/game/main.js"></script>
+</head>
+<body>
+  <nav id="main-nav">
+    <div class="nav-link">
+      <a href="index-v2.html" class="brand">webosu!</a>
+      <a href="new-v2.html" class="pseudo button">New</a>
+      <a href="hot-v2.html" class="pseudo button">Popular</a>
+      <a href="browse-v2.html" class="pseudo button active">Browse</a>
+    </div>
+    <div class="nav-tool"><account-widget></account-widget></div>
+    <div class="nav-search">
+      <form action="search-v2.html">
+        <container id="searchbar" class="searchbar">
+          <input type="text" name="q" placeholder="Search for a beatmap or enter a Set ID" />
+        </container>
+      </form>
+    </div>
+  </nav>
+  <div class="main-page" id="main-page">
+    <div class="main-content">
+      <h2>Browse <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
+      <hr/>
+      <beatmap-list src="https://catboy.best/api/v2/search?q=&limit=24&mode=0&status=4"></beatmap-list>
+    </div>
+    <div class="game-area" id="game-area" hidden></div>
+    <div class="pause-menu" id="pause-menu" hidden></div>
+  </div>
+  <script type="module">
+    import "./src/shell/beatmap-list.js";
+    import "./src/shell/account-widget.js";
+    // clicking a difficulty -> download the .osz from catboy.best + launch the ESM game
+    document.addEventListener("beatmap-launch", async (e) => {
+      const { setId, beatmapId, version } = e.detail;
+      try {
+        const r = await fetch("https://catboy.best/d/" + setId + "n");
+        const blob = new Blob([await r.arrayBuffer()]);
+        window.launchGame(blob, beatmapId, version);
+      } catch (err) { console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
+    });
+  </script>
+</body>
+</html>

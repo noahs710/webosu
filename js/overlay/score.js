@@ -532,7 +532,7 @@ define([], function () {
                acc: acc * 100,
                combo: this.maxcombo,
                maxCombo: this.maxcombo,
-               modsNum: summary.modsNum,
+               modsNum: modsEnum(window.game),
             })
                .then(function (r) {
                   ppBlock.innerText = "PP ~" + (r && r.pp != null ? r.pp : "?");
@@ -576,7 +576,7 @@ define([], function () {
                   artist: summary.artist,
                   version: summary.version,
                   mods: summary.mods,
-                  modsNum: summary.modsNum,
+                  modsNum: modsEnum(window.game),
                   score: parseInt(summary.score, 10) || 0,
                   combo: parseInt(summary.combo, 10) || 0,
                   acc: parseFloat(summary.acc) || 0,

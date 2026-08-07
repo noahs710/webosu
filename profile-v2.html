@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en"><head>
+<title>Profile (lit shell v2)</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/picnic.min.css"><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/font.css">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+</head><body>
+<nav id="main-nav">
+  <div class="nav-link"><a href="index-v2.html" class="brand">webosu!</a><a href="browse-v2.html" class="pseudo button">Browse</a><a href="leaderboard-v2.html" class="pseudo button">Leaderboard</a></div>
+  <div class="nav-tool"><account-widget></account-widget></div>
+</nav>
+<div class="main-page"><div class="main-content">
+  <h2>Profile <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
+  <hr/>
+  <profile-card id="pc"></profile-card>
+</div></div>
+<script type="module">
+  import "./src/shell/account-widget.js";
+  import "./src/shell/profile.js";
+  const u = new URLSearchParams(location.search).get("u") || "";
+  document.getElementById("pc").setAttribute("username", u);
+</script>
+</body></html>

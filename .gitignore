@@ -82,3 +82,11 @@ newapi
 .vercel
 # webosu backend local data
 data/
+
+# Vite build output
+dist/
+vite.*.log
+
+dist-probe/
+
+scripts/*.png

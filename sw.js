@@ -2,14 +2,13 @@
    /api backend or catboy.best requests. */
 const CACHE = "webosu-v1";
 const SHELL = [
-  "/",
-  "/index.html",
-  "/settings.html",
-  "/skins.html",
-  "/css/main.css",
-  "/css/picnic.min.css",
-  "/css/font.css",
+  "/", "/index.html", "/index-v2.html",
+  "/browse-v2.html", "/search-v2.html", "/hot-v2.html", "/new-v2.html",
+  "/liked-v2.html", "/history-v2.html", "/leaderboard-v2.html",
+  "/profile-v2.html", "/skins-v2.html", "/settings-v2.html",
+  "/css/main.css", "/css/picnic.min.css", "/css/font.css",
   "/sprites.json",
+  "/src/game/main.js", "/src/game/pixi.js", "/src/game/sound.js",
 ];
 
 self.addEventListener("install", (e) => {

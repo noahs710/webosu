@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>webosu render benchmark</title>
+<style>
+  html,body{margin:0;background:#111;color:#eee;font:13px/1.4 monospace;overflow:hidden}
+  #hud{position:fixed;top:0;left:0;right:0;padding:8px 10px;background:rgba(0,0,0,.7);
+       display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;z-index:10}
+  #hud b{color:#7fd}
+  #hud .bad{color:#f86}
+  #stage{position:fixed;inset:0}
+  #ctrl{position:fixed;bottom:0;left:0;right:0;padding:8px 10px;background:rgba(0,0,0,.75);
+        display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;z-index:10}
+  #ctrl label{display:flex;align-items:center;gap:4px}
+  #ctrl input[type=number]{width:70px;background:#222;color:#eee;border:1px solid #444;padding:2px}
+  #ctrl button{background:#333;color:#eee;border:1px solid #555;padding:4px 8px;cursor:pointer}
+  #ctrl button.on{background:#2a6;color:#fff}
+  a{color:#7df}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="hud">
+  <span>FPS <b id="fps">--</b></span>
+  <span>p50 <b id="p50">--</b>ms</span>
+  <span>p95 <b id="p95">--</b>ms</span>
+  <span>p99 <b id="p99">--</b>ms</span>
+  <span>dropped <b id="drop">--</b></span>
+  <span>sprites <b id="cnt">--</b></span>
+  <span>mode <b id="mode">--</b></span>
+</div>
+<div id="ctrl">
+  <label>sprite count <input id="n" type="number" value="400" step="50" min="0"></label>
+  <label><input id="zorder" type="checkbox" checked> z-order churn (cursor-trail)</label>
+  <label><input id="pool" type="checkbox" checked> object pool (no alloc)</label>
+  <button id="interact" class="on">interaction: ON</button>
+  <button id="reset">restart</button>
+  <span>render: Pixi <b id="ver">--</b> &middot; <a href="MODERNIZATION-PLAN.md">plan</a> &middot; ticket 01</span>
+</div>
+<script src="js/lib/pixi.min.js"></script>
+<script>
+// webosu render benchmark — mirrors the game's hot path on a 9*-density profile.
+// Spawn approach-circle-like sprites, animate + re-z-order each frame, and measure
+// frame timing. Toggle interaction/pooling/z-order to isolate each win (ticket 01).
+(function () {
+  document.getElementById("ver").textContent = PIXI.VERSION;
+
+  var stageEl = document.getElementById("stage");
+  var app = new PIXI.Application({
+    width: window.innerWidth, height: window.innerHeight,
+    backgroundColor: 0x111111, antialias: true, autoDensity: true,
+    resolution: Math.min(window.devicePixelRatio || 1, 2),
+  });
+  stageEl.appendChild(app.view);
+
+  // game field: same fit logic as playback.calcSize (512x384, 80%)
+  var gfx = {};
+  function calcSize() {
+    var w = window.innerWidth, h = window.innerHeight;
+    if (w / 512 > h / 384) w = (h / 384) * 512; else h = (w / 512) * 384;
+    w *= 0.8; h *= 0.8;
+    gfx.w = w; gfx.h = h; gfx.x = (window.innerWidth - w) / 2; gfx.y = (window.innerHeight - h) / 2;
+  }
+  calcSize();
+  window.addEventListener("resize", function () {
+    app.renderer.resize(window.innerWidth, window.innerHeight); calcSize();
+  });
+
+  var field = new PIXI.Container(); field.x = gfx.x; field.y = gfx.y;
+  field.scale.set(gfx.w / 512);
+  app.stage.addChild(field);
+
+  // build an approach-circle texture once (ring + faint fill), like createHitCircle
+  function makeTex() {
+    var g = new PIXI.Graphics();
+    g.lineStyle(6, 0xffffff, 1).drawCircle(50, 50, 46);          // approach ring
+    g.beginFill(0x2a7, 0.25).drawCircle(50, 50, 46).endFill();   // circle body
+    g.lineStyle(4, 0xffffff, 1).drawCircle(50, 50, 14);         // inner
+    return app.renderer.generateTexture(g);
+  }
+  var tex = makeTex();
+
+  var sprites = [];
+  var pool = [];
+  var N = 400;
+  var zorder = true, usePool = true;
+
+  function spawn() {
+    var s = (usePool && pool.length) ? pool.pop() : new PIXI.Sprite(tex);
+    s.anchor.set(0.5);
+    s.x = Math.random() * 512; s.y = Math.random() * 384;
+    s.life = 0; s.dur = 600 + Math.random() * 400;   // ms approach lifetime
+    s.scale.set(3);                                   // start wide, shrink to 1
+    s.baseScale = 0.3 + Math.random() * 0.2;           // tint variety
+    s.tint = [0xffcc22,0x66ccff,0xff66aa,0x88ff66][Math.floor(Math.random()*4)] | 0;
+    field.addChild(s);
+    return s;
+  }
+  function recycle(s) { field.removeChild(s); if (usePool) pool.push(s); else s.destroy(); }
+
+  function setCount(n) {
+    N = n;
+    while (sprites.length < n) sprites.push(spawn());
+    while (sprites.length > n) { var s = sprites.pop(); recycle(s); }
+    document.getElementById("cnt").textContent = sprites.length;
+  }
+
+  // ---- interaction toggle (the headline win) ----
+  // PIXI 6's InteractionManager auto-adds update() to the ticker every frame.
+  // Removing that callback is the "disable interaction" win the plan proposes.
+  var interactOn = true;
+  function interactionManager() { return app.renderer.plugins.interaction; }
+  function setInteraction(on) {
+    var im = interactionManager(); if (!im) return;
+    interactOn = on;
+    var btn = document.getElementById("interact");
+    btn.textContent = "interaction: " + (on ? "ON" : "OFF");
+    btn.className = on ? "on" : "";
+    if (on) { im._useSystemTicker = true; im.addTickerListener(); }
+    else { im._useSystemTicker = false; im.removeTickerListener(); }
+  }
+  document.getElementById("interact").onclick = function () { setInteraction(!interactOn); };
+
+  // ---- measurement ----
+  var times = []; var last = performance.now(); var frame = 0; var dropped = 0; var lastUI = 0;
+  function pct(arr, p) {
+    if (!arr.length) return 0;
+    var s = arr.slice().sort(function (a, b) { return a - b; });
+    return s[Math.floor((s.length - 1) * p)];
+  }
+  app.ticker.add(function () {
+    var now = performance.now();
+    var dt = now - last; last = now;
+    times.push(dt); if (times.length > 240) times.shift();
+    if (dt > 33) dropped++; // a "long" frame (>33ms = <30fps moment)
+
+    // animate + z-order churn, mimicking playback.render + cursor trail
+    for (var i = 0; i < sprites.length; i++) {
+      var s = sprites[i];
+      s.life += dt;
+      var t = s.life / s.dur;
+      if (t >= 1) { s.life = 0; s.x = Math.random() * 512; s.y = Math.random() * 384; t = 0; }
+      s.scale.set(3 - 2 * t + s.baseScale);
+    }
+    if (zorder) {
+      // mimic 8 cursor-trail bringToFront re-parents per frame
+      for (var k = 0; k < 8; k++) {
+        var c = sprites[(frame + k * 37) % sprites.length];
+        if (c) { field.removeChild(c); field.addChild(c); }
+      }
+    }
+    frame++;
+
+    if (now - lastUI > 250) {
+      lastUI = now;
+      document.getElementById("fps").textContent = (1000 / (times.reduce(function (a, b) { return a + b; }, 0) / times.length)).toFixed(0);
+      document.getElementById("p50").textContent = pct(times, 0.5).toFixed(1);
+      var p95 = pct(times, 0.95); document.getElementById("p95").textContent = p95.toFixed(1);
+      document.getElementById("p99").textContent = pct(times, 0.99).toFixed(1);
+      document.getElementById("drop").textContent = dropped;
+      document.getElementById("p95").className = p95 > 16.6 ? "bad" : "";
+      document.getElementById("mode").textContent =
+        (interactOn ? "interact " : "noInteract ") + (usePool ? "pool " : "alloc ") + (zorder ? "zorder" : "noZ");
+    }
+  });
+
+  // ---- controls ----
+  document.getElementById("n").onchange = function () { setCount(Math.max(0, +this.value || 0)); };
+  document.getElementById("zorder").onchange = function () { zorder = this.checked; };
+  document.getElementById("pool").onchange = function () {
+    usePool = this.checked;
+    if (!usePool) { while (pool.length) pool.pop().destroy(); }
+  };
+  document.getElementById("reset").onclick = function () {
+    times = []; dropped = 0; frame = 0; last = performance.now();
+    setCount(N);
+  };
+  setInteraction(true);
+  setCount(N);
+})();
+</script>
+</body>
+</html>

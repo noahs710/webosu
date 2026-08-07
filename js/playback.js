@@ -1589,7 +1589,7 @@ define([
                this.replayFrames.push({
                   t: time, x: this.game.mouseX, y: this.game.mouseY, d: this.game.down,
                });
-               if (this.replayFrames.length > 200000) this.replayFrames.shift();
+               if (this.replayFrames.length > 201000) this.replayFrames.splice(0, this.replayFrames.length - 200000);
             }
             let nextapproachtime =
                waitinghitid < this.hits.length &&

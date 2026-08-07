@@ -1,5 +1,38 @@
 {
+  "name": "webosu",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/index.js",
+    "test": "node server/test/smoke.js",
+    "smoke": "node scripts/devstack-smoke.js",
+    "headless": "node scripts/headless-verify.js",
+    "headless:play": "node scripts/headless-play.js",
+    "headless:autoplay": "node scripts/headless-autoplay.js",
+    "headless:shell": "node scripts/headless-shell.js",
+    "headless:interaction": "node scripts/headless-interaction.js",
+    "headless:api": "node scripts/headless-api.js",
+    "headless:account": "node scripts/headless-account.js",
+    "headless:leaderboard": "node scripts/headless-leaderboard.js",
+    "headless:search": "node scripts/headless-search.js",
+    "headless:profile": "node scripts/headless-profile.js",
+    "headless:liked": "node scripts/headless-liked.js",
+    "headless:hotnew": "node scripts/headless-hotnew.js",
+    "headless:skins": "node scripts/headless-skins.js",
+    "headless:settings": "node scripts/headless-settings.js",
+    "headless:settings-page": "node scripts/headless-settings-page.js"
+  },
   "dependencies": {
+    "fflate": "^0.8.3",
+    "howler": "^2.2.4",
+    "lit": "^3.3.3",
+    "pixi.js": "^8.19.0",
     "vercel": "35.2.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1",
+    "vite": "^7.0.0"
   }
 }

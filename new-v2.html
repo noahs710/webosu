@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head>
+<title>New (lit shell v2)</title><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/picnic.min.css"><link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/font.css">
+<link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet">
+<script src="js/lib/localforage.min.js"></script><script src="js/lib/mp3parse.min.js"></script>
+<script type="module" src="/src/game/pixi.js"></script>
+    <script type="module" src="/src/game/sound.js"></script>
+    <script type="module" src="/src/game/main.js"></script>
+</head><body>
+<nav id="main-nav">
+  <div class="nav-link"><a href="index-v2.html" class="brand">webosu!</a><a href="new-v2.html" class="pseudo button active">New</a><a href="hot-v2.html" class="pseudo button">Popular</a><a href="browse-v2.html" class="pseudo button">Browse</a><a href="leaderboard-v2.html" class="pseudo button">Leaderboard</a></div>
+  <div class="nav-tool"><account-widget></account-widget></div>
+</nav>
+<div class="main-page"><div class="main-content">
+  <h2>New <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
+  <hr/>
+  <beatmap-list src="https://catboy.best/api/v2/search?q=&limit=24&offset=20&status=4&mode=0"></beatmap-list>
+</div><div class="game-area" id="game-area" hidden></div><div class="pause-menu" id="pause-menu" hidden></div></div>
+<script type="module">
+  import "./src/shell/account-widget.js";
+  import "./src/shell/beatmap-list.js";
+  document.addEventListener("beatmap-launch", async (e) => {
+    const { setId, beatmapId, version } = e.detail;
+    try { const r = await fetch("https://catboy.best/d/" + setId + "n"); window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version); }
+    catch (err) { console.warn("launch failed:", err); }
+  });
+</script>
+</body></html>
