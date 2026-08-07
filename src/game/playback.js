@@ -84,6 +84,13 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
 
       var gfx = (window.gfx = {}); // game field area
       self.gamefield = new PIXI.Container();
+      // Recommended field size = the playfield as it renders on a 1920x1080
+      // screen (80% fit = 1152x864). The field/notes scale with the screen only
+      // when the screen is smaller than this recommended minimum (touchscreens /
+      // small windows); on larger screens the field is capped at the recommended
+      // size so notes don't blow up. Full touch support: small screens scale to
+      // fit, large screens stay at a comfortable fixed size.
+      var RECOMMEND_W = 1152;
       self.calcSize = function () {
          gfx.width = game.window.innerWidth;
          gfx.height = game.window.innerHeight;
@@ -92,6 +99,11 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          else gfx.height = (gfx.width / 512) * 384;
          gfx.width *= 0.8;
          gfx.height *= 0.8;
+         // cap at the recommended size (only scale DOWN for small screens)
+         if (gfx.width > RECOMMEND_W) {
+            gfx.width = RECOMMEND_W;
+            gfx.height = (RECOMMEND_W * 384) / 512;
+         }
          gfx.xoffset = (game.window.innerWidth - gfx.width) / 2;
          gfx.yoffset = (game.window.innerHeight - gfx.height) / 2;
          self.gamefield.x = gfx.xoffset;
