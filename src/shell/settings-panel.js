@@ -37,6 +37,14 @@ class SettingsPanel extends LitElement {
     button { cursor: pointer; background: var(--lazer-panel2); color: var(--lazer-text); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; padding: 4px 10px; }
     button.primary { background: var(--lazer-pink); color: #fff; border: none; }
   `;
+  connectedCallback() {
+    super.connectedCallback();
+    // pull cross-device settings from the server when logged in (the ESM
+    // gamesettings.js defines syncFromServer but nothing called it on the v2
+    // settings page, so server settings never reached a new device).
+    if (gamesettings.syncFromServer) gamesettings.syncFromServer().then(() => this.requestUpdate()).catch(() => {});
+    (gamesettings.restoreCallbacks = gamesettings.restoreCallbacks || []).push(() => this.requestUpdate());
+  }
   _set(key, val) { gamesettings[key] = val; gamesettings.loadToGame(); saveToLocal(); this.requestUpdate(); }
   _reset() { Object.assign(gamesettings, defaultsettings); gamesettings.loadToGame(); saveToLocal(); this.requestUpdate(); }
   render() {
