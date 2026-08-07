@@ -122,6 +122,9 @@ work (commit a6662e2 + the 13 increments below).
 - `npm run headless:build-all` — all 11 v2 shell pages on the built dist (lit upgrades, 0 fatal)
 - `npm run headless:shell-backend` — leaderboard/profile/skins render real backend data on dist
 - `npm run headless:settings-pull` — v2 settings page pulls cross-device settings from the server
+- `npm run headless:account-dist` — account-widget register/login UI flow on dist (shadow-DOM modal)
+
+The dist-with-backend coverage is now complete: every user-facing backend interaction (account-widget login, score-submit, replay-watch, settings push+pull, leaderboard, profile, skins) is verified on the built dist/. Four real bugs were found+fixed this way (beatmap_id type, missing hitsounds/, empty leaderboard, settings-pull); the rest verify clean.
 - `npm run headless:offline` — PWA offline shell
 - `npm run smoke` — dev stack (14/14)
 - `npm run dev` — Vite dev (:5173, proxies /api+/ws to :8080)
