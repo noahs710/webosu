@@ -1,0 +1,12 @@
+{
+  "name": "webosu!",
+  "short_name": "webosu",
+  "description": "A web port of osu! that runs in your browser.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#191919",
+  "theme_color": "#9d7dcc",
+  "icons": [
+    { "src": "img/favicon.png", "sizes": "64x64", "type": "image/png" }
+  ]
+}

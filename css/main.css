@@ -1876,3 +1876,9 @@ body:not(.sound-ready) .difficulty-item {
 .osk-status.ok {
    color: #39af3c;
 }
+
+.diff-leaderboard {
+   font-size: 0.8em;
+   color: #f6c060;
+   margin-top: 4px;
+}

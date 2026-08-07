@@ -80,3 +80,5 @@ newapi
 **/supabase/.env
 
 .vercel
+# webosu backend local data
+data/

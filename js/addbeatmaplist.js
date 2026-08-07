@@ -91,6 +91,23 @@ function createDifficultyList(boxclicked, event) {
         mapper.innerText = "mapped by " + boxclicked.data.creator;
         // add row of stars
         difficultyItem.appendChild(createStarRow(boxclicked.data.beatmaps[i].difficulty_rating));
+        // webosu leaderboard: top score for this difficulty
+        if (window.WebosuAPI && difficultyItem.data && difficultyItem.data.id) {
+           WebosuAPI.leaderboard(difficultyItem.data.id)
+              .then(function (top) {
+                 if (top && top.length) {
+                    const lb = document.createElement("div");
+                    lb.className = "diff-leaderboard";
+                    lb.textContent =
+                       "🏆 " +
+                       top[0].username +
+                       "  " +
+                       parseInt(top[0].score, 10).toLocaleString();
+                    difficultyItem.appendChild(lb);
+                 }
+              })
+              .catch(function () {});
+        }
         // add callbacks
         difficultyItem.onhover = function() {
 

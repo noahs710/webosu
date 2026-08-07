@@ -54,6 +54,7 @@ define([
       self.background = null;
       self.started = false;
       self.upcomingHits = [];
+      self.replayFrames = []; // input log uploaded to the webosu leaderboard
       // creating a copy of hitobjects
       self.hits = [];
       _.each(self.track.hitObjects, function (o) {
@@ -1581,6 +1582,12 @@ define([
             time = osu.audio.getPosition() * 1000 + self.offset;
          }
          if (typeof time !== "undefined") {
+            if (this.started && this.replayFrames) {
+               this.replayFrames.push({
+                  t: time, x: this.game.mouseX, y: this.game.mouseY, d: this.game.down,
+               });
+               if (this.replayFrames.length > 200000) this.replayFrames.shift();
+            }
             let nextapproachtime =
                waitinghitid < this.hits.length &&
                this.hits[waitinghitid].time -

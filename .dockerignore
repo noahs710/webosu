@@ -1,0 +1,11 @@
+.git
+.github
+**/node_modules
+data
+*.7z
+*.log
+.gitignore
+.claude
+.coderabbit
+.env
+test-*.png

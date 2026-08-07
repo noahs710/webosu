@@ -11,6 +11,43 @@ function setOptionPanel() {
          "osugamesettings",
          JSON.stringify(window.gamesettings)
       );
+      pushToServer();
+   }
+   // cross-device sync to the webosu backend (no-op when not logged in)
+   let serverSyncTimer = null;
+   function pushToServer() {
+      if (!(window.WebosuAPI && WebosuAPI.isLoggedIn())) return;
+      if (serverSyncTimer) clearTimeout(serverSyncTimer);
+      serverSyncTimer = setTimeout(function () {
+         try {
+            const settings = {};
+            for (const k in window.gamesettings) {
+               if (typeof gamesettings[k] !== "function") settings[k] = gamesettings[k];
+            }
+            const fav = window.liked_sid_set ? Array.from(window.liked_sid_set) : [];
+            WebosuAPI.saveMyProfile({ settings: settings, favorites: fav }).catch(
+               function () {}
+            );
+         } catch (e) {}
+      }, 800);
+   }
+   function syncFromServer() {
+      if (!(window.WebosuAPI && WebosuAPI.isLoggedIn())) return;
+      WebosuAPI.getMyProfile()
+         .then(function (p) {
+            if (p && p.settings) {
+               Object.assign(window.gamesettings, p.settings);
+               gamesettings.loadToGame();
+               saveToLocal();
+               if (gamesettings.restoreCallbacks)
+                  gamesettings.restoreCallbacks.forEach(function (c) { c(); });
+            }
+            if (p && p.favorites && Array.isArray(p.favorites) && window.localforage) {
+               window.liked_sid_set = new Set(p.favorites);
+               localforage.setItem("likedsidset", window.liked_sid_set);
+            }
+         })
+         .catch(function () {});
    }
    // Give inputs initial value; set their callback on change
    // Give range inputs a visual feedback (a hovering indicator that shows on drag)
@@ -497,6 +534,25 @@ function setOptionPanel() {
             handleFiles(files);
          });
       }
+      // apply a skin shared from the gallery via ?skin=<id>
+      const skinParam = new URLSearchParams(location.search).get("skin");
+      if (skinParam && window.WebosuAPI) {
+         setStatus("Loading shared skin...");
+         fetch(WebosuAPI.skinDownloadUrl(skinParam))
+            .then(function (r) { return r.blob(); })
+            .then(function (blob) {
+               const f = new File([blob], "shared.osk", {
+                  type: "application/octet-stream",
+               });
+               return handleFiles([f]);
+            })
+            .then(function () {
+               history.replaceState(null, "", location.pathname);
+            })
+            .catch(function (e) {
+               setStatus("Could not load shared skin: " + (e.message || e));
+            });
+      }
       gamesettings.restoreCallbacks.push(function () {
          gamesettings["soundNames"] = undefined;
          if (statusEl) statusEl.textContent = "";
@@ -624,6 +680,7 @@ function setOptionPanel() {
       };
       reader.readAsText(file);
    };
+   syncFromServer();
 }
 
 window.addEventListener("DOMContentLoaded", setOptionPanel);

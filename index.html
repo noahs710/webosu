@@ -55,7 +55,8 @@
             </form>
         </div>
         <div class="nav-tool">
-            <a href="liked.html" class="pseudo button">Favorites</a>
+            <a href="skins.html" class="pseudo button">Skins</a>
+         <a href="liked.html" class="pseudo button">Favorites</a>
             <a href="settings.html" class="pseudo button">Settings</a>
             <input type="username" id="userreg" placeholder="Type your name" />
         </div>
@@ -238,5 +239,11 @@
             alert("Oh no, localforage isn't supported on this browser")
             }
     </script>
+<script src="js/api.js"></script>
+<script src="js/accounts.js"></script>
+<script src="js/activity.js"></script>
+<script>
+if (navigator.serviceWorker) { navigator.serviceWorker.register("/sw.js").catch(function(){}); }
+</script>
 </body>
 </html>

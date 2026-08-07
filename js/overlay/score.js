@@ -512,6 +512,31 @@ define([], function () {
          };
          addPlayHistory(summary);
          uploadScore(summary);
+         if (window.WebosuAPI && WebosuAPI.isLoggedIn()) {
+            try {
+               WebosuAPI.submitScore({
+                  beatmap_id: summary.bid,
+                  beatmap_set_id: summary.sid,
+                  title: summary.title,
+                  artist: summary.artist,
+                  version: summary.version,
+                  mods: summary.mods,
+                  modsNum: summary.modsNum,
+                  score: parseInt(summary.score, 10) || 0,
+                  combo: parseInt(summary.combo, 10) || 0,
+                  acc: parseFloat(summary.acc) || 0,
+                  grade: summary.grade,
+                  count300: summary.count300,
+                  count100: summary.count100,
+                  count50: summary.count50,
+                  miss: summary.misses,
+                  replay:
+                     (window.playback && window.playback.replayFrames) || null,
+               });
+            } catch (e) {
+               console.warn("webosu score submit failed", e);
+            }
+         }
          // show history best
          if (window.localforage && summary.bid) {
             window.localforage.getItem("historybest", function (err, val) {
