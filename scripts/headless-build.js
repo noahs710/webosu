@@ -49,6 +49,7 @@ async function main() {
   console.log("=== browse-v2 (built) ===");
   console.log("  cards:", cards, " --lazer-pink:", lazer, " font:", fontCheck.fontFamily, " pageerrors:", e1.length);
   console.log("  self-hosted font (no gstatic/googleapis):", gfontsRequested.length === 0, JSON.stringify(gfontsRequested));
+  try { await p1.screenshot({ path: "scripts/browse-v2-built.png", fullPage: true }); console.log("  screenshot: scripts/browse-v2-built.png"); } catch (e) {}
 
   // index-v2 game entry boot
   const p2 = await ctx.newPage();
@@ -63,9 +64,10 @@ async function main() {
   const e3 = await load(p3, "http://localhost:5180/index.html");
   let legacy = await p3.evaluate(() => ({ title: document.title, hasRequire: typeof window.require, hasGame: typeof window.game }));
   try { await p3.waitForFunction(() => typeof window.require !== "undefined" || typeof window.game !== "undefined", null, { timeout: 8000 }); } catch (e) {}
-  legacy = await p3.evaluate(() => ({ title: document.title, hasRequire: typeof window.require, hasGame: typeof window.game, skinReady: typeof window.skinReady }));
+  legacy = await p3.evaluate(() => ({ title: document.title, hasRequire: typeof window.require, hasGame: typeof window.game, skinReady: typeof window.skinReady, lazerPink: getComputedStyle(document.documentElement).getPropertyValue("--lazer-pink").trim() }));
   console.log("=== index.html legacy (built) ===");
   console.log("  ", JSON.stringify(legacy), "pageerrors:", e3.length);
+  if (!legacy.lazerPink) console.log("  WARN: legacy page missing --lazer-pink (tokens.css not wired)");
   e3.slice(0, 4).forEach((e) => console.log("    " + e.slice(0, 160)));
 
   const fatal = (arr) => arr.filter((e) => !/catboy|assets\.ppy|ERR_|net::|Failed to fetch|api\/activity|blocked by client/i.test(e)).length;

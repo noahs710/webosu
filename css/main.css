@@ -1878,16 +1878,6 @@ body:not(.sound-ready) .difficulty-item {
 /* ============================================================
    osu!lazer-style theme (additive override; layout preserved)
    ============================================================ */
-:root {
-  --lazer-bg: #13131b;
-  --lazer-panel: #1c1c28;
-  --lazer-panel2: #23232f;
-  --lazer-text: #ececf4;
-  --lazer-dim: #9a9ab4;
-  --lazer-pink: #ff66aa;
-  --lazer-purple: #885090;
-  --lazer-radius: 12px;
-}
 
 body { background: var(--lazer-bg); color: var(--lazer-text); }
 

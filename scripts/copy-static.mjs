@@ -30,6 +30,7 @@ for (const file of ["sw.js", "sprites.json", "manifest.webmanifest", "manifest.j
 // 2) normalise shell CSS links in every built page -> three plain /css/ links
 const SHELL_LINKS =
   '  <link rel="stylesheet" href="/css/picnic.min.css">\n' +
+  '  <link rel="stylesheet" href="/css/tokens.css">\n' +
   '  <link rel="stylesheet" href="/css/main.css">\n' +
   '  <link rel="stylesheet" href="/css/font.css">\n';
 
