@@ -84,7 +84,12 @@ define([], function () {
       this.nofail = !!(mods && mods.nofail);
       this.suddendeath = !!(mods && mods.suddendeath);
       this.perfect = !!(mods && mods.perfect);
+      this.classic = !!(mods && mods.classic);
       this.failed = false;
+      // lazer-style standardised score (V2) base + passive HP drain
+      this.v1Score = 0;
+      this.lastDrainTime = -1e9;
+      this.passiveDrain = 0.00001 * (HPdrain || 0);
 
       this.score = 0; // this have been multiplied by scoreMultiplier
       this.combo = 0;
@@ -187,7 +192,19 @@ define([], function () {
          }
          this.judgeTotal += result;
          this.maxJudgeTotal += maxresult;
-         this.score += this.scoreMultiplier * result * (1 + this.combo / 25);
+         this.v1Score +=
+            this.scoreMultiplier * result * (1 + this.combo / 25);
+         // Classic mod = legacy combo-bloated V1; otherwise standardised V2
+         // (base portion: 1,000,000 * accuracy * mod multiplier)
+         this.score = this.classic
+            ? this.v1Score
+            : Math.round(
+                 1000000 *
+                    (this.maxJudgeTotal
+                       ? this.judgeTotal / this.maxJudgeTotal
+                       : 0) *
+                    this.scoreMultiplier
+              );
          // any zero-score result is a miss
          let oldCombo = this.combo;
          this.combo = result > 0 ? this.combo + 1 : 0;
@@ -268,6 +285,23 @@ define([], function () {
          if (Number.isNaN(time)) {
             console.error("score overlay update with time = NaN");
             return;
+         }
+         // passive HP drain (lazer): drains over time while playing
+         if (this.lastDrainTime < 0) this.lastDrainTime = time;
+         let dt = time - this.lastDrainTime;
+         this.lastDrainTime = time;
+         if (!this.failed && time >= 0 && dt > 0 && dt < 1000) {
+            this.HP -= this.passiveDrain * dt;
+            if (this.HP < 0) {
+               if (this.nofail) {
+                  this.HP = 0;
+               } else {
+                  this.failed = true;
+                  this.HP = -1;
+                  if (this.onfail) this.onfail();
+               }
+            }
+            this.HP4display.set(time, Math.max(0, this.HP));
          }
          let HPpos = this.HP4display.valueAt(time) * this.field.width;
          this.HPbar[0].x = HPpos;

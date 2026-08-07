@@ -229,6 +229,7 @@ define([
             nofail: game.nofail,
             suddendeath: game.suddendeath,
             perfect: game.perfect,
+            classic: game.classic,
          }
       );
       self.scoreOverlay.onfail = function () {

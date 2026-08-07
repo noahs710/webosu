@@ -6,13 +6,24 @@ define([], function () {
          y: playback.game.mouseY,
          time: playback.osu.audio.getPosition() * 1000,
       };
-      var hit = upcoming.find(inUpcoming(click));
+      // note-lock: prefer the earliest in-range hit (lazer lets you hit the
+      // earliest overlapping object, not whichever is first in the array)
+      var hit = null;
+      var pred = inUpcoming(click);
+      for (var i = 0; i < upcoming.length; i++) {
+         if (pred(upcoming[i]) && (!hit || upcoming[i].time < hit.time))
+            hit = upcoming[i];
+      }
       if (!hit && game.mouse) {
          // if not hit with traditional (lagged) cursor position,
          // try predicted position with more tolerance
          let res = game.mouse(performance.now());
          res.time = click.time;
-         hit = upcoming.find(inUpcoming_grace(res));
+         var predG = inUpcoming_grace(res);
+         for (var j = 0; j < upcoming.length; j++) {
+            if (predG(upcoming[j]) && (!hit || upcoming[j].time < hit.time))
+               hit = upcoming[j];
+         }
       }
       if (hit) {
          if (hit.type == "circle" || hit.type == "slider") {
