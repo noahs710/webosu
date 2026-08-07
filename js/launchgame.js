@@ -55,6 +55,21 @@ function launchOSU(osu, beatmapid, version) {
       game.cursor.anchor.x = game.cursor.anchor.y = 0.5;
       game.cursor.scale.x = game.cursor.scale.y = 0.3 * game.cursorSize;
       game.stage.addChild(game.cursor);
+      // cursor trail: a ring buffer of recent positions fading behind the cursor
+      game.cursorTrail = [];
+      for (let i = 0; i < 8; i++) {
+         let t = new PIXI.Sprite(Skin["cursor.png"]);
+         t.anchor.x = t.anchor.y = 0.5;
+         t.scale.x = t.scale.y = 0.3 * game.cursorSize;
+         t.alpha = 0;
+         game.stage.addChild(t);
+         game.cursorTrail.push({
+            sprite: t,
+            x: game.mouseX,
+            y: game.mouseY,
+         });
+      }
+      game.cursorTrailHead = 0;
    }
 
    // switch page to game view
@@ -101,6 +116,14 @@ function launchOSU(osu, beatmapid, version) {
          game.cursor.destroy();
          game.cursor = null;
       }
+      if (game.cursorTrail) {
+         for (let i = 0; i < game.cursorTrail.length; i++) {
+            game.stage.removeChild(game.cursorTrail[i].sprite);
+            game.cursorTrail[i].sprite.destroy();
+         }
+         game.cursorTrail = null;
+         game.cursorTrailHead = 0;
+      }
       window.app.destroy(true, {
          children: true,
          texture: false,
@@ -130,6 +153,24 @@ function launchOSU(osu, beatmapid, version) {
          // Handle cursor
          game.cursor.x = (game.mouseX / 512) * gfx.width + gfx.xoffset;
          game.cursor.y = (game.mouseY / 384) * gfx.height + gfx.yoffset;
+         // cursor trail: write the newest position, fade the rest by age
+         if (game.cursorTrail) {
+            let N = game.cursorTrail.length;
+            let h = game.cursorTrailHead;
+            game.cursorTrail[h].x = game.mouseX;
+            game.cursorTrail[h].y = game.mouseY;
+            game.cursorTrailHead = (h + 1) % N;
+            for (let i = 0; i < N; i++) {
+               let entry = game.cursorTrail[i];
+               let age = (h - i + N) % N;
+               entry.sprite.x =
+                  (entry.x / 512) * gfx.width + gfx.xoffset;
+               entry.sprite.y =
+                  (entry.y / 384) * gfx.height + gfx.yoffset;
+               entry.sprite.alpha = Math.max(0, 0.5 * (1 - age / N));
+               entry.sprite.bringToFront();
+            }
+         }
          game.cursor.bringToFront();
       }
       app.renderer.render(game.stage);
