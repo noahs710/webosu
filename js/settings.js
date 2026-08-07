@@ -288,7 +288,6 @@ function setOptionPanel() {
          }
          gamesettings.loadToGame();
          saveToLocal();
-         console.log(gamesettings);
       };
    }
    // gameplay settings

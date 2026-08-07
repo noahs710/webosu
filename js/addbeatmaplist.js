@@ -1,6 +1,5 @@
 function starname(star) {
-    if (typeof(star) == "null") return "unknown";
-    if (typeof(star) == "undefined") return "unknown";
+    if (star == null) return "unknown";
     if (star<2) return "easy";
     if (star<2.7) return "normal";
     if (star<4) return "hard";
@@ -336,7 +335,7 @@ async function addBeatmapList(listurl, list) {
 
         const data = await request.json()
 
-        if(request.error) return alert("Beatmap not found with specified SetID")
+        if(!request.ok || (data && data.error)) return alert("Beatmap not found with specified SetID")
 
         // use data of first track as set data
         let box = NSaddBeatmapList.addpreviewbox(data, list);
@@ -361,7 +360,7 @@ async function addBeatmapList(listurl, list) {
 
         const data = await request.json()
 
-        if(request.error) return alert("Beatmap not found with specified SetID")
+        if(!request.ok || (data && data.error)) return alert("Beatmap not found with specified SetID")
 
         // use data of first track as set data
         for(let i = 0; i < data.length; i++){

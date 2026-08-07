@@ -10,16 +10,8 @@ function launchOSU(osu, beatmapid, version) {
          trackid = i;
       }
    }
-   console.log("Launching", beatmapid, version);
    if (trackid == -1) {
       console.error("No such track");
-      console.log("Available tracks are:");
-      for (let i = 0; i < osu.tracks.length; ++i)
-         console.log(
-            osu.tracks[i].metadata.BeatmapID,
-            osu.tracks[i].mode,
-            osu.tracks[i].metadata.Version
-         );
       return;
    }
    // prevent launching multiple times

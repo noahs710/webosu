@@ -1586,7 +1586,6 @@ define([
 
       this.destroy = function () {
          // clean up
-         console.log("Destroy gamefield");
          _.each(self.hits, function (hit) {
             if (!hit.destroyed) {
                _.each(hit.objects, function (o) {
@@ -1624,7 +1623,6 @@ define([
       };
 
       this.start = function () {
-         console.log("Start playback");
          self.started = true;
          self.skipped = false;
          self.osu.audio.gain.gain.value =
@@ -1638,7 +1636,6 @@ define([
             self.osu.audio.pause();
             self.game.paused = true;
          }
-         console.log("Re-trying playback...");
          self.destroy();
          self.constructor(self.game, self.osu, self.track);
          self.loadingMenu.hide();
@@ -1651,7 +1648,6 @@ define([
             self.osu.audio.pause();
             self.game.paused = true;
          }
-         console.log("Exiting gamefield...");
          self.destroy();
          if (window.quitGame) window.quitGame();
       };

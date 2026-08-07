@@ -8,7 +8,7 @@ define([], function () {
       while (1) {
          node.retry++;
          i = b.indexOf(0xff, i);
-         if (i == -1 || b[i + 1] & (0xe0 == 0xe0)) break;
+         if (i == -1 || (b[i + 1] & 0xe0) == 0xe0) break;
          i++;
       }
       if (i != -1) {
@@ -58,7 +58,6 @@ define([], function () {
    function preprocAudio(filename, buffer) {
       let suffix = filename.substr(-3);
       if (suffix != "mp3") {
-         console.log("Preproc audio: ogg", suffix);
          return {
             startoffset: 19,
          };
@@ -66,7 +65,6 @@ define([], function () {
       mp3Parser.readTagsNew = readTagsNew;
       let tags = mp3Parser.readTagsNew(new DataView(buffer));
       if (tags.length == 3 && tags[1]._section.type == "Xing") {
-         console.log("Dumbifing", filename);
          let arr = new Uint8Array(
             buffer.byteLength - tags[1]._section.byteLength
          );
@@ -140,8 +138,6 @@ define([], function () {
       let t = preprocAudio(filename, buffer);
       if (t.startoffset) this.posoffset = t.startoffset;
       if (t.newbuffer) buffer = t.newbuffer;
-      console.log("Set start offset to", this.posoffset, "ms");
-      console.log("You've set global offset to", game.globalOffset || 0, "ms");
       this.posoffset += game.globalOffset || 0;
 
       function decode(node) {
@@ -149,18 +145,16 @@ define([], function () {
             node.buf,
             function (decoded) {
                self.decoded = decoded;
-               console.log("Song decoded");
                if (typeof callback !== "undefined") {
                   callback(self);
                }
             },
             function (err) {
-               console.log("Error");
+               console.error("Audio decode failed");
                alert(
                   "Audio decode failed. Please report by filing an issue on Github"
                );
                if (syncStream(node)) {
-                  console.log("Attempting again");
                   decode(node);
                }
             }
