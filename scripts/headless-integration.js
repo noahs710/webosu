@@ -9,7 +9,7 @@ const http = require("http");
 const os = require("os"), path = require("path"), fs = require("fs");
 const { chromium } = require("playwright");
 
-const PORT = 8244;
+const PORT = 8288;
 const SET = 2006909, BID = 4174364, VER = "Lightspeed";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "webosu-int-"));
 const srv = spawn(process.execPath, ["server/index.js"], { cwd: process.cwd(), env: { ...process.env, PORT: String(PORT), DATA_DIR: tmp, DB_PATH: path.join(tmp, "int.db"), JWT_SECRET: "int" }, stdio: ["ignore","pipe","pipe"] });
@@ -55,7 +55,6 @@ async function main() {
   console.log("=== autoplay run ==="); console.log("  ", JSON.stringify(st));
   check("autoplay reached end", ended && st.ended, "ended=" + ended);
   await p.waitForTimeout(2500); // let the async score submit land
-  await b.close();
 
   // authoritative check: the score row in the sqlite DB (inserted + approved=1
   // => leaderboard-eligible). The HTTP leaderboard endpoint filters approved=1 +
@@ -71,6 +70,31 @@ async function main() {
   console.log("=== DB score ==="); console.log("  ", JSON.stringify(inserted), "replays:", replayC);
   check("score submitted + approved (leaderboard-eligible)", !!inserted && inserted.approved === 1 && inserted.user_id === user.id && inserted.beatmap_id === BID, JSON.stringify(inserted));
   check("replay stored", replayC >= 1, "replays=" + replayC);
+
+  // replay-watch: open ?watch=<scoreId> -> the home page's inlined replay-watch
+  // fetches /api/replays/:id + the .osz and launches the game in replay mode.
+  if (inserted && inserted.id) {
+    const watchUrl = "http://localhost:" + PORT + "/index-v2.html?watch=" + inserted.id + "&bid=" + BID + "&sid=" + SET + "&v=" + encodeURIComponent(VER);
+    // server-side: what does /api/replays/:id return?
+    const rep = await j("GET", "/api/replays/" + inserted.id);
+    console.log("=== /api/replays/" + inserted.id + " ===");
+    console.log("  status=" + rep.status + " len=" + (rep.text ? rep.text.length : 0) + " isArray=" + Array.isArray(rep.json) + " firstKeys=" + (rep.json && rep.json[0] ? Object.keys(rep.json[0]).join(",") : "-"));
+    const p2 = await ctx.newPage();
+    const errs2 = []; p2.on("pageerror", e => errs2.push(String(e)));
+    p2.on("dialog", d => { console.log("DIALOG:", d.message().slice(0, 120)); d.dismiss(); });
+    p2.on("console", m => { if (m.type() === "error" || m.type() === "warning") console.log("WATCH-CONSOLE:", m.text().slice(0, 160)); });
+    await p2.goto(watchUrl, { waitUntil: "load", timeout: 30000 });
+    const replayLaunched = await p2.waitForFunction(() => !!(window.game && window.game.replayMode && window.playback && window.playback.osu && window.playback.osu.audio), null, { timeout: 35000 }).catch(() => false);
+    const rst = await p2.evaluate(() => ({ replayMode: !!(window.game && window.game.replayMode), playback: !!window.playback, audio: !!(window.playback && window.playback.osu && window.playback.osu.audio), cursor: !!(window.game && window.game.cursor),
+      Osu: typeof window.Osu, scriptReady: !!window.scriptReady, skinReady: !!window.skinReady, soundReady: !!window.soundReady, launchReplay: typeof window.launchReplay, replayFrames: !!window.__replayFrames, app: !!window.app, game: !!window.game }));
+    console.log("=== replay watch ==="); console.log("  ", JSON.stringify(rst));
+    check("replay-watch launches game in replay mode", replayLaunched && rst.replayMode && rst.playback, JSON.stringify(rst));
+    const fatal2 = errs2.filter(e => !/catboy|api\/activity|500|Failed to fetch|ERR_|net::|blocked|404/i.test(e));
+    check("replay-watch no fatal pageerrors", fatal2.length === 0, "fatal=" + fatal2.length);
+    fatal2.slice(0, 4).forEach(e => console.log("    " + e.slice(0, 160)));
+    await p2.close();
+  }
+  await b.close();
 
   const fatal = errs.filter(e => !/catboy|api\/activity|500|Failed to fetch|ERR_|net::|blocked|404/i.test(e));
   check("no fatal pageerrors", fatal.length === 0, "fatal=" + fatal.length);

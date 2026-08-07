@@ -17,7 +17,7 @@ const DIST = join(ROOT, "dist");
 if (!existsSync(DIST)) throw new Error("dist/ not found; run [1mvite build[0m first");
 
 // 1) copy classic static dirs/files that Vite does not bundle
-for (const target of ["js", "css", "img"]) {
+for (const target of ["js", "css", "img", "hitsounds"]) {
   const src = join(ROOT, target);
   if (!existsSync(src)) continue;
   cpSync(src, join(DIST, target), { recursive: true, force: true });
