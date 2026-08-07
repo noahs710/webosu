@@ -54,6 +54,16 @@ function setOptionPanel() {
       hideNumbers: false,
       hideGreat: true,
       hideFollowPoints: false,
+      nofail: false,
+      suddendeath: false,
+      perfect: false,
+      spunout: false,
+      classic: false,
+      difficultyAdjust: false,
+      customAR: 0,
+      customCS: 0,
+      customOD: 0,
+      customHP: 0,
       soundNames: undefined,
    };
    window.gamesettings = {};
@@ -93,6 +103,17 @@ function setOptionPanel() {
          window.game.nightcore = this.nightcore;
          window.game.hidden = this.hidden;
          window.game.autoplay = this.autoplay;
+
+         window.game.nofail = this.nofail;
+         window.game.suddendeath = this.suddendeath;
+         window.game.perfect = this.perfect;
+         window.game.spunout = this.spunout;
+         window.game.classic = this.classic;
+         window.game.difficultyAdjust = this.difficultyAdjust;
+         window.game.customAR = parseFloat(this.customAR);
+         window.game.customCS = parseFloat(this.customCS);
+         window.game.customOD = parseFloat(this.customOD);
+         window.game.customHP = parseFloat(this.customHP);
 
          window.game.hideNumbers = this.hideNumbers;
          window.game.hideGreat = this.hideGreat;
@@ -536,6 +557,24 @@ function setOptionPanel() {
    );
    bindcheck("hidden-check", "hidden");
    bindcheck("autoplay-check", "autoplay");
+   bindcheck("nofail-check", "nofail");
+   bindcheck("suddendeath-check", "suddendeath");
+   bindcheck("perfect-check", "perfect");
+   bindcheck("spunout-check", "spunout");
+   bindcheck("classic-check", "classic");
+   bindcheck("difficultyadjust-check", "difficultyAdjust");
+   bindrange("custom-ar-range", "customAR", function (v) {
+      return v.toFixed(1);
+   });
+   bindrange("custom-cs-range", "customCS", function (v) {
+      return v.toFixed(1);
+   });
+   bindrange("custom-od-range", "customOD", function (v) {
+      return v.toFixed(1);
+   });
+   bindrange("custom-hp-range", "customHP", function (v) {
+      return v.toFixed(1);
+   });
 
    // skin
    bindcheck("hidenumbers-check", "hideNumbers");

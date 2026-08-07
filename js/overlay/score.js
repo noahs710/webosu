@@ -73,7 +73,7 @@ define([], function () {
       return this.value;
    };
 
-   function ScoreOverlay(windowfield, HPdrain, scoreMultiplier) {
+   function ScoreOverlay(windowfield, HPdrain, scoreMultiplier, mods) {
       // constructor.
       PIXI.Container.call(this);
 
@@ -81,6 +81,10 @@ define([], function () {
       this.HPdrain = HPdrain;
       this.scaleMul = windowfield.height / 800;
       this.scoreMultiplier = scoreMultiplier;
+      this.nofail = !!(mods && mods.nofail);
+      this.suddendeath = !!(mods && mods.suddendeath);
+      this.perfect = !!(mods && mods.perfect);
+      this.failed = false;
 
       this.score = 0; // this have been multiplied by scoreMultiplier
       this.combo = 0;
@@ -205,6 +209,25 @@ define([], function () {
          this.combo4display.set(time, this.combo);
          this.accuracy4display.set(time, this.judgeTotal / this.maxJudgeTotal);
          this.HP4display.set(time, Math.max(0, this.HP));
+
+         // fail conditions (lazer-style mods); only count hit-object (maxresult 300) results
+         if (!this.failed) {
+            let shouldFail = this.HP < 0;
+            if (this.suddendeath && maxresult === 300 && result === 0)
+               shouldFail = true;
+            if (this.perfect && maxresult === 300 && result > 0 && result < 300)
+               shouldFail = true;
+            if (this.nofail) {
+               shouldFail = false;
+               if (this.HP < 0) this.HP = 0;
+            }
+            if (shouldFail) {
+               this.failed = true;
+               this.HP = -1;
+               this.HP4display.set(time, 0);
+               if (this.onfail) this.onfail();
+            }
+         }
       };
 
       this.charspacing = 10; // in texture pixel
@@ -356,6 +379,12 @@ define([], function () {
             if (game.hardrock) l.push("HR");
             if (game.nightcore) l.push("NC");
             if (game.autoplay) l.push("AT");
+            if (game.nofail) l.push("NF");
+            if (game.suddendeath) l.push("SD");
+            if (game.perfect) l.push("PF");
+            if (game.spunout) l.push("SO");
+            if (game.classic) l.push("CL");
+            if (game.difficultyAdjust) l.push("DA");
             if (l.length == 0) return "";
             let s = l[0];
             for (let i = 1; i < l.length; ++i) s = s + "+" + l[i];
@@ -369,6 +398,10 @@ define([], function () {
             if (game.hardrock) num += 16;
             if (game.nightcore) num += 64;
             if (game.daycore) num += 256;
+            if (game.nofail) num += 1;
+            if (game.suddendeath) num += 32;
+            if (game.perfect) num += 16384;
+            if (game.spunout) num += 4096;
             return num;
          }
 

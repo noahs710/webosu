@@ -48,6 +48,17 @@ require(["osu", "underscore", "sound", "playback"], function (
       easy: false,
       hidden: false,
 
+      nofail: false,
+      suddendeath: false,
+      perfect: false,
+      spunout: false,
+      classic: false,
+      difficultyAdjust: false,
+      customAR: 0,
+      customCS: 0,
+      customOD: 0,
+      customHP: 0,
+
       // skin mods
       hideNumbers: false,
       hideGreat: true,

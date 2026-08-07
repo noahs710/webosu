@@ -201,6 +201,13 @@ define([
          this.AR = this.AR * 0.5;
          this.HP = this.HP * 0.5;
       }
+      // DifficultyAdjust: override difficulty with the user's custom values
+      if (game.difficultyAdjust) {
+         if (game.customAR >= 0) this.AR = game.customAR;
+         if (game.customCS >= 0) this.CS = game.customCS;
+         if (game.customOD >= 0) this.OD = game.customOD;
+         if (game.customHP >= 0) this.HP = game.customHP;
+      }
 
       let scoreModMultiplier = 1.0;
       if (game.easy) scoreModMultiplier *= 0.5;
@@ -208,6 +215,8 @@ define([
       if (game.hardrock) scoreModMultiplier *= 1.06;
       if (game.nightcore) scoreModMultiplier *= 1.12;
       if (game.hidden) scoreModMultiplier *= 1.06;
+      if (game.nofail) scoreModMultiplier *= 0.5;
+      if (game.spunout) scoreModMultiplier *= 0.9;
 
       self.scoreOverlay = new ScoreOverlay(
          {
@@ -215,8 +224,28 @@ define([
             height: game.window.innerHeight,
          },
          this.HP,
-         scoreModMultiplier
+         scoreModMultiplier,
+         {
+            nofail: game.nofail,
+            suddendeath: game.suddendeath,
+            perfect: game.perfect,
+         }
       );
+      self.scoreOverlay.onfail = function () {
+         if (!self.ended) {
+            self.ended = true;
+            self.pause = function () {};
+            if (self.osu.audio) self.osu.audio.pause();
+            self.game.paused = true;
+            self.scoreOverlay.visible = false;
+            self.scoreOverlay.showSummary(
+               self.track.metadata,
+               self.errorMeter.record,
+               self.retry,
+               self.quit
+            );
+         }
+      };
       self.circleRadius = (109 - 9 * this.CS) / 2; // unit: osu! pixel
       self.hitSpriteScale = self.circleRadius / 60;
       self.MehTime = 200 - 10 * this.OD;
@@ -1419,7 +1448,14 @@ define([
       this.updateSpinner = function (hit, time) {
          // update rotation
          if (time >= hit.time && time <= hit.endTime) {
-            if (this.game.down) {
+            if (this.game.spunout) {
+               // Spun Out: auto-rotate the spinner to completion
+               let frac =
+                  (time - hit.time) /
+                  Math.max(1, hit.endTime - hit.time);
+               hit.rotationProgress = hit.rotationRequired * frac;
+               hit.rotation = hit.rotationProgress;
+            } else if (this.game.down) {
                let Xr = this.game.mouseX - hit.x;
                let Yr = this.game.mouseY - hit.y;
                let mouseAngle = Math.atan2(Yr, Xr);
