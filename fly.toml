@@ -1,4 +1,4 @@
-app = "webosu-noah"
+app = "webosu"
 primary_region = "iad"
 
 [build]
@@ -20,3 +20,4 @@ primary_region = "iad"
 [mounts]
   source = "webosu_data"
   destination = "/data"
+
