@@ -561,8 +561,8 @@
          if (!isReplay && window.WebosuAPI && WebosuAPI.isLoggedIn()) {
             try {
                WebosuAPI.submitScore({
-                  beatmap_id: summary.bid,
-                  beatmap_set_id: summary.sid,
+                  beatmap_id: parseInt(summary.bid, 10) || 0,
+                  beatmap_set_id: parseInt(summary.sid, 10) || 0,
                   title: summary.title,
                   artist: summary.artist,
                   version: summary.version,

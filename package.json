@@ -29,7 +29,8 @@
     "headless:bench": "node scripts/headless-bench.js",
     "headless:home": "node scripts/headless-home.js",
     "headless:replay": "node scripts/headless-replay.js",
-    "headless:offline": "node scripts/headless-offline.js"
+    "headless:offline": "node scripts/headless-offline.js",
+    "headless:integration": "node scripts/headless-integration.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
