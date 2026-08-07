@@ -102,7 +102,10 @@ work (commit a6662e2 + the 13 increments below).
 (73a9dfb); (c) the v2 leaderboard page was always empty — the component fetched
    /api/leaderboards/:bid with no mods, the backend parsed modsNum=null, and its
    query matched no rows (scores have mods_num=0); fixed by defaulting mods to 0
-   (ac3d390).
+   (ac3d390); (d) the v2 settings page never pulled server settings — gamesettings.js
+   defines+exports syncFromServer but nothing in the v2 path called it (classic
+   settings.js did), so cross-device settings pull was broken; fixed by wiring
+   settings-panel connectedCallback to call it (b40be9b).
 
 ## Verification commands
 - `npm test` — backend inject suite (39/39)
@@ -118,6 +121,7 @@ work (commit a6662e2 + the 13 increments below).
 - `npm run headless:settings-sync` — ESM gamesettings server-sync round-trip
 - `npm run headless:build-all` — all 11 v2 shell pages on the built dist (lit upgrades, 0 fatal)
 - `npm run headless:shell-backend` — leaderboard/profile/skins render real backend data on dist
+- `npm run headless:settings-pull` — v2 settings page pulls cross-device settings from the server
 - `npm run headless:offline` — PWA offline shell
 - `npm run smoke` — dev stack (14/14)
 - `npm run dev` — Vite dev (:5173, proxies /api+/ws to :8080)
