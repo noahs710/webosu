@@ -39,6 +39,10 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
       self.background = null;
       self.started = false;
       self.upcomingHits = [];
+      // render win #4: pool hit-circle sprites by texture (base/circle/glow/
+      // burst/approach) to avoid per-object create/destroy churn + GC. A pooled
+      // sprite is fully reset in newHitSprite so it is identical to a fresh one.
+      self._spritePool = new Map();
       self.replayFrames = []; // input log uploaded to the webosu leaderboard
       self.replayPlayback = window.__replayFrames || null; // frames to play back
       window.__replayFrames = null;
@@ -578,7 +582,11 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             anchorx = 0.5,
             anchory = 0.5
          ) {
-            let sprite = new PIXI.Sprite(Skin[spritename]);
+            const tex = Skin[spritename];
+            let arr = self._spritePool.get(tex);
+            let sprite = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(tex);
+            // reset every property a hit sprite can carry so a pooled sprite is
+            // indistinguishable from a fresh one (safe by construction)
             sprite.initialscale = self.hitSpriteScale * scalemul;
             sprite.scale.x = sprite.scale.y = sprite.initialscale;
             sprite.anchor.x = anchorx;
@@ -587,6 +595,10 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             sprite.y = hit.y;
             sprite.depth = depth;
             sprite.alpha = 0;
+            sprite.visible = true;      // a pooled sprite may have been hidden on fade-out
+            sprite.tint = 0xffffff;     // base/glow/approach re-tint below; overlay stays white
+            sprite.blendMode = "normal"; // glow re-set to "add" below
+            sprite._pooledTex = tex;    // mark for return-to-pool on despawn
             hit.objects.push(sprite);
             return sprite;
          }
@@ -1061,7 +1073,13 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                i--;
                hit.objects.forEach(function (o) {
                   self.gamefield.removeChild(o);
-                  o.destroy();
+                  if (o._pooledTex) {
+                     let a = self._spritePool.get(o._pooledTex);
+                     if (!a) { a = []; self._spritePool.set(o._pooledTex, a); }
+                     a.push(o);
+                  } else {
+                     o.destroy();
+                  }
                });
                hit.judgements.forEach(function (o) {
                   self.gamefield.removeChild(o);
@@ -1622,6 +1640,13 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                hit.destroyed = true;
             }
          });
+         // drain the sprite pool (game ending; no reuse)
+         if (self._spritePool) {
+            self._spritePool.forEach(function (arr) {
+               for (let i = 0; i < arr.length; i++) arr[i].destroy();
+            });
+            self._spritePool.clear();
+         }
          let opt = {
             children: true,
             texture: false,
