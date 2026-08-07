@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+   <head>
+      <title>Leaderboard - webosu!</title>
+      <link rel="icon" href="img/favicon.png" />
+      <link rel="stylesheet" href="css/picnic.min.css" />
+      <link rel="stylesheet" href="css/main.css" />
+      <link rel="stylesheet" href="css/font.css" />
+      <link rel="manifest" href="manifest.webmanifest" />
+      <script src="js/api.js"></script>
+      <script src="js/accounts.js"></script>
+   </head>
+   <nav id="main-nav">
+      <div class="nav-link">
+         <a href="index.html" class="brand">webosu!</a>
+         <a href="new.html" class="pseudo button">New</a>
+         <a href="hot.html" class="pseudo button">Popular</a>
+         <a href="browse.html" class="pseudo button">Browse</a>
+         <a href="skins.html" class="pseudo button">Skins</a>
+      </div>
+      <div class="nav-tool">
+         <a href="liked.html" class="pseudo button">Favorites</a>
+         <a href="settings.html" class="pseudo button">Settings</a>
+         <input type="username" id="userreg" placeholder="Type your name" />
+      </div>
+   </nav>
+   <div class="main-page" id="main-page">
+      <div class="panel" style="max-width:760px">
+         <h3 style="color:#9d7dcc" id="lb-title">Leaderboard</h3>
+         <div id="lb-body">Loading…</div>
+      </div>
+   </div>
+   <script>
+   (function () {
+      const q = new URLSearchParams(location.search);
+      const bid = q.get("bid");
+      const mods = q.get("mods");
+      const body = document.getElementById("lb-body");
+      const title = document.getElementById("lb-title");
+      if (!bid) { body.textContent = "No beatmap specified."; return; }
+      title.textContent = "Beatmap #" + bid + (mods ? " (mods " + mods + ")" : "");
+      WebosuAPI.leaderboard(bid, mods != null ? parseInt(mods, 10) : null)
+         .then(function (rows) {
+            if (!rows || !rows.length) { body.textContent = "No scores yet. Be the first to set one!"; return; }
+            const t = document.createElement("table");
+            t.style.width = "100%";
+            t.innerHTML = "<tr><th>#</th><th>Player</th><th>Score</th><th>Acc</th><th>Combo</th><th>Grade</th><th>Mods</th><th></th></tr>";
+            rows.forEach(function (r, i) {
+               const tr = document.createElement("tr");
+               const td = (c) => { const e = document.createElement("td"); e.textContent = c; return e; };
+               tr.appendChild(td(String(i + 1)));
+               tr.appendChild(td(r.username));
+               tr.appendChild(td(parseInt(r.score, 10).toLocaleString()));
+               tr.appendChild(td((r.acc ? r.acc.toFixed(2) : "0") + "%"));
+               tr.appendChild(td(r.max_combo + "x"));
+               tr.appendChild(td(r.grade || "-"));
+               tr.appendChild(td(r.mods || ""));
+               const a = document.createElement("a");
+               if (r.id) { a.textContent = "replay"; a.href = "/api/replays/" + r.id; a.target = "_blank"; }
+               tr.appendChild((function(){const e=document.createElement("td"); e.appendChild(a); return e;})());
+               t.appendChild(tr);
+            });
+            body.innerHTML = "";
+            body.appendChild(t);
+         })
+         .catch(function (e) { body.textContent = "Failed to load: " + e.message; });
+   })();
+   </script>
+</html>

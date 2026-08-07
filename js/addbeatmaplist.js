@@ -117,6 +117,8 @@ function createDifficultyList(boxclicked, event) {
             if (!window.scriptReady || !window.soundReady || !window.skinReady || !this.parentElement.parentElement.oszblob) {
                 return;
             }
+            // remember this difficulty's star rating for the post-game pp estimate
+            window.lastPlayedStars = this.data.difficulty_rating;
             launchGame(this.parentElement.parentElement.oszblob, this.data.id, this.data.version);
         }
     }

@@ -487,6 +487,40 @@ define([], function () {
             grading.remove();
             quitCallback();
          };
+         let b3 = newdiv(grading, "btn retry");
+         newdiv(b3, "inner", "Leaderboard");
+         b3.onclick = function () {
+            window.open(
+               "leaderboard.html?bid=" +
+                  encodeURIComponent(metadata.BeatmapID || "") +
+                  "&mods=" +
+                  (summary.modsNum || 0),
+               "_blank"
+            );
+         };
+         let b4 = newdiv(grading, "btn quit");
+         newdiv(b4, "inner", "Profile");
+         b4.onclick = function () {
+            var u = window.localStorage.getItem("username") || "";
+            window.open("profile.html?u=" + encodeURIComponent(u), "_blank");
+         };
+         // estimated pp (additive; webosu's rough estimator)
+         if (window.WebosuAPI && window.lastPlayedStars != null) {
+            var ppBlock = newdiv(left, "block", "PP …");
+            WebosuAPI.ppEstimate({
+               stars: window.lastPlayedStars,
+               acc: acc * 100,
+               combo: this.maxcombo,
+               maxCombo: this.maxcombo,
+               modsNum: summary.modsNum,
+            })
+               .then(function (r) {
+                  ppBlock.innerText = "PP ~" + (r && r.pp != null ? r.pp : "?");
+               })
+               .catch(function () {
+                  ppBlock.innerText = "PP ~?";
+               });
+         }
          window.setTimeout(function () {
             grading.classList.remove("transparent");
          }, 100);
@@ -532,6 +566,20 @@ define([], function () {
                   miss: summary.misses,
                   replay:
                      (window.playback && window.playback.replayFrames) || null,
+                  beatmap: (function () {
+                     const t = window.playback && window.playback.track;
+                     if (!t || !t.hitObjects) return null;
+                     return {
+                        od: t.difficulty && t.difficulty.OverallDifficulty,
+                        cs: t.difficulty && t.difficulty.CircleSize,
+                        hitObjects: t.hitObjects.slice(0, 12000).map(function (h) {
+                           return {
+                              time: h.time, x: h.x, y: h.y,
+                              type: h.type, endTime: h.endTime,
+                           };
+                        }),
+                     };
+                  })(),
                });
             } catch (e) {
                console.warn("webosu score submit failed", e);

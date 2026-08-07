@@ -7,6 +7,7 @@ const { WebSocketServer } = require("ws");
 const D = require("./db");
 const A = require("./auth");
 const { estimatePP } = require("./pp");
+const { validate: validateReplay } = require("./validate");
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -80,6 +81,7 @@ app.post("/api/scores", A.authRequired, (req, res) => {
   const s = req.body || {};
   if (s.beatmap_id == null || s.score == null)
     return res.status(400).json({ error: "missing beatmap_id or score" });
+  const v = validateReplay(s, s.beatmap, s.replay);
   const scoreId = D.insertScore({
     user_id: req.user.id,
     beatmap_id: s.beatmap_id,
@@ -88,6 +90,7 @@ app.post("/api/scores", A.authRequired, (req, res) => {
     mods: s.mods, mods_num: s.modsNum,
     score: s.score, max_combo: s.combo, acc: parseFloat(s.acc) || 0,
     grade: s.grade, count300: s.count300, count100: s.count100, count50: s.count50, miss: s.miss,
+    approved: v.approved ? 1 : 0,
   });
   if (s.replay && Array.isArray(s.replay)) {
     D.insertReplay(scoreId, Buffer.from(JSON.stringify(s.replay)), s.replay.length);
@@ -105,7 +108,7 @@ app.post("/api/scores", A.authRequired, (req, res) => {
     version: s.version, score: s.score, acc: s.acc, grade: s.grade,
     mods: s.mods, username: req.user.username,
   });
-  res.json({ ok: true, id: scoreId, rank: rank || null, score: row });
+  res.json({ ok: true, id: scoreId, rank: rank || null, score: row, validation: v });
 });
 
 app.get("/api/leaderboards/:beatmapId", (req, res) => {

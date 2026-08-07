@@ -135,13 +135,16 @@ module.exports = {
 
   // ---- scores + replays ----
   insertScore(s) {
+    // node:sqlite cannot bind undefined; coerce optionals to null
+    const n = (v) => (v == null ? null : v);
     const r = db.prepare(`INSERT INTO scores
       (user_id, beatmap_id, beatmap_set_id, title, artist, version, mods, mods_num,
-       score, max_combo, acc, grade, count300, count100, count50, miss, replay_id, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
-      s.user_id, s.beatmap_id, s.beatmap_set_id, s.title, s.artist, s.version,
-      s.mods, s.mods_num || 0, s.score, s.max_combo || 0, s.acc || 0, s.grade,
-      s.count300 || 0, s.count100 || 0, s.count50 || 0, s.miss || 0, s.replay_id || null, now()
+       score, max_combo, acc, grade, count300, count100, count50, miss, replay_id, approved, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      s.user_id, s.beatmap_id, n(s.beatmap_set_id), n(s.title), n(s.artist), n(s.version),
+      n(s.mods), s.mods_num || 0, s.score, s.max_combo || 0, s.acc || 0, n(s.grade),
+      s.count300 || 0, s.count100 || 0, s.count50 || 0, s.miss || 0, s.replay_id || null,
+      s.approved ? 1 : 0, now()
     );
     return r.lastInsertRowid;
   },
