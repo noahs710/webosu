@@ -134,7 +134,6 @@ define([
 
       window.onresize = function () {
          window.app.renderer.resize(window.innerWidth, window.innerHeight);
-         if (self.audioReady) self.pause();
          self.calcSize();
          self.scoreOverlay.resize({
             width: window.innerWidth,
@@ -836,7 +835,7 @@ define([
             this.gamefield.addChild(o);
          }
          if (this.predictVisualizer) {
-            let res = game.mouse(new Date().getTime()); // prediction result
+            let res = game.mouse(performance.now()); // prediction result
             this.predictVisualizer.x = res.x;
             this.predictVisualizer.y = res.y;
             this.predictVisualizer.scale.set(res.r / 120);
@@ -1533,7 +1532,7 @@ define([
       };
 
       this.render = function (timestamp) {
-         this.realtime = new Date().getTime();
+         this.realtime = performance.now();
          if (window.lastPlaybackRenderTime) {
             window.currentFrameInterval =
                this.realtime - window.lastPlaybackRenderTime;

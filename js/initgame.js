@@ -180,6 +180,15 @@ require(["osu", "underscore", "sound", "playback"], function (
    };
    sounds.load(sample);
 
+   // resume the hitsound AudioContext on the first user gesture (autoplay policy)
+   function resumeHitsoundContext() {
+      if (window.actx && window.actx.state === "suspended") {
+         window.actx.resume();
+      }
+   }
+   window.addEventListener("pointerdown", resumeHitsoundContext, { once: true });
+   window.addEventListener("keydown", resumeHitsoundContext, { once: true });
+
    PIXI.Sprite.prototype.bringToFront = function () {
       if (this.parent) {
          var parent = this.parent;

@@ -75,11 +75,15 @@ function startdownload(box) {
    };
    xhr.onerror = function () {
       console.error("Download failed");
-      alert(
-         "Beatmap download failed. Please retry later. If you live in Asia try a VPN such as ProtonVPN"
-      );
+      title.innerText = "Download failed — click to retry";
+      bar.value = 0;
+      bar.className = "failed";
       box.downloading = false;
       box.classList.remove("downloading");
+      container.onclick = function () {
+         container.onclick = null;
+         startdownload(box);
+      };
       log_to_server("fail " + box.sid);
    };
    xhr.send();

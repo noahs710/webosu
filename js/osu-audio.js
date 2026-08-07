@@ -183,7 +183,7 @@ define([], function () {
 
       this.play = function play(wait = 0) {
          if (self.audio.state == "suspended") {
-            window.alert("Audio can't play. Please use Chrome or Firefox.");
+            self.audio.resume();
          }
          self.source = self.audio.createBufferSource();
          self.source.playbackRate.value = self.playbackRate;

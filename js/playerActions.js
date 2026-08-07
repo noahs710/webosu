@@ -10,7 +10,7 @@ define([], function () {
       if (!hit && game.mouse) {
          // if not hit with traditional (lagged) cursor position,
          // try predicted position with more tolerance
-         let res = game.mouse(new Date().getTime());
+         let res = game.mouse(performance.now());
          res.time = click.time;
          hit = upcoming.find(inUpcoming_grace(res));
       }
@@ -142,7 +142,7 @@ define([], function () {
          {
             x: 512 / 2,
             y: 384 / 2,
-            t: new Date().getTime(),
+            t: performance.now(),
          },
       ];
 
@@ -178,7 +178,7 @@ define([], function () {
          movehistory.unshift({
             x: playback.game.mouseX,
             y: playback.game.mouseY,
-            t: new Date().getTime(),
+            t: performance.now(),
          });
          if (movehistory.length > 10) movehistory.pop();
       };
@@ -244,6 +244,45 @@ define([], function () {
             playback.game.M2down;
       };
 
+      // touch input for mobile devices; each tap hits at the touch point
+      var touchDownCount = 0;
+      var touchToMouse = function (e, touch) {
+         playback.game.mouseX =
+            ((touch.clientX - gfx.xoffset) / gfx.width) * 512;
+         playback.game.mouseY =
+            ((touch.clientY - gfx.yoffset) / gfx.height) * 384;
+      };
+      var touchstartCallback = function (e) {
+         e.preventDefault();
+         e.stopPropagation();
+         for (var i = 0; i < e.changedTouches.length; i++) {
+            touchToMouse(e, e.changedTouches[i]);
+            touchDownCount++;
+            playback.game.M1down = true;
+            playback.game.down = true;
+            checkClickdown();
+         }
+      };
+      var touchmoveCallback = function (e) {
+         e.preventDefault();
+         e.stopPropagation();
+         var t = e.touches[0];
+         if (t) touchToMouse(e, t);
+      };
+      var touchendCallback = function (e) {
+         e.preventDefault();
+         e.stopPropagation();
+         touchDownCount = Math.max(0, touchDownCount - e.changedTouches.length);
+         if (touchDownCount === 0) {
+            playback.game.M1down = false;
+            playback.game.down =
+               playback.game.K1down ||
+               playback.game.K2down ||
+               playback.game.M2down;
+         }
+      };
+      var hasTouch =
+         "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
       // set eventlisteners
       if (!playback.autoplay) {
          playback.game.window.addEventListener("mousemove", mousemoveCallback);
@@ -258,6 +297,28 @@ define([], function () {
          // keyboard click handling for gameplay
          playback.game.window.addEventListener("keydown", keydownCallback);
          playback.game.window.addEventListener("keyup", keyupCallback);
+         if (hasTouch) {
+            playback.game.window.addEventListener(
+               "touchstart",
+               touchstartCallback,
+               { passive: false }
+            );
+            playback.game.window.addEventListener(
+               "touchmove",
+               touchmoveCallback,
+               { passive: false }
+            );
+            playback.game.window.addEventListener(
+               "touchend",
+               touchendCallback,
+               { passive: false }
+            );
+            playback.game.window.addEventListener(
+               "touchcancel",
+               touchendCallback,
+               { passive: false }
+            );
+         }
       }
 
       playback.game.cleanupPlayerActions = function () {
@@ -272,6 +333,22 @@ define([], function () {
          playback.game.window.removeEventListener("mouseup", mouseupCallback);
          playback.game.window.removeEventListener("keydown", keydownCallback);
          playback.game.window.removeEventListener("keyup", keyupCallback);
+         playback.game.window.removeEventListener(
+            "touchstart",
+            touchstartCallback
+         );
+         playback.game.window.removeEventListener(
+            "touchmove",
+            touchmoveCallback
+         );
+         playback.game.window.removeEventListener(
+            "touchend",
+            touchendCallback
+         );
+         playback.game.window.removeEventListener(
+            "touchcancel",
+            touchendCallback
+         );
       };
    };
 

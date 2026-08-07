@@ -246,7 +246,14 @@ nav .brand {
    }
 
    .nav-tool {
-      display: none;
+      display: flex;
+      width: 100%;
+      justify-content: center;
+      gap: 6px;
+      margin-top: 0.3em;
+   }
+   #userreg {
+      max-width: 38vw;
    }
 
    .nav-link {
@@ -1032,6 +1039,18 @@ progress.finished::-moz-progress-bar {
 
 progress.finished::-webkit-progress-value {
    background: #39af3c;
+}
+progress.failed {
+   background: #a11;
+}
+progress.failed::-webkit-progress-bar {
+   background: #a11;
+}
+progress.failed::-moz-progress-bar {
+   background: #a11;
+}
+.download-progress .title {
+   cursor: pointer;
 }
 
 .text {
