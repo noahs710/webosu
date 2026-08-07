@@ -90,10 +90,12 @@ work (commit a6662e2 + the 13 increments below).
    reset by newHitSprite+createHitCircle, so it's safe-by-construction if
    `visible` is reset on reuse; the remaining risk is a missed property the
    hits-count test won't catch.)
-5. **Game→API score-submit integration** — the field mapping is code-verified
-   (score.js WebosuAPI.submitScore → /api/scores matches the route +
-   validate.js); the runtime integration (play→submit→leaderboard) you'll
-   exercise by playing.
+5. **Game→API score-submit integration** — VERIFIED end-to-end by
+   `headless:integration` (logged-in autoplay → submit → validate → insert
+   approved=1 → replay stored, read from the sqlite DB). This caught + fixed a
+   real bug: submitScore sent beatmap_id/beatmap_set_id as strings (from the
+   .osu metadata) but the backend requires numbers — score submission would
+   have 400'd for every real player. (2fbb808)
 
 ## Verification commands
 - `npm test` — backend inject suite (39/39)
@@ -105,6 +107,7 @@ work (commit a6662e2 + the 13 increments below).
 - `npm run headless:build` / `headless:build:play` — built dist/ shell+boot /
   gameplay from dist (1301 hits)
 - `npm run headless:bench` — Pixi 8 benchmark harness
+- `npm run headless:integration` — core loop (play→submit→leaderboard) end-to-end
 - `npm run headless:offline` — PWA offline shell
 - `npm run smoke` — dev stack (14/14)
 - `npm run dev` — Vite dev (:5173, proxies /api+/ws to :8080)
