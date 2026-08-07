@@ -31,8 +31,7 @@
     "fflate": "^0.8.3",
     "howler": "^2.2.4",
     "lit": "^3.3.3",
-    "pixi.js": "^8.19.0",
-    "vercel": "35.2.1"
+    "pixi.js": "^8.19.0"
   },
   "devDependencies": {
     "playwright": "^1.62.1",
