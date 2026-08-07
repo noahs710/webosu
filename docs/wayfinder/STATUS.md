@@ -111,7 +111,9 @@ work (commit a6662e2 + the 13 increments below).
 - `npm run headless:build` / `headless:build:play` — built dist/ shell+boot /
   gameplay from dist (1301 hits)
 - `npm run headless:bench` — Pixi 8 benchmark harness
-- `npm run headless:integration` — core loop (play→submit→leaderboard) end-to-end
+- `npm run headless:integration` — core loop (play→submit→leaderboard→replay-watch) end-to-end
+- `npm run headless:settings-sync` — ESM gamesettings server-sync round-trip
+- `npm run headless:build-all` — all 11 v2 shell pages on the built dist (lit upgrades, 0 fatal)
 - `npm run headless:offline` — PWA offline shell
 - `npm run smoke` — dev stack (14/14)
 - `npm run dev` — Vite dev (:5173, proxies /api+/ws to :8080)
