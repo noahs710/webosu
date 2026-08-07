@@ -52,10 +52,15 @@ export async function launchOSU(osu, beatmapid, version) {
 
    // load cursor
    if (!game.showhwmouse || game.autoplay || game.replayMode) {
+      // cursor + trail live in a dedicated top layer so we never re-parent
+      // individual sprites each frame (render win: cursor-trail z-order fix).
+      // Trail sprites keep a fixed back-to-front order; the cursor is added
+      // last so it renders above the trail.
+      game.cursorLayer = new PIXI.Container();
+      game.stage.addChild(game.cursorLayer);
       game.cursor = new PIXI.Sprite(Skin["cursor.png"]);
       game.cursor.anchor.x = game.cursor.anchor.y = 0.5;
       game.cursor.scale.x = game.cursor.scale.y = 0.3 * game.cursorSize;
-      game.stage.addChild(game.cursor);
       // cursor trail: a ring buffer of recent positions fading behind the cursor
       game.cursorTrail = [];
       for (let i = 0; i < 8; i++) {
@@ -63,7 +68,7 @@ export async function launchOSU(osu, beatmapid, version) {
          t.anchor.x = t.anchor.y = 0.5;
          t.scale.x = t.scale.y = 0.3 * game.cursorSize;
          t.alpha = 0;
-         game.stage.addChild(t);
+         game.cursorLayer.addChild(t);
          game.cursorTrail.push({
             sprite: t,
             x: game.mouseX,
@@ -71,6 +76,7 @@ export async function launchOSU(osu, beatmapid, version) {
          });
       }
       game.cursorTrailHead = 0;
+      game.cursorLayer.addChild(game.cursor);
    }
 
    // switch page to game view
@@ -112,16 +118,13 @@ export async function launchOSU(osu, beatmapid, version) {
       // restore alert function
       window.alert = defaultAlert;
       // TODO application level clean up
-      if (game.cursor) {
-         game.stage.removeChild(game.cursor);
-         game.cursor.destroy();
+      // cursor + trail are parented to cursorLayer; destroying the layer
+      // recursively destroys its children.
+      if (game.cursorLayer) {
+         game.stage.removeChild(game.cursorLayer);
+         game.cursorLayer.destroy({ children: true });
+         game.cursorLayer = null;
          game.cursor = null;
-      }
-      if (game.cursorTrail) {
-         for (let i = 0; i < game.cursorTrail.length; i++) {
-            game.stage.removeChild(game.cursorTrail[i].sprite);
-            game.cursorTrail[i].sprite.destroy();
-         }
          game.cursorTrail = null;
          game.cursorTrailHead = 0;
       }
@@ -166,10 +169,17 @@ export async function launchOSU(osu, beatmapid, version) {
                entry.sprite.y =
                   (entry.y / 384) * gfx.height + gfx.yoffset;
                entry.sprite.alpha = Math.max(0, 0.5 * (1 - age / N));
-               entry.sprite.bringToFront();
             }
          }
-         game.cursor.bringToFront();
+         // keep the cursor layer above gameplay/HUD with one re-parent per
+         // frame instead of N+1 per-sprite re-parents
+         // capture parent first: removeChild nulls .parent in Pixi v8
+         let cl = game.cursorLayer;
+         let clParent = cl && cl.parent;
+         if (clParent) {
+            clParent.removeChild(cl);
+            clParent.addChild(cl);
+         }
       }
       app.renderer.render(game.stage);
       window.animationRequestID = window.requestAnimationFrame(gameLoop);
