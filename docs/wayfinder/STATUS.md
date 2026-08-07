@@ -15,6 +15,7 @@ work (commit a6662e2 + the 13 increments below).
   built files). Fastify serves dist/ when present (immutable 1y cache for
   hashed /assets/*, fallback to source for dev). Multi-stage Dockerfile
   builds the frontend + ships only dist/+server+prod deps.
+- copy-static also copies hitsounds/ (fix 73a9dfb: it was missing -> the game had no hitsounds + replay-watch was broken in production; dev masked it because Vite serves hitsounds/ from the repo root). Audited all runtime asset paths (sprites.json, hitsounds/, img/, css/) — all now copied.
 - Verified: `npm run build` green; Fastify serves dist/ (all 200);
   `headless:build` (browse-v2 12 cards + self-hosted font + 0 errors,
   index-v2 boots ESM/PIXI, legacy index loads require, all 0 pageerrors);
@@ -90,12 +91,15 @@ work (commit a6662e2 + the 13 increments below).
    reset by newHitSprite+createHitCircle, so it's safe-by-construction if
    `visible` is reset on reuse; the remaining risk is a missed property the
    hits-count test won't catch.)
-5. **Game→API score-submit integration** — VERIFIED end-to-end by
-   `headless:integration` (logged-in autoplay → submit → validate → insert
-   approved=1 → replay stored, read from the sqlite DB). This caught + fixed a
-   real bug: submitScore sent beatmap_id/beatmap_set_id as strings (from the
-   .osu metadata) but the backend requires numbers — score submission would
-   have 400'd for every real player. (2fbb808)
+5. **Game→API score-submit + replay-watch integration** — VERIFIED end-to-end
+   by `headless:integration`: logged-in autoplay → submit → validate → insert
+   approved=1 → replay stored (read from the sqlite DB), then ?watch=<id> →
+   game launches in replay mode. This caught + fixed TWO real bugs the dev-only
+   tests missed: (a) submitScore sent beatmap_id/beatmap_set_id as strings but
+   the backend requires numbers — score submission would have 400'd for every
+   player (2fbb808); (b) copy-static didn't copy hitsounds/ → the production
+   build had no hitsounds + replay-watch's soundReady guard never resolved
+   (73a9dfb).
 
 ## Verification commands
 - `npm test` — backend inject suite (39/39)
