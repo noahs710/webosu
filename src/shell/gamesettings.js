@@ -1,4 +1,5 @@
 // Phase 3: ESM gamesettings system (shared between the settings page and the game).
+import { api } from "./api.js";
 // Ports the core of classic settings.js: defaults + loadToGame (settings -> window.game)
 // + localStorage ("osugamesettings") + optional backend sync via WebosuAPI. Sets
 // window.gamesettings so the ESM game (initgame) applies user settings on launch.
@@ -28,14 +29,13 @@ function loadFromLocal() {
 }
 let serverSyncTimer = null;
 function pushToServer() {
-  const W = window.WebosuAPI;
-  if (!W || !W.isLoggedIn()) return;
+  if (!api.isLoggedIn()) return;
   if (serverSyncTimer) clearTimeout(serverSyncTimer);
   serverSyncTimer = setTimeout(() => {
     try {
       const s = {}; for (const k in gamesettings) if (typeof gamesettings[k] !== "function") s[k] = gamesettings[k];
       const fav = window.liked_sid_set ? Array.from(window.liked_sid_set) : [];
-      W.saveMyProfile({ settings: s, favorites: fav }).catch(() => {});
+      api.saveMyProfile({ settings: s, favorites: fav }).catch(() => {});
     } catch (e) {}
   }, 800);
 }
@@ -44,10 +44,9 @@ function saveToLocal() {
   pushToServer();
 }
 async function syncFromServer() {
-  const W = window.WebosuAPI;
-  if (!W || !W.isLoggedIn()) return;
+  if (!api.isLoggedIn()) return;
   try {
-    const p = await W.getMyProfile();
+    const p = await api.getMyProfile();
     if (p && p.settings) {
       Object.assign(gamesettings, p.settings);
       gamesettings.loadToGame();
