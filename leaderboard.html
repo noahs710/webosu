@@ -55,9 +55,24 @@
                tr.appendChild(td(r.max_combo + "x"));
                tr.appendChild(td(r.grade || "-"));
                tr.appendChild(td(r.mods || ""));
-               const a = document.createElement("a");
-               if (r.id) { a.textContent = "replay"; a.href = "/api/replays/" + r.id; a.target = "_blank"; }
-               tr.appendChild((function(){const e=document.createElement("td"); e.appendChild(a); return e;})());
+               const cell = document.createElement("td");
+               if (r.replay_id) {
+                  const watch = document.createElement("a");
+                  watch.textContent = "watch";
+                  watch.href =
+                     "index.html?watch=" + r.replay_id +
+                     "&bid=" + r.beatmap_id +
+                     "&sid=" + r.beatmap_set_id +
+                     "&v=" + encodeURIComponent(r.version || "");
+                  watch.style.marginRight = "8px";
+                  const dl = document.createElement("a");
+                  dl.textContent = "replay";
+                  dl.href = "/api/replays/" + r.replay_id;
+                  dl.target = "_blank";
+                  cell.appendChild(watch);
+                  cell.appendChild(dl);
+               }
+               tr.appendChild(cell);
                t.appendChild(tr);
             });
             body.innerHTML = "";

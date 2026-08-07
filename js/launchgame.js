@@ -50,7 +50,7 @@ function launchOSU(osu, beatmapid, version) {
    }
 
    // load cursor
-   if (!game.showhwmouse || game.autoplay) {
+   if (!game.showhwmouse || game.autoplay || game.replayMode) {
       game.cursor = new PIXI.Sprite(Skin["cursor.png"]);
       game.cursor.anchor.x = game.cursor.anchor.y = 0.5;
       game.cursor.scale.x = game.cursor.scale.y = 0.3 * game.cursorSize;
@@ -179,7 +179,14 @@ function launchOSU(osu, beatmapid, version) {
    window.animationRequestID = window.requestAnimationFrame(gameLoop);
 }
 
+// launch a beatmap in replay mode, driving input from recorded frames
+function launchReplay(osublob, beatmapid, version, frames) {
+   window.__replayFrames = frames || null;
+   launchGame(osublob, beatmapid, version);
+}
 function launchGame(osublob, beatmapid, version) {
+   // replay playback: frames were stashed by launchReplay before calling us
+   if (window.game) window.game.replayMode = !!window.__replayFrames;
    // unzip osz & parse beatmap
    let fs = new zip.fs.FS();
    fs.root.importBlob(

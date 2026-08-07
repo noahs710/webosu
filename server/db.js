@@ -167,14 +167,14 @@ module.exports = {
     // best score per user on this beatmap (optionally filtered by mods)
     if (modsNum != null) {
       return db.prepare(`
-        SELECT sc.id, sc.score, sc.acc, sc.max_combo, sc.grade, sc.mods, sc.miss, u.username
+        SELECT sc.id, sc.replay_id, sc.beatmap_id, sc.beatmap_set_id, sc.version, sc.score, sc.acc, sc.max_combo, sc.grade, sc.mods, sc.miss, u.username
         FROM scores sc JOIN users u ON u.id = sc.user_id
         WHERE sc.beatmap_id = ? AND sc.mods_num = ? AND sc.approved = 1
         GROUP BY sc.user_id HAVING MAX(sc.score)
         ORDER BY sc.score DESC LIMIT ?`).all(beatmapId, modsNum, limit);
     }
     return db.prepare(`
-      SELECT sc.id, sc.score, sc.acc, sc.max_combo, sc.grade, sc.mods, sc.miss, u.username
+      SELECT sc.id, sc.replay_id, sc.beatmap_id, sc.beatmap_set_id, sc.version, sc.score, sc.acc, sc.max_combo, sc.grade, sc.mods, sc.miss, u.username
       FROM scores sc JOIN users u ON u.id = sc.user_id
       WHERE sc.beatmap_id = ? AND sc.approved = 1
       GROUP BY sc.user_id HAVING MAX(sc.score)

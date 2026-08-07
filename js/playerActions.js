@@ -70,7 +70,42 @@ define([], function () {
             lasttime: 0,
          };
       }
+      // replay playback: drive the cursor + key presses from a stored input log
+      function driveReplay(time) {
+         var frames = playback.replayPlayback;
+         if (!frames || !frames.length) return;
+         var n = frames.length;
+         driveReplay._i = driveReplay._i || 0;
+         var i = driveReplay._i;
+         while (i + 1 < n && frames[i + 1].t <= time) i++;
+         while (i > 0 && frames[i].t > time) i--;
+         driveReplay._i = i;
+         var a = frames[i];
+         var b = frames[Math.min(i + 1, n - 1)];
+         var px = a.x, py = a.y;
+         if (b !== a && b.t > a.t) {
+            var k = Math.max(0, Math.min(1, (time - a.t) / (b.t - a.t)));
+            px = a.x + (b.x - a.x) * k;
+            py = a.y + (b.y - a.y) * k;
+         }
+         playback.game.mouseX = px;
+         playback.game.mouseY = py;
+         var d = a.d ? true : false;
+         var lastD = driveReplay._lastD || false;
+         if (d && !lastD) {
+            playback.game.down = true;
+            checkClickdown();
+         } else if (!d && lastD) {
+            playback.game.down = false;
+         } else {
+            playback.game.down = d;
+         }
+         driveReplay._lastD = d;
+      }
       playback.game.updatePlayerActions = function (time) {
+         if (playback.replayMode && playback.replayPlayback) {
+            return driveReplay(time);
+         }
          if (playback.autoplay) {
             const spinRadius = 60;
             let cur = playback.auto.currentObject;
@@ -295,7 +330,7 @@ define([], function () {
       var hasTouch =
          "ontouchstart" in window || (navigator.maxTouchPoints || 0) > 0;
       // set eventlisteners
-      if (!playback.autoplay) {
+      if (!playback.autoplay && !playback.replayMode) {
          playback.game.window.addEventListener("mousemove", mousemoveCallback);
          // mouse click handling for gameplay
          if (playback.game.allowMouseButton) {

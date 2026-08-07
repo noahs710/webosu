@@ -504,6 +504,26 @@ define([], function () {
             var u = window.localStorage.getItem("username") || "";
             window.open("profile.html?u=" + encodeURIComponent(u), "_blank");
          };
+         if (
+            window.lastPlayedOszBlob &&
+            window.playback &&
+            window.playback.replayFrames &&
+            window.playback.replayFrames.length
+         ) {
+            let b5 = newdiv(grading, "btn retry");
+            newdiv(b5, "inner", "Watch replay");
+            b5.onclick = function () {
+               var rf = window.playback.replayFrames;
+               grading.remove();
+               quitCallback();
+               launchReplay(
+                  window.lastPlayedOszBlob,
+                  window.lastPlayedBeatmapId,
+                  window.lastPlayedVersion,
+                  rf
+               );
+            };
+         }
          // estimated pp (additive; webosu's rough estimator)
          if (window.WebosuAPI && window.lastPlayedStars != null) {
             var ppBlock = newdiv(left, "block", "PP …");
@@ -544,9 +564,10 @@ define([], function () {
             acc: (acc * 100).toFixed(2) + "%",
             time: new Date().getTime(),
          };
-         addPlayHistory(summary);
-         uploadScore(summary);
-         if (window.WebosuAPI && WebosuAPI.isLoggedIn()) {
+         var isReplay = !!(window.game && window.game.replayMode);
+         if (!isReplay) addPlayHistory(summary);
+         if (!isReplay) uploadScore(summary);
+         if (!isReplay && window.WebosuAPI && WebosuAPI.isLoggedIn()) {
             try {
                WebosuAPI.submitScore({
                   beatmap_id: summary.bid,

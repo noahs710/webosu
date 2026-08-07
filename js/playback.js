@@ -55,6 +55,9 @@ define([
       self.started = false;
       self.upcomingHits = [];
       self.replayFrames = []; // input log uploaded to the webosu leaderboard
+      self.replayPlayback = window.__replayFrames || null; // frames to play back
+      window.__replayFrames = null;
+      self.replayMode = !!self.replayPlayback;
       // creating a copy of hitobjects
       self.hits = [];
       _.each(self.track.hitObjects, function (o) {
@@ -1582,7 +1585,7 @@ define([
             time = osu.audio.getPosition() * 1000 + self.offset;
          }
          if (typeof time !== "undefined") {
-            if (this.started && this.replayFrames) {
+            if (this.started && this.replayFrames && !this.replayMode) {
                this.replayFrames.push({
                   t: time, x: this.game.mouseX, y: this.game.mouseY, d: this.game.down,
                });

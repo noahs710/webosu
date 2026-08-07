@@ -119,6 +119,10 @@ function createDifficultyList(boxclicked, event) {
             }
             // remember this difficulty's star rating for the post-game pp estimate
             window.lastPlayedStars = this.data.difficulty_rating;
+            // stash the osz blob + ids so the results screen can replay this run
+            window.lastPlayedOszBlob = this.parentElement.parentElement.oszblob;
+            window.lastPlayedBeatmapId = this.data.id;
+            window.lastPlayedVersion = this.data.version;
             launchGame(this.parentElement.parentElement.oszblob, this.data.id, this.data.version);
         }
     }

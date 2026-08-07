@@ -42,6 +42,7 @@ require(["osu", "underscore", "sound", "playback"], function (
 
       // mods
       autoplay: false,
+      replayMode: false,
       nightcore: false,
       daycore: false,
       hardrock: false,
