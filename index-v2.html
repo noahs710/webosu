@@ -57,13 +57,13 @@
             <a href="skins-v2.html" class="pseudo button">Skins</a>
          <a href="liked-v2.html" class="pseudo button">Favorites</a>
             <a href="settings-v2.html" class="pseudo button">Settings</a>
-            <input type="username" id="userreg" placeholder="Type your name" />
+            <account-widget></account-widget>
         </div>
     </nav>
     <div class="main-page" id="main-page">
         <div class="main-content">
             <div class="announcement">
-                To save the username just type it in the top right & press enter! Join the <a href="https://discord.gg/v7wBtSdYzx">Discord</a> and share your scores!
+                Log in via the account button in the top right to save your scores and get on the leaderboard! Join the <a href="https://discord.gg/v7wBtSdYzx">Discord</a> and share your scores!
             </div>
             <div class="announcement">
                 Thank you so much to everyone who has been involved with webosu!, especially Lemres who has kept this ship afloat for like 2 years while I did nothing lol
@@ -143,25 +143,18 @@
                 <span class="footer-info">Source code: <a href="https://github.com/BlaNKtext/webosu">Github</a></span>
             </div>
         </div>
-        <script>
-        // username widget (classic): type your name + press enter to save
-        const input = document.getElementById("userreg");
-        const username = window.localStorage.getItem("username");
-        if (username) input.value = username;
-        input.addEventListener("keypress", function (event) {
-            if (event.key === "Enter") { event.preventDefault(); saveUser(); }
-        });
-        function saveUser() {
-            const player = document.getElementById("userreg").value;
-            window.localStorage.setItem("username", player);
-            document.cookie = "username=" + player;
-        }
-        </script>
         <script type="module">
         // Phase 3: home lists on lit <beatmap-list>. URL lists use src; liked +
         // recently-played are sid-driven from localforage. Difficulty click
         // dispatches beatmap-launch -> fetch .osz -> window.launchGame.
         import "/src/shell/beatmap-list.js";
+        import "/src/shell/account-widget.js";
+        // bridge the lit account widget to the in-game scoreboard name: the game
+        // reads localStorage "username", so mirror the logged-in account into it.
+        document.addEventListener("account-change", (e) => {
+            const u = e.detail;
+            if (u && u.username) { try { localStorage.setItem("username", u.username); } catch (er) {} }
+        });
         document.addEventListener("beatmap-launch", async (e) => {
             const { setId, beatmapId, version } = e.detail;
             try {
@@ -192,8 +185,6 @@
         window.genRandomList = genRandomList;
         genRandomList();
         </script>
-<script src="js/api.js"></script>
-<script src="js/accounts.js"></script>
 <script>
 if (navigator.serviceWorker) { navigator.serviceWorker.register("/sw.js").catch(function(){}); }
 </script>
