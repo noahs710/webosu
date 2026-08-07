@@ -290,8 +290,6 @@ define([], function () {
       };
 
       function uploadScore(summary) {
-         let xhr = new XMLHttpRequest();
-         let url = "https://scores.webosu.online/post";
          let args = "";
          args += "?sid=" + encodeURIComponent(summary.sid);
          args += "&bid=" + encodeURIComponent(summary.bid);
@@ -314,29 +312,20 @@ define([], function () {
          args += "&misses=" + encodeURIComponent(summary.misses);
          args += "&modsnum=" + encodeURIComponent(summary.modsNum);
          args += "&artist=" + encodeURIComponent(summary.artist);
-         xhr.open("GET", url + args);
-         xhr.onload = function () {
-            console.log("Score uploaded");
-         };
-         xhr.onerror = function () {
-            console.error("Score upload failed");
-         };
-         xhr.send();
-
-         //TODO: Change url to api.webosu.online OR integrate to Mino over /api/webosu/score ~ Lemres | MWAH LEMRES I LOVE U ~ ME <3
-         fetch(`https://api.catboy.best/score${args}`, {
+         fetch("https://api.catboy.best/score" + args, {
             method: "GET",
             mode: "cors",
-            headers: {
-               "Content-Type": "application/json",
-               "Access-Control-Allow-Origin": "*",
-            },
-         }).then((resp) => {
-            resp.json().then((data) => {
-               if (data.error)
-                  console.error("Discord Submission failed: " + data.error);
+         })
+            .then(function (resp) {
+               return resp.json();
+            })
+            .then(function (data) {
+               if (data && data.error)
+                  console.error("Score submission failed: " + data.error);
+            })
+            .catch(function (err) {
+               console.error("Score submission failed", err);
             });
-         });
       }
 
       this.showSummary = function (

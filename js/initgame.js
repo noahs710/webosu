@@ -80,10 +80,13 @@ require(["osu", "underscore", "sound", "playback"], function (
    PIXI.Loader.shared
       .add("sprites.json")
       .load(function (loader, resources) {
-         window.skinReady = true;
-         document.getElementById("skin-progress").classList.add("finished");
-         document.body.classList.add("skin-ready");
          Skin = PIXI.Loader.shared.resources["sprites.json"].textures;
+         // apply any custom skin textures, then signal skin ready
+         applyCustomSkin(function () {
+            window.skinReady = true;
+            document.getElementById("skin-progress").classList.add("finished");
+            document.body.classList.add("skin-ready");
+         });
       });
 
    // load sounds
@@ -154,6 +157,38 @@ require(["osu", "underscore", "sound", "playback"], function (
             console.warn("custom hitsound failed", key, e);
          }
       }
+   }
+
+   // apply custom skin textures imported from a .osk (stored in localforage)
+   function applyCustomSkin(done) {
+      // map osu! skin filenames that differ from the webosu spritesheet keys
+      var skinNameMap = {
+         "hitcircle.png": "disc.png",
+         "sliderb0.png": "sliderb.png",
+      };
+      if (!window.localforage) {
+         done();
+         return;
+      }
+      localforage.getItem("skinTextures", function (err, map) {
+         if (err || !map || typeof map !== "object") {
+            done();
+            return;
+         }
+         for (var osuName in map) {
+            try {
+               var key = skinNameMap[osuName] || osuName;
+               if (Skin[key]) {
+                  Skin[key] = PIXI.Texture.from(
+                     "data:image/png;base64," + map[osuName]
+                  );
+               }
+            } catch (e) {
+               console.warn("custom skin apply failed", osuName, e);
+            }
+         }
+         done();
+      });
    }
 
    sounds.whenLoaded = function () {

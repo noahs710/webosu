@@ -288,74 +288,100 @@ function setOptionPanel() {
             statusEl.classList.toggle("ok", !!ok);
          }
       }
-      function applyAndSave(map) {
+      function storeHitsounds(map) {
          const keys = Object.keys(map);
-         if (!keys.length) {
-            setStatus("No hitsounds found in that file.");
-            return;
+         if (keys.length) {
+            const existing =
+               gamesettings["soundNames"] &&
+               typeof gamesettings["soundNames"] === "object"
+                  ? gamesettings["soundNames"]
+                  : {};
+            gamesettings["soundNames"] = Object.assign({}, existing, map);
          }
-         const existing =
-            gamesettings["soundNames"] &&
-            typeof gamesettings["soundNames"] === "object"
-               ? gamesettings["soundNames"]
-               : {};
-         gamesettings["soundNames"] = Object.assign({}, existing, map);
          gamesettings.loadToGame();
          saveToLocal();
-         setStatus(
-            "Loaded " +
-               keys.length +
-               " hitsound" +
-               (keys.length > 1 ? "s" : "") +
-               ": " +
-               keys.join(", "),
-            true
-         );
+         return keys.length;
       }
-      // extract hitsounds from a .osk (zip) using the bundled zip.js library
+      function storeSkin(skin) {
+         const keys = Object.keys(skin);
+         if (!keys.length || !window.localforage) return 0;
+         localforage.getItem("skinTextures", function (err, existing) {
+            const base =
+               existing && typeof existing === "object" ? existing : {};
+            localforage.setItem(
+               "skinTextures",
+               Object.assign({}, base, skin)
+            );
+         });
+         return keys.length;
+      }
+      // extract hitsounds + skin images from a .osk (zip) via the bundled zip.js
       function importOsk(file) {
          if (!window.zip) {
             return Promise.reject(new Error("zip library not loaded"));
          }
          if (!zip.workerScriptsPath) zip.workerScriptsPath = "js/lib/";
+         function isImage(name) {
+            return /\.(png|jpe?g)$/i.test(name);
+         }
          return new Promise(function (resolve, reject) {
             const zfs = new zip.fs.FS();
             zfs.root.importBlob(
                file,
                function () {
-                  const matches = [];
+                  const hits = [];
+                  const imgs = [];
                   (function walk(entry) {
                      if (typeof entry.getBlob === "function") {
                         const cn = canonicalName(entry.name);
-                        if (cn) matches.push({ entry: entry, name: cn });
+                        if (cn) {
+                           hits.push({ entry: entry, name: cn });
+                        } else {
+                           const base = entry.name
+                              .split("/")
+                              .pop()
+                              .toLowerCase();
+                           if (isImage(base))
+                              imgs.push({ entry: entry, name: base });
+                        }
                         return;
                      }
                      const kids = entry.children || [];
                      for (let i = 0; i < kids.length; i++) walk(kids[i]);
                   })(zfs.root);
-                  if (!matches.length) {
-                     resolve({});
+                  const out = { hitsounds: {}, skin: {} };
+                  const all = hits
+                     .map(function (m) {
+                        return { m: m, into: "hitsounds" };
+                     })
+                     .concat(
+                        imgs.map(function (m) {
+                           return { m: m, into: "skin" };
+                        })
+                     );
+                  if (!all.length) {
+                     resolve(out);
                      return;
                   }
-                  const result = {};
-                  let pending = matches.length;
-                  matches.forEach(function (m) {
-                     m.entry.getBlob(
+                  let pending = all.length;
+                  all.forEach(function (item) {
+                     item.m.entry.getBlob(
                         "application/octet-stream",
                         function (blob) {
                            blob.arrayBuffer()
                               .then(function (ab) {
-                                 result[m.name] = arrayBufferToBase64(ab);
+                                 out[item.into][item.m.name] =
+                                    arrayBufferToBase64(ab);
                               })
                               .catch(function (err) {
                                  console.error(
-                                    "hitsound extract failed",
-                                    m.name,
+                                    "extract failed",
+                                    item.m.name,
                                     err
                                  );
                               })
                               .finally(function () {
-                                 if (--pending === 0) resolve(result);
+                                 if (--pending === 0) resolve(out);
                               });
                         }
                      );
@@ -368,11 +394,14 @@ function setOptionPanel() {
          });
       }
       async function handleFiles(files) {
-         const map = {};
+         const hitsounds = {};
+         const skin = {};
          for (const f of files) {
             if (f.name.toLowerCase().endsWith(".osk")) {
                try {
-                  Object.assign(map, await importOsk(f));
+                  const r = await importOsk(f);
+                  Object.assign(hitsounds, r.hitsounds || {});
+                  Object.assign(skin, r.skin || {});
                } catch (e) {
                   console.error(e);
                   setStatus("Failed to read .osk: " + (e.message || e));
@@ -382,14 +411,42 @@ function setOptionPanel() {
                const cn = canonicalName(f.name);
                if (cn) {
                   try {
-                     map[cn] = arrayBufferToBase64(await f.arrayBuffer());
+                     hitsounds[cn] = arrayBufferToBase64(
+                        await f.arrayBuffer()
+                     );
                   } catch (e) {
                      console.error("hitsound import failed", f.name, e);
+                  }
+               } else {
+                  const base = f.name.split("/").pop().toLowerCase();
+                  if (/\.(png|jpe?g)$/i.test(base)) {
+                     try {
+                        skin[base] = arrayBufferToBase64(
+                           await f.arrayBuffer()
+                        );
+                     } catch (e) {
+                        console.error("skin import failed", f.name, e);
+                     }
                   }
                }
             }
          }
-         applyAndSave(map);
+         const h = storeHitsounds(hitsounds);
+         const sk = storeSkin(skin);
+         if (h || sk) {
+            setStatus(
+               "Loaded " +
+                  h +
+                  " hitsound" +
+                  (h === 1 ? "" : "s") +
+                  (sk
+                     ? " and " + sk + " skin image" + (sk === 1 ? "" : "s")
+                     : ""),
+               true
+            );
+         } else {
+            setStatus("No hitsounds or skin images found in that file.");
+         }
       }
       input.onchange = async function () {
          const files = Array.from(input.files);
@@ -422,6 +479,7 @@ function setOptionPanel() {
       gamesettings.restoreCallbacks.push(function () {
          gamesettings["soundNames"] = undefined;
          if (statusEl) statusEl.textContent = "";
+         if (window.localforage) localforage.removeItem("skinTextures");
       });
    }
    // gameplay settings
