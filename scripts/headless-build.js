@@ -33,13 +33,22 @@ async function main() {
   const ctx = await b.newContext({ viewport: { width: 1280, height: 800 } });
 
   // browse-v2 shell
+  const fontHosts = new Set();
+  ctx.on("request", (r) => { const h = new URL(r.url()).hostname; if (/(woff2?|ttf|font)/.test(r.url()) || h.includes("fonts.")) fontHosts.add(h); });
   const p1 = await ctx.newPage();
   const e1 = await load(p1, "http://localhost:5180/browse-v2.html");
   let cards = -1;
   try { await p1.waitForFunction(() => document.querySelectorAll(".beatmap-card").length > 0, null, { timeout: 20000 }); cards = await p1.evaluate(() => document.querySelectorAll(".beatmap-card").length); } catch (e) {}
   const lazer = (await p1.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--lazer-pink"))).trim();
+  const fontCheck = await p1.evaluate(() => {
+    const el = document.querySelector(".beatmapcard-title, .brand, h2") || document.body;
+    const ff = getComputedStyle(el).fontFamily;
+    return { fontFamily: ff, isComfortaa: /comfortaa/i.test(ff) };
+  });
+  const gfontsRequested = [...fontHosts].filter((h) => h.includes("fonts.googleapis.com") || h.includes("fonts.gstatic.com"));
   console.log("=== browse-v2 (built) ===");
-  console.log("  cards:", cards, " --lazer-pink:", lazer, " pageerrors:", e1.length);
+  console.log("  cards:", cards, " --lazer-pink:", lazer, " font:", fontCheck.fontFamily, " pageerrors:", e1.length);
+  console.log("  self-hosted font (no gstatic/googleapis):", gfontsRequested.length === 0, JSON.stringify(gfontsRequested));
 
   // index-v2 game entry boot
   const p2 = await ctx.newPage();
@@ -64,7 +73,7 @@ async function main() {
   console.log("\nFATAL: browse-v2", f1, " index-v2", f2, " legacy", f3);
   await b.close();
   for (const k of kids) try { k.kill("SIGTERM"); } catch (e) {}
-  const ok = cards > 0 && lazer.length > 0 && f1 === 0 && f2 === 0 && f3 === 0;
+  const ok = cards > 0 && lazer.length > 0 && fontCheck.isComfortaa && gfontsRequested.length === 0 && f1 === 0 && f2 === 0 && f3 === 0;
   process.exit(ok ? 0 : 1);
 }
 main().catch(async (e) => { console.error("FATAL", e); for (const k of kids) try { k.kill(); } catch (_) {} process.exit(2); });
