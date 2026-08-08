@@ -70,25 +70,25 @@ export function initActivityFeed() {
       } else {
         list.forEach(function (s) { wrap.appendChild(row(s)); });
       }
+      // only start SSE live updates if the backend is reachable
+      try {
+        const es = api.activityStream();
+        es.addEventListener("message", function (ev) {
+          try {
+            const s = JSON.parse(ev.data);
+            if (wrap.children.length > 1) {
+              wrap.insertBefore(row(s), wrap.children[1]);
+              while (wrap.children.length > 22) wrap.removeChild(wrap.lastChild);
+            }
+          } catch (e) {}
+        });
+      } catch (e) {}
     })
     .catch(function () {
       const e = document.createElement("div");
       e.className = "activity-empty";
       e.textContent = "Could not load activity feed.";
       wrap.appendChild(e);
+      // backend is down — don't start SSE (avoids repeated proxy errors)
     });
-
-  // live updates via SSE
-  try {
-    const es = api.activityStream();
-    es.addEventListener("message", function (ev) {
-      try {
-        const s = JSON.parse(ev.data);
-        if (wrap.children.length > 1) {
-          wrap.insertBefore(row(s), wrap.children[1]);
-          while (wrap.children.length > 22) wrap.removeChild(wrap.lastChild);
-        }
-      } catch (e) {}
-    });
-  } catch (e) {}
 }
