@@ -28,20 +28,16 @@ for (const file of ["sw.js", "sprites.json", "manifest.webmanifest", "manifest.j
 }
 
 // 2) normalise shell CSS links in every built page -> three plain /css/ links
-// v2 pages use base.css (picnic.css replacement); legacy AMD pages keep picnic.min.css
-const V2_LINKS =
-  '  <link rel="stylesheet" href="/css/base.css">\n' +
-  '  <link rel="stylesheet" href="/css/tokens.css">\n' +
-  '  <link rel="stylesheet" href="/css/main.css">\n' +
-  '  <link rel="stylesheet" href="/css/font.css">\n';
+// Vue pages only need font.css (Comfortaa @font-face); legacy pages keep old CSS
+const VUE_LINKS = '  <link rel="stylesheet" href="/css/font.css">\n';
 const LEGACY_LINKS =
   '  <link rel="stylesheet" href="/css/picnic.min.css">\n' +
   '  <link rel="stylesheet" href="/css/tokens.css">\n' +
   '  <link rel="stylesheet" href="/css/main.css">\n' +
   '  <link rel="stylesheet" href="/css/font.css">\n';
+const LEGACY_PAGES = new Set(['404.html', 'bench.html']);
 function shellLinksFor(filename) {
-  return (filename.endsWith('-v2.html') || filename === '404.html' || filename === 'bench.html')
-    ? V2_LINKS : LEGACY_LINKS;
+  return LEGACY_PAGES.has(filename) ? LEGACY_LINKS : VUE_LINKS;
 }
 
 // 3) generate dist/sw.js with a precache manifest of the actual built files

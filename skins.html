@@ -1,102 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-   <head>
-      <title>Skins - webosu!</title>
-      <link rel="icon" href="img/favicon.png" />
-      <link rel="stylesheet" href="css/picnic.min.css" />
-      <link rel="stylesheet" href="css/main.css" />
-      <link rel="stylesheet" href="css/font.css" />
-                  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet" />
-      <link rel="manifest" href="manifest.webmanifest" />
-      <script src="js/api.js"></script>
-      <script src="js/accounts.js"></script>
-   </head>
-   <nav id="main-nav">
-      <div class="nav-link">
-         <a href="index.html" class="brand">webosu!</a>
-         <a href="new.html" class="pseudo button">New</a>
-         <a href="hot.html" class="pseudo button">Popular</a>
-         <a href="browse.html" class="pseudo button">Browse</a>
-         <a href="skins.html" class="pseudo button">Skins</a>
-      </div>
-      <div class="nav-search">
-         <form action="search.html">
-            <container id="searchbar" class="searchbar">
-               <input type="text" name="q" placeholder="Seach for beatmap or enter a Set ID" />
-            </container>
-         </form>
-      </div>
-      <div class="nav-tool">
-         <a href="liked.html" class="pseudo button">Favorites</a>
-         <a href="settings.html" class="pseudo button">Settings</a>
-         <input type="username" id="userreg" placeholder="Type your name" />
-      </div>
-   </nav>
-   <div class="main-page" id="main-page">
-      <div class="panel" style="max-width:960px">
-         <h3 style="color:#9d7dcc">Community Skins</h3>
-         <div style="font-size:0.85em;color:#999;margin-bottom:1em">
-            Share your <code>.osk</code> and apply others'. Custom hitsounds and skin
-            images are extracted on apply (see Settings).
-         </div>
-         <div style="margin-bottom:1.5em">
-            <input type="file" id="skin-upload" accept=".osk,.zip" hidden />
-            <button id="skin-share-btn" class="pseudo button" onclick="document.getElementById('skin-upload').click()"
-               >Share your .osk</button>
-            <span id="skin-share-status" style="font-size:0.85em;margin-left:0.6em;color:#999"></span>
-         </div>
-         <div id="skin-grid" style="display:flex;flex-wrap:wrap;gap:12px"></div>
-      </div>
-   </div>
-   <script>
-   (function () {
-      const grid = document.getElementById("skin-grid");
-      const status = document.getElementById("skin-share-status");
-      function card(s) {
-         const c = document.createElement("div");
-         c.style.cssText = "background:#1f1f1f;border:1px solid #333;border-radius:8px;padding:12px;width:200px;box-sizing:border-box";
-         const name = document.createElement("div");
-         name.style.cssText = "color:#fff;font-weight:bold;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-         name.textContent = s.name || s.filename || "skin";
-         const meta = document.createElement("div");
-         meta.style.cssText = "color:#888;font-size:0.8em;margin-bottom:8px";
-         meta.textContent = "by " + (s.author || "?") + " · " + (s.downloads || 0) + " dl";
-         const apply = document.createElement("a");
-         apply.className = "pseudo button";
-         apply.href = "settings.html?skin=" + s.id;
-         apply.textContent = "Apply";
-         const dl = document.createElement("a");
-         dl.className = "pseudo button";
-         dl.href = WebosuAPI.skinDownloadUrl(s.id);
-         dl.style.marginLeft = "6px";
-         dl.textContent = "Download";
-         c.appendChild(name); c.appendChild(meta); c.appendChild(apply); c.appendChild(dl);
-         return c;
-      }
-      function load() {
-         WebosuAPI.listSkins().then(function (list) {
-            grid.innerHTML = "";
-            if (!list || !list.length) {
-               grid.textContent = "No skins shared yet. Be the first to upload one!";
-               return;
-            }
-            list.forEach(function (s) { grid.appendChild(card(s)); });
-         }).catch(function () { grid.textContent = "Could not load skins."; });
-      }
-      document.getElementById("skin-upload").addEventListener("change", function (e) {
-         const f = e.target.files[0];
-         e.target.value = "";
-         if (!f) return;
-         if (!WebosuAPI.isLoggedIn()) { status.textContent = "Log in to share skins."; return; }
-         status.textContent = "Uploading " + f.name + "...";
-         f.arrayBuffer().then(function (ab) {
-            return WebosuAPI.uploadSkin(f.name.replace(/\.osk$|\.zip$/i, ""), f.name, ab);
-         }).then(function (r) {
-            status.textContent = "Shared as #" + r.id + "!";
-            load();
-         }).catch(function (err) { status.textContent = "Failed: " + err.message; });
-      });
-      load();
-   })();
-   </script>
+<head>
+  <title>Skins - webosu!</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="img/favicon.png">
+  <script src="js/lib/localforage.min.js"></script>
+  <script src="js/lib/mp3parse.min.js"></script>
+
+</head>
+<body>
+
+  <div id="app"></div>
+  <script type="module" src="/src/vue/pages/skins.js"></script>
+</body>
 </html>

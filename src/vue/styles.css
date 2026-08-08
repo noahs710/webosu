@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --lazer-bg: #13131b;
+  --lazer-panel: #1c1c28;
+  --lazer-panel2: #23232f;
+  --lazer-text: #ececf4;
+  --lazer-dim: #9a9ab4;
+  --lazer-pink: #ff66aa;
+  --lazer-purple: #885090;
+  --lazer-radius: 12px;
+}
+
+body { background: #13131b; color: #ececf4; font-family: "Comfortaa", sans-serif; }
+
+.game-area { position: fixed; inset: 0; z-index: 100; }
+.pause-menu { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,0.7); }
+
+.grading { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.82); }
+.grading > * { transition: 0.4s ease opacity; }
+.grading.transparent > * { opacity: 0; }
+
+.difficulty-box { background: rgba(18,18,26,0.96); border: 1px solid rgba(255,255,255,0.1); border-radius: 14px; box-shadow: 0 16px 44px rgba(0,0,0,0.65); padding: 8px; position: absolute; z-index: 10000; min-width: 360px; }
+.difficulty-item { background: #23232f; border-radius: 10px; color: #ececf4; border: 1px solid rgba(255,255,255,0.05); padding: 10px 12px; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: all 0.15s; }
+.difficulty-item:hover { background: rgba(255,102,170,0.16); border-color: rgba(255,102,170,0.35); transform: translateX(3px); }
+.difficulty-item .versionline { display: flex; flex-direction: column; flex: 1; }
+.difficulty-item .version { font-size: .95em; font-weight: 600; }
+.difficulty-item .mapper { font-size: .8em; color: #9a9ab4; }
+
+.bigringbase, .bigring { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; }
+.bigringbase { background: #2b2b3a; }
+.bigring { border: 3px solid; }
+.bigring.easy { border-color: #62d36b; } .bigring.normal { border-color: #4aa3e8; }
+.bigring.hard { border-color: #f5a623; } .bigring.insane { border-color: #ff5e8a; }
+.bigring.expert { border-color: #a259d6; } .bigring.expert-plus { border-color: #4a4a5a; }
+
+.difficulty-ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; flex-shrink: 0; }
+.difficulty-ring.easy { border-color: #62d36b; } .difficulty-ring.normal { border-color: #4aa3e8; }
+.difficulty-ring.hard { border-color: #f5a623; } .difficulty-ring.insane { border-color: #ff5e8a; }
+.difficulty-ring.expert { border-color: #a259d6; } .difficulty-ring.expert-plus { border-color: #4a4a5a; }

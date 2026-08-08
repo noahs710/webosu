@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
 import { readdirSync } from "fs";
 
 // Gradual rewrite: every top-level HTML page is a build entry. Pages migrate
@@ -11,6 +12,12 @@ const htmlEntries = Object.fromEntries(
 );
 
 export default defineConfig({
+  plugins: [vue()],
+  resolve: {
+    alias: {
+      "vue": "vue/dist/vue.esm-bundler.js",
+    },
+  },
   // repo root is the site root; existing js/, css/, img/ ... served as static
   server: {
     port: 5173,

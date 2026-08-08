@@ -1,61 +1,17 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-   <head>
-      <title>Profile - webosu!</title>
-      <link rel="icon" href="img/favicon.png" />
-      <link rel="stylesheet" href="css/picnic.min.css" />
-      <link rel="stylesheet" href="css/main.css" />
-      <link rel="stylesheet" href="css/font.css" />
-                  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@300..700&display=swap" rel="stylesheet" />
-      <link rel="manifest" href="manifest.webmanifest" />
-      <script src="js/api.js"></script>
-      <script src="js/accounts.js"></script>
-   </head>
-   <nav id="main-nav">
-      <div class="nav-link">
-         <a href="index.html" class="brand">webosu!</a>
-         <a href="new.html" class="pseudo button">New</a>
-         <a href="hot.html" class="pseudo button">Popular</a>
-         <a href="browse.html" class="pseudo button">Browse</a>
-         <a href="skins.html" class="pseudo button">Skins</a>
-      </div>
-      <div class="nav-tool">
-         <a href="liked.html" class="pseudo button">Favorites</a>
-         <a href="settings.html" class="pseudo button">Settings</a>
-         <input type="username" id="userreg" placeholder="Type your name" />
-      </div>
-   </nav>
-   <div class="main-page" id="main-page">
-      <div class="panel" style="max-width:760px">
-         <h3 style="color:#9d7dcc" id="p-title">Profile</h3>
-         <div id="p-body">Loading…</div>
-      </div>
-   </div>
-   <script>
-   (function () {
-      const q = new URLSearchParams(location.search);
-      const u = q.get("u") || (WebosuAPI.getUser() && WebosuAPI.getUser().username);
-      const body = document.getElementById("p-body");
-      const title = document.getElementById("p-title");
-      if (!u) { body.textContent = "No user specified. Log in to view your own profile."; return; }
-      title.textContent = u;
-      WebosuAPI.profile(u)
-         .then(function (d) {
-            const s = d.stats || {};
-            const ach = d.achievements || [];
-            const html = [];
-            html.push("<div style='color:#ccc;margin-bottom:1em'>Plays: " + (s.plays||0) +
-               " · Top score: " + parseInt(s.max_score||0).toLocaleString() +
-               " · Max combo: " + (s.max_combo||0) + "x" +
-               " · Avg acc: " + (s.avg_acc ? s.avg_acc.toFixed(2) : "0") + "%</div>");
-            html.push("<h4 style='color:#9d7dcc'>Achievements</h4>");
-            if (!ach.length) html.push("<div style='color:#888'>None yet.</div>");
-            else html.push("<div style='display:flex;flex-wrap:wrap;gap:8px'>" +
-               ach.map(function (a) { return "<div style='background:#1f1f1f;border:1px solid #333;border-radius:6px;padding:6px 10px'>" + a.key.replace(/_/g," ") + "</div>"; }).join("") +
-               "</div>");
-            body.innerHTML = html.join("");
-         })
-         .catch(function (e) { body.textContent = "Failed to load: " + e.message; });
-   })();
-   </script>
+<head>
+  <title>Profile - webosu!</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="img/favicon.png">
+  <script src="js/lib/localforage.min.js"></script>
+  <script src="js/lib/mp3parse.min.js"></script>
+
+</head>
+<body>
+
+  <div id="app"></div>
+  <script type="module" src="/src/vue/pages/profile.js"></script>
+</body>
 </html>
