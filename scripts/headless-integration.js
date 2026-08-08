@@ -52,7 +52,17 @@ await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {time
   check("launch map", lr && lr.fetched > 0, JSON.stringify(lr));
   await p.waitForFunction(() => !!window.playback && !!window.playback.osu && !!window.playback.osu.audio, null, { timeout: 20000 }).catch(() => {});
   await p.evaluate(() => { try { window.playback.osu.audio.audio.resume(); } catch (e) {} });
-  const ended = await p.waitForFunction(() => !!(window.playback && window.playback.ended), null, { timeout: 45000 }).catch(() => false);
+  // After 5s of real gameplay, fast-forward the audio time so the game ends
+  // (the song is ~4min; in headless swiftshader we can't wait that long).
+  // Autoplay processes all remaining hits in the next frame when time jumps.
+  await p.waitForTimeout(5000);
+  await p.evaluate(() => {
+    if (window.playback && window.playback.osu && window.playback.osu.audio) {
+      // Override getPosition to return a time past the end of the song
+      window.playback.osu.audio.getPosition = function() { return 9999; };
+    }
+  });
+  const ended = await p.waitForFunction(() => !!(window.playback && window.playback.ended), null, { timeout: 15000 }).catch(() => false);
   const st = await p.evaluate(() => ({ ended: !!(window.playback && window.playback.ended), idx: window.playback ? window.playback.currentHitIndex : -1, hits: window.playback && window.playback.hits ? window.playback.hits.length : 0 }));
   console.log("=== autoplay run ==="); console.log("  ", JSON.stringify(st));
   check("autoplay reached end", ended && st.ended, "ended=" + ended);
