@@ -16,20 +16,26 @@
 <body>
   <nav id="main-nav">
     <div class="nav-link">
-      <a href="index-v2.html" class="brand">webosu!</a>
-      <a href="new-v2.html" class="pseudo button">New</a>
-      <a href="hot-v2.html" class="pseudo button">Popular</a>
-      <a href="browse-v2.html" class="pseudo button active">Browse</a>
+        <a href="index-v2.html" class="brand">webosu!</a>
+        <a href="new-v2.html" class="pseudo button">New</a>
+        <a href="hot-v2.html" class="pseudo button">Popular</a>
+        <a href="browse-v2.html" class="pseudo button active">Browse</a>
+        <a href="leaderboard-v2.html" class="pseudo button">Leaderboard</a>
     </div>
-    <div class="nav-tool"><account-widget></account-widget></div>
     <div class="nav-search">
-      <form action="search-v2.html">
-        <container id="searchbar" class="searchbar">
-          <input type="text" name="q" placeholder="Search for a beatmap or enter a Set ID" />
-        </container>
-      </form>
+        <form action="search-v2.html">
+            <container id="searchbar" class="searchbar">
+                <input type="text" name="q" placeholder="Search for a beatmap or enter a Set ID" />
+            </container>
+        </form>
     </div>
-  </nav>
+    <div class="nav-tool">
+        <a href="skins-v2.html" class="pseudo button">Skins</a>
+        <a href="liked-v2.html" class="pseudo button">Favorites</a>
+        <a href="settings-v2.html" class="pseudo button">Settings</a>
+        <account-widget></account-widget>
+    </div>
+</nav>
   <div class="main-page" id="main-page">
     <div class="main-content">
       <h2>Browse <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
