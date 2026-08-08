@@ -40,7 +40,7 @@ async function main(){
   // 2. Click Retry from the fail screen
   const retryResult = await p.evaluate(() => {
     try {
-      const btns = document.querySelectorAll(".grading .btn");
+      const btns = document.querySelectorAll(".grading .rbtn");
       let retryBtn = null;
       btns.forEach(b => { if (b.textContent && b.textContent.trim() === "Retry") retryBtn = b; });
       if (!retryBtn) return { ok: false, err: "no retry btn (" + btns.length + " btns)" };
@@ -69,7 +69,7 @@ async function main(){
   // 4. Click Quit from the fail screen
   const quitResult = await p.evaluate(() => {
     try {
-      const btns = document.querySelectorAll(".grading .btn");
+      const btns = document.querySelectorAll(".grading .rbtn");
       let quitBtn = null;
       btns.forEach(b => { if (b.textContent && b.textContent.trim() === "Quit") quitBtn = b; });
       if (!quitBtn) return { ok: false, err: "no quit btn (" + btns.length + " btns)" };

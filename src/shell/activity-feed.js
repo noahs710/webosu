@@ -58,7 +58,7 @@ export function initActivityFeed() {
   t.className = "activity-title";
   t.textContent = "Recent scores";
   wrap.appendChild(t);
-  host.appendChild(wrap);
+  host.insertBefore(wrap, host.firstChild);
 
   api.recentActivity()
     .then(function (list) {

@@ -439,103 +439,85 @@
          }
          let acc = this.judgeTotal / this.maxJudgeTotal;
          let rank = this.HP < 0 ? "F" : grade(acc);
-         let grading = newdiv(null, "grading");
-         grading.classList.add("transparent");
+         let grading = document.createElement("div");
+         grading.className = "grading transparent";
          document.body.appendChild(grading);
-         let top = newdiv(grading, "top");
-         let info = newdiv(top, "beatmap-info");
-         let left = newdiv(grading, "left");
-         newdiv(info, "title", metadata.Title);
-         newdiv(info, "artist", metadata.Artist);
-         newdiv(info, "version", metadata.Version);
-         newdiv(info, "mapper", "mapped by " + metadata.Creator);
-         newdiv(info, "version", modstext(window.game));
-         newdiv(top, "ranking", "Ranking");
-         newdiv(top, "grade " + rank, rank);
-         newdiv(left, "block score", Math.round(this.score).toString());
-         newdiv(left, "block acc", (acc * 100).toFixed(2) + "%");
-         newdiv(left, "block err", errortext(hiterrors));
-         newdiv(left, "block great", this.judgecnt.great.toString());
-         newdiv(left, "block good", this.judgecnt.good.toString());
-         newdiv(left, "block meh", this.judgecnt.meh.toString());
-         newdiv(left, "block miss", this.judgecnt.miss.toString());
-         newdiv(
-            left,
-            "block player",
-            window.localStorage.getItem("username") || "Unknown"
-         );
-         newdiv(left, "block combo", this.maxcombo.toString() + "x");
-         if (this.fullcombo) newdiv(left, "fullcombo");
-         let b1 = newdiv(grading, "btn retry");
-         newdiv(b1, "inner", "Retry");
-         b1.onclick = function () {
-            grading.remove();
-            retryCallback();
+
+         // osu!lazer-style results screen
+         let panel = newdiv(grading, "results-panel");
+
+         // header: beatmap info
+         let header = newdiv(panel, "results-header");
+         newdiv(header, "results-title", metadata.Title);
+         newdiv(header, "results-subtitle", metadata.Artist + " [" + metadata.Version + "]");
+         newdiv(header, "results-mapper", "mapped by " + metadata.Creator);
+         let modsStr = modstext(window.game);
+         if (modsStr) newdiv(header, "results-mods", modsStr);
+
+         // grade
+         let gradeEl = newdiv(panel, "results-grade " + rank);
+         gradeEl.textContent = rank;
+
+         // main stats row
+         let statsRow = newdiv(panel, "results-stats");
+         let s1 = newdiv(statsRow, "results-stat"); s1.innerHTML = '<span class="stat-num">' + Math.round(this.score).toLocaleString() + '</span><span class="stat-label">score</span>';
+         let s2 = newdiv(statsRow, "results-stat"); s2.innerHTML = '<span class="stat-num">' + (acc * 100).toFixed(2) + '%</span><span class="stat-label">accuracy</span>';
+         let s3 = newdiv(statsRow, "results-stat"); s3.innerHTML = '<span class="stat-num">' + this.maxcombo + 'x</span><span class="stat-label">max combo</span>';
+
+         // hit breakdown
+         let hits = newdiv(panel, "results-hits");
+         let h300 = newdiv(hits, "hit-stat great"); h300.innerHTML = '<span class="hit-num">' + this.judgecnt.great + '</span><span class="hit-label">300</span>';
+         let h100 = newdiv(hits, "hit-stat good"); h100.innerHTML = '<span class="hit-num">' + this.judgecnt.good + '</span><span class="hit-label">100</span>';
+         let h50 = newdiv(hits, "hit-stat meh"); h50.innerHTML = '<span class="hit-num">' + this.judgecnt.meh + '</span><span class="hit-label">50</span>';
+         let hMiss = newdiv(hits, "hit-stat miss"); hMiss.innerHTML = '<span class="hit-num">' + this.judgecnt.miss + '</span><span class="hit-label">miss</span>';
+
+         // extra info
+         let extra = newdiv(panel, "results-extra");
+         newdiv(extra, "results-error", "UNRATE: " + errortext(hiterrors));
+         let ppBlock = newdiv(extra, "results-pp", "PP …");
+         if (this.fullcombo) newdiv(extra, "results-fc", "Full Combo");
+
+         // buttons
+         let btns = newdiv(panel, "results-buttons");
+         let bRetry = newdiv(btns, "rbtn retry"); bRetry.textContent = "Retry";
+         bRetry.onclick = function () { grading.remove(); retryCallback(); };
+         let bQuit = newdiv(btns, "rbtn quit"); bQuit.textContent = "Quit";
+         bQuit.onclick = function () { grading.remove(); quitCallback(); };
+         let bLB = newdiv(btns, "rbtn leaderboard"); bLB.textContent = "Leaderboard";
+         bLB.onclick = function () {
+            window.open("leaderboard-v2.html?bid=" + encodeURIComponent(metadata.BeatmapID || "") + "&mods=" + modsEnum(window.game), "_blank");
          };
-         let b2 = newdiv(grading, "btn quit");
-         newdiv(b2, "inner", "Quit");
-         b2.onclick = function () {
-            grading.remove();
-            quitCallback();
+         let bProf = newdiv(btns, "rbtn profile"); bProf.textContent = "Profile";
+         bProf.onclick = function () {
+            window.open("profile-v2.html?u=" + encodeURIComponent(window.localStorage.getItem("username") || ""), "_blank");
          };
-         let b3 = newdiv(grading, "btn retry");
-         newdiv(b3, "inner", "Leaderboard");
-         b3.onclick = function () {
-            window.open(
-               "leaderboard.html?bid=" +
-                  encodeURIComponent(metadata.BeatmapID || "") +
-                  "&mods=" +
-                  (summary.modsNum || 0),
-               "_blank"
-            );
-         };
-         let b4 = newdiv(grading, "btn quit");
-         newdiv(b4, "inner", "Profile");
-         b4.onclick = function () {
-            var u = window.localStorage.getItem("username") || "";
-            window.open("profile.html?u=" + encodeURIComponent(u), "_blank");
-         };
-         if (
-            window.lastPlayedOszBlob &&
-            window.playback &&
-            window.playback.replayFrames &&
-            window.playback.replayFrames.length
-         ) {
-            let b5 = newdiv(grading, "btn retry");
-            newdiv(b5, "inner", "Watch replay");
-            b5.onclick = function () {
+         if (window.lastPlayedOszBlob && window.playback && window.playback.replayFrames && window.playback.replayFrames.length) {
+            let bReplay = newdiv(btns, "rbtn watch"); bReplay.textContent = "Watch replay";
+            bReplay.onclick = function () {
                var rf = window.playback.replayFrames;
                grading.remove();
                quitCallback();
-               launchReplay(
-                  window.lastPlayedOszBlob,
-                  window.lastPlayedBeatmapId,
-                  window.lastPlayedVersion,
-                  rf
-               );
+               launchReplay(window.lastPlayedOszBlob, window.lastPlayedBeatmapId, window.lastPlayedVersion, rf);
             };
          }
-         // estimated pp (additive; webosu's rough estimator)
+
+         // PP estimate
          if (window.WebosuAPI && window.lastPlayedStars != null) {
-            var ppBlock = newdiv(left, "block", "PP …");
             WebosuAPI.ppEstimate({
                stars: window.lastPlayedStars,
                acc: acc * 100,
                combo: this.maxcombo,
                maxCombo: this.maxcombo,
                modsNum: modsEnum(window.game),
-            })
-               .then(function (r) {
-                  ppBlock.innerText = "PP ~" + (r && r.pp != null ? r.pp : "?");
-               })
-               .catch(function () {
-                  ppBlock.innerText = "PP ~?";
-               });
+            }).then(function (r) {
+               ppBlock.innerText = "PP ~" + (r && r.pp != null ? r.pp : "?");
+            }).catch(function () {
+               ppBlock.innerText = "PP ~?";
+            });
          }
-         window.setTimeout(function () {
-            grading.classList.remove("transparent");
-         }, 100);
-         // generate summary data
+
+         window.setTimeout(function () { grading.classList.remove("transparent"); }, 100);
+                  // generate summary data
          let summary = {
             sid: metadata.BeatmapSetID,
             bid: metadata.BeatmapID,
@@ -605,7 +587,7 @@
                if (val && val.size) {
                   historybest = val.get(summary.bid) || 0;
                }
-               newdiv(left, "history-best", historybest.toString());
+               newdiv(extra, "results-best", historybest.toString());
                if (parseInt(summary.score) > historybest) {
                   if (!val || !val.size) val = new Map();
                   val.set(summary.bid, parseInt(summary.score));

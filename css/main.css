@@ -2125,3 +2125,132 @@ input[type="button"].warnbtn:hover { background: #a11; color: #fff; }
 
 /* smooth page feel */
 .beatmapbox, .difficulty-item, nav .pseudo.button, input[type="button"] { -webkit-tap-highlight-color: transparent; }
+
+
+/* ---- v2 layout fixes: nav centering + beatmap card difficulty list ---- */
+
+/* nav: spread items across the bar, vertically centered */
+nav {
+  justify-content: space-between;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 16px;
+  box-sizing: border-box;
+}
+nav .nav-link { flex-shrink: 0; }
+nav .nav-search { flex: 1; max-width: 480px; margin: 0 16px; }
+nav .nav-tool { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+
+/* beatmap card: auto height so difficulty list is never clipped */
+.beatmap-card.beatmapbox {
+  height: auto;
+  width: auto;
+  max-width: 420px;
+  overflow: visible;
+  position: relative;
+}
+
+/* card cover image */
+.beatmap-card .beatmapcover {
+  width: 100%;
+  height: 140px;
+  object-fit: cover;
+  border-radius: var(--lazer-radius) var(--lazer-radius) 0 0;
+  display: block;
+}
+
+/* card info section */
+.beatmap-card .beatmapcard-info { padding: 10px 12px 12px; position: relative; z-index: 1; }
+.beatmap-card .beatmapcard-title {
+  font-size: 1em; font-weight: 700; color: var(--lazer-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.beatmap-card .beatmapcard-artist {
+  font-size: .85em; color: var(--lazer-dim); margin-bottom: 8px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* difficulty list: floats above other cards, never clipped */
+.beatmap-card .difficulty-list {
+  position: relative;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.beatmap-card .difficulty-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  font-size: .85em;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.beatmap-card .difficulty-version {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 240px;
+}
+.beatmap-card .difficulty-stars { font-weight: 700; flex-shrink: 0; margin-left: 8px; }
+
+/* activity feed: constrain width on the home page */
+.activity-feed { max-width: 900px; margin: 0 auto 1em; }
+
+
+/* ---- osu!lazer-style results screen ---- */
+.grading {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0, 0, 0, 0.82); color: #fff; z-index: 9000;
+  display: flex; align-items: center; justify-content: center;
+  font-family: "Comfortaa", sans-serif;
+}
+.grading > * { transition: 0.4s ease opacity; }
+.grading.transparent > * { opacity: 0; }
+.results-panel {
+  max-width: 680px; width: 90%; max-height: 90vh; overflow-y: auto;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 32px 24px; background: rgba(20, 20, 30, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+}
+.results-header { text-align: center; }
+.results-title { font-size: 1.6em; font-weight: 700; color: #f4f4fa; margin-bottom: 2px; }
+.results-subtitle { font-size: 1em; color: var(--lazer-dim); }
+.results-mapper { font-size: .8em; color: var(--lazer-dim); margin-top: 2px; }
+.results-mods { font-size: .85em; color: var(--lazer-pink); margin-top: 4px; font-weight: 600; letter-spacing: .04em; }
+.results-grade {
+  font-size: 5em; font-weight: 800; font-style: italic; line-height: 1;
+  margin: 4px 0; text-shadow: 0 0 30px currentColor;
+}
+.results-grade.SS, .results-grade.S { color: #ffd966; }
+.results-grade.A { color: #66cc66; }
+.results-grade.B { color: #4aa3e8; }
+.results-grade.C { color: #c863c8; }
+.results-grade.D { color: #e15555; }
+.results-grade.F { color: #888; }
+.results-stats { display: flex; gap: 32px; margin: 8px 0; }
+.results-stat { text-align: center; }
+.results-stat .stat-num { display: block; font-size: 1.8em; font-weight: 700; color: #f4f4fa; font-variant-numeric: tabular-nums; }
+.results-stat .stat-label { font-size: .75em; color: var(--lazer-dim); text-transform: uppercase; letter-spacing: .05em; }
+.results-hits { display: flex; gap: 20px; }
+.hit-stat { text-align: center; min-width: 56px; }
+.hit-stat .hit-num { display: block; font-size: 1.4em; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hit-stat .hit-label { font-size: .7em; color: var(--lazer-dim); text-transform: uppercase; }
+.hit-stat.great .hit-num { color: #66cc66; }
+.hit-stat.good .hit-num { color: #4aa3e8; }
+.hit-stat.meh .hit-num { color: #c8a03c; }
+.hit-stat.miss .hit-num { color: #e15555; }
+.results-extra { display: flex; gap: 16px; font-size: .85em; color: var(--lazer-dim); flex-wrap: wrap; justify-content: center; }
+.results-fc { color: var(--lazer-pink); font-weight: 700; }
+.results-pp { color: #ffd966; font-weight: 600; }
+.results-best { color: var(--lazer-dim); }
+.results-buttons { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+.rbtn {
+  padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: .9em;
+  background: var(--lazer-panel2); color: var(--lazer-text);
+  border: 1px solid rgba(255, 255, 255, 0.1); transition: all 0.15s;
+}
+.rbtn:hover { background: rgba(255, 102, 170, 0.16); border-color: rgba(255, 102, 170, 0.35); }
+.rbtn.retry { background: var(--lazer-pink); color: #fff; border: none; }
+.rbtn.retry:hover { filter: brightness(1.1); }
