@@ -124,10 +124,12 @@ work (commit a6662e2 + the 13 increments below).
    v2 + delete the old AMD path (page-switch + delete AMD).
 2. **Phase 6 benchmark** — see the run guide above (bench.html + real-game perf
    HUD on the 2015 laptop; paste the p95 back to lock v8 or trigger optimization).
-3. **Theme direction** — drop picnic.css, a light-mode palette, and the
-   main.css @layer refactor are visual; I can't verify parity (no image
-   support here), so they need your eyes. The dark lazer look is preserved
-   exactly so far; a light variant is your call.
+3. **Theme direction** — picnic.css dropped for v2 pages (0c3e7f1: replaced
+  with css/base.css, ~2.6 KB vs ~30 KB, 88% smaller). The @layer refactor of
+  main.css is held — @layer requires Chrome 99+/FF 97+/Safari 15.4+, which may
+  exclude some 2015 laptops running older browser versions; the game already
+  requires ES modules + WebGL 2 but those have wider support. A light-mode
+  palette is your call. The dark lazer look is preserved exactly.
 4. **Object pooling** (render win #4) — modest per-object GC benefit, but a
    hot-path refactor with stale-state risk I can't visually verify. Best
    done after you've verified the baseline v8 visuals so any flicker stays
