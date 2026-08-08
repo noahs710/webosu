@@ -65,20 +65,41 @@ work (commit a6662e2 + the 13 increments below).
 - Fix (296155c): ESM gamesettings server-sync wired to the ESM api (was
   window.WebosuAPI, timing-fragile on v2 pages).
 
-**Phase 6 prep — benchmark harness**
-- bench.html ported to Pixi 8 (the actual render choice; was Pixi 6 + dead
-  InteractionManager toggle) (d0eb687). Verified `headless:bench`:
-  PIXI.VERSION 8.19.0, FPS HUD populates, z-order/pool toggles work, 0 errors.
+**Phase 6 — commenced (user has the 2015 hardware); measurement tools ready**
+- bench.html ported to Pixi 8 (d0eb687) + a copy-results button (one-liner:
+  v8/sprites/mode/FPS/p50/p95/p99/drop) (32150a6).
+- Game frame-timing perf HUD (32150a6, ae36a1c): the BINDING measurement per
+  Phase 2's "frame timing on the 2015 laptop p95 <= 16.6ms". Toggle F3 or start
+  via `?perf=1`; F4 copies/logs `window.__perfSummary` (map title + FPS/p50/
+  p95/p99/drop + [BUDGET PASS]/[BUDGET FAIL] vs 16.6ms). Verified on dev AND the
+  built dist/ (vite preview) — so it works whether you run `npm run dev` or
+  `npm run build && npm run preview` (or the deployed site).
+- SliderMesh v8 two-pass depth render audited as the prime optimization suspect
+  if p95 misses (~2x draw calls + state changes per slider per frame); no
+  speculative change (plan: optimize only if measured p95 > 16.6ms).
+
+**Phase 6 run guide (on the 2015 laptop):**
+1. Get the app running on the 2015 laptop — either:
+   - `npm install && npm run dev` (Vite dev server on :5173), or
+   - `npm install && npm run build && npm run preview` (serves the built dist/
+     on :4173), or the deployed Fly.io site.
+2. **bench.html** — open `/bench.html`, let it settle ~10s, click "copy results",
+   paste the one-liner back.
+3. **real game (binding)** — open `/index-v2.html?perf=1`, play a dense 9★ map
+   through its busy sections, press **F4** mid-dense, paste the
+   `webosu v8 perf · …` line back (it has the map + p95 + BUDGET PASS/FAIL).
+- **p95 <= 16.6ms** → lock v8, Phase 6 done (goal complete).
+- **p95 > 16.6ms** → optimize the SliderMesh two-pass depth render, re-measure.
 
 ## Needs the user (eyes / hardware / design) — not done by me
 
 1. **Play the v2 game on real hardware** (`npm run dev` → /index-v2.html →
    click a beatmap → play). Confirm feel, especially SliderMesh v8 two-pass
-   depth rendering (highest-risk visual piece). If good → switch production
-   pages to v2 + delete the old AMD path (page-switch + delete AMD).
-2. **Run bench.html on a 2015 laptop** — the binding p95 numbers to lock the
-   render choice (Phase 6). The harness is ready on v8; it needs the floor
-   device.
+   depth rendering (highest-risk visual piece). This is ALSO the Phase 6
+   real-game measurement (perf HUD above). If good → switch production pages to
+   v2 + delete the old AMD path (page-switch + delete AMD).
+2. **Phase 6 benchmark** — see the run guide above (bench.html + real-game perf
+   HUD on the 2015 laptop; paste the p95 back to lock v8 or trigger optimization).
 3. **Theme direction** — drop picnic.css, a light-mode palette, and the
    main.css @layer refactor are visual; I can't verify parity (no image
    support here), so they need your eyes. The dark lazer look is preserved
