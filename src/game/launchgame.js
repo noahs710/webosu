@@ -213,6 +213,16 @@ export async function launchOSU(osu, beatmapid, version) {
          // Handle cursor
          game.cursor.x = (game.mouseX / 512) * gfx.width + gfx.xoffset;
          game.cursor.y = (game.mouseY / 384) * gfx.height + gfx.yoffset;
+         // CursorRotate: spin cursor if skin.ini says so
+         if (window.game && window.game.skinCursorRotate) {
+            game.cursor.rotation += 0.02;
+         }
+         // CursorExpand: pulse scale on click
+         if (window.game && window.game.skinCursorExpand) {
+            var targetScale = (game.mouseDown ? 1.3 : 1.0) * 0.3 * effectiveCursorSize;
+            game.cursor.scale.x += (targetScale - game.cursor.scale.x) * 0.3;
+            game.cursor.scale.y = game.cursor.scale.x;
+         }
          // cursor trail: write the newest position, fade the rest by age
          if (game.cursorTrail) {
             let N = game.cursorTrail.length;

@@ -774,7 +774,14 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          hit.followSize = 1; // [1,2] current follow circle size relative to hitcircle
 
          // Add slider ball (above follow circle)
-         hit.ball = newSprite("sliderb.png", hit.x, hit.y, 0.5);
+         // Check for slider ball animation frames (sliderb0.png through sliderbN-1.png)
+         var ballTex = Skin["sliderb.png"];
+         if (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames > 0) {
+            var frameCount = window.game.skinConfig.sliderBallFrames;
+            var frameIdx = Math.floor((Date.now() / 100) % frameCount);
+            ballTex = Skin["sliderb" + frameIdx + ".png"] || ballTex;
+         }
+         hit.ball = newSprite(ballTex, hit.x, hit.y, 0.5);
          hit.ball.visible = false;
 
          // A slider contains a complete hit circle at its start, so we just make use of this
@@ -859,7 +866,13 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          const rotation = Math.atan2(container.dy, container.dx);
          const distance = Math.hypot(container.dx, container.dy);
          for (let d = spacing * 2; d < distance - 1.5 * spacing; d += spacing) {
-            let p = new PIXI.Sprite(Skin["followpoint.png"]);
+            let fpTex = Skin["followpoint.png"];
+            // Check for animation frames (followpoint-0.png through followpoint-N.png)
+            if (Skin["followpoint-0.png"]) {
+               let frameIdx = Math.floor((Date.now() / 100) % 10);
+               fpTex = Skin["followpoint-" + frameIdx + ".png"] || Skin["followpoint-0.png"] || fpTex;
+            }
+            let p = new PIXI.Sprite(fpTex);
             p.scale.set(this.hitSpriteScale * 0.3);
             p.x = x1 + (container.dx * d) / distance;
             p.y = y1 + (container.dy * d) / distance;
