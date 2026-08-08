@@ -41,7 +41,8 @@
     "headless:geom-api": "node scripts/headless-geom-api.js",
     "headless:resource-api": "node scripts/headless-resource-api.js",
     "headless:slider-destroy": "node scripts/headless-slider-destroy.js",
-    "headless:pause-crash": "node scripts/headless-pause-crash.js"
+    "headless:pause-crash": "node scripts/headless-pause-crash.js",
+    "headless:quit": "node scripts/headless-quit.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",

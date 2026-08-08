@@ -1670,7 +1670,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          self.breakOverlay.destroy(opt);
          self.progressOverlay.destroy(opt);
          self.gamefield.destroy(opt);
-         self.background.destroy();
+         if (self.background) self.background.destroy();
          // clean up event listeners
          window.onresize = null;
          window.removeEventListener("blur", blurCallback);

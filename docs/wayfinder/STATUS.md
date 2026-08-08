@@ -35,6 +35,18 @@ work (commit a6662e2 + the 13 increments below).
   load-time-only + gated behind backgroundBlurRate (default 0); object
   pooling — see "needs user" below.
 
+**Deployed-run crash fixes (aabc281, 123cce7 + this commit)**
+- 3 v8 port bugs from the user's deployed-site run: SliderMesh.destroy()
+  used the v7 `geometry.dispose()` API (v8 has `geometry.destroy()`);
+  pause() referenced implicit globals (`btn_continue`/`btn_retry`/`btn_quit`)
+  under ESM strict mode; drawMode used deprecated `PIXI.DRAW_MODES.TRIANGLES`.
+- Quit-path crash: `self.background.destroy()` was called unconditionally in
+  `destroy()` but `self.background` is null when no background image loaded.
+  The throw prevented `self.render = noop` and `window.quitGame()` from
+  running, leaving the rAF loop calling render on destroyed objects. Fixed
+  with a null guard. Regression tests: `headless:slider-destroy`,
+  `headless:pause-crash`, `headless:quit` (all green).
+
 **Phase 3 — lit shell + ESM**
 - 11 v2 pages, all lit components (beatmap-list, account-widget, leaderboard,
   profile, skins, settings-panel) + ESM api/gamesettings. **The v2 shell is
