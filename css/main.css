@@ -2223,6 +2223,7 @@ nav .nav-tool { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
   padding: 32px 24px; background: rgba(20, 20, 30, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7);
+  background: linear-gradient(180deg, rgba(28, 28, 40, 0.92), rgba(20, 20, 30, 0.88));
 }
 .results-header { text-align: center; }
 .results-title { font-size: 1.6em; font-weight: 700; color: #f4f4fa; margin-bottom: 2px; }
@@ -2230,8 +2231,11 @@ nav .nav-tool { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
 .results-mapper { font-size: .8em; color: var(--lazer-dim); margin-top: 2px; }
 .results-mods { font-size: .85em; color: var(--lazer-pink); margin-top: 4px; font-weight: 600; letter-spacing: .04em; }
 .results-grade {
-  font-size: 5em; font-weight: 800; font-style: italic; line-height: 1;
-  margin: 4px 0; text-shadow: 0 0 30px currentColor;
+  font-size: 3.5em; font-weight: 800; font-style: italic;
+  display: flex; align-items: center; justify-content: center;
+  width: 100px; height: 100px; border-radius: 50%;
+  border: 5px solid currentColor; box-shadow: 0 0 30px currentColor;
+  background: rgba(0, 0, 0, 0.3); margin: 8px 0;
 }
 .results-grade.SS, .results-grade.S { color: #ffd966; }
 .results-grade.A { color: #66cc66; }
@@ -2241,7 +2245,7 @@ nav .nav-tool { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
 .results-grade.F { color: #888; }
 .results-stats { display: flex; gap: 32px; margin: 8px 0; }
 .results-stat { text-align: center; }
-.results-stat .stat-num { display: block; font-size: 1.8em; font-weight: 700; color: #f4f4fa; font-variant-numeric: tabular-nums; }
+.results-stat .stat-num { display: block; font-size: 2em; font-weight: 700; color: #f4f4fa; font-variant-numeric: tabular-nums; }
 .results-stat .stat-label { font-size: .75em; color: var(--lazer-dim); text-transform: uppercase; letter-spacing: .05em; }
 .results-hits { display: flex; gap: 20px; }
 .hit-stat { text-align: center; min-width: 56px; }
