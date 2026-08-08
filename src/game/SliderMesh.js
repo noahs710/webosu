@@ -116,7 +116,7 @@ var Container = PIXI.Container;
          this.startt = 0.0;
          this.endt = 1.0;
          this.state = PIXI.State.for2d();
-         this.drawMode = PIXI.DRAW_MODES.TRIANGLES;
+         this.drawMode = 4; // gl.TRIANGLES (raw GL enum for gl.drawElements; v8 deprecated DRAW_MODES)
          this.blendMode = "normal";
       }
       initialize(colors, radius, transform, SliderTrackOverride, SliderBorder) {
@@ -178,6 +178,12 @@ var Container = PIXI.Container;
          gl.depthFunc(gl.LESS); renderer.state.setDepthTest(false);
          this.uniforms.ox = ox0; this.uniforms.oy = oy0;
       }
-      destroy(options) { super.destroy(options); this.geometry.dispose(); this.geometry = null; this.shader = null; this.state = null; }
+      destroy(options) {
+         super.destroy(options);
+         if (this.geometry) { this.geometry.destroy(); this.geometry = null; }
+         if (this.circle) { this.circle.destroy(); this.circle = null; }
+         if (this.program) { this.program.destroy(); this.program = null; }
+         this.shader = null; this.state = null;
+      }
    }
    export default SliderMesh;

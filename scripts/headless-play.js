@@ -45,6 +45,8 @@ async function main(){
     gaming: document.body.classList.contains("gaming"),
     currentHitIndex: window.playback ? window.playback.currentHitIndex : -1,
     scoreVisible: !!(window.playback && window.playback.scoreOverlay),
+      sliderHits: window.playback && window.playback.hits ? window.playback.hits.filter(function(h){return h.type==="slider";}).length : 0,
+      slidersDespawned: window.playback && window.playback.hits ? window.playback.hits.filter(function(h){return h.type==="slider" && h.destroyed;}).length : 0,
   }));
   st.canvasSize = cnv; st.audioPos_t1 = t1; st.audioPos_t2 = t2; st.audioAdvanced = (t2 > t1);
   console.log("=== gameplay state ==="); for(const k of Object.keys(st)) console.log("  "+k+" = "+st[k]);

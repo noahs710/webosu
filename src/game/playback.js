@@ -321,9 +321,9 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             this.game.paused = true;
             let menu = document.getElementById("pause-menu");
             menu.removeAttribute("hidden");
-            btn_continue = document.getElementById("pausebtn-continue");
-            btn_retry = document.getElementById("pausebtn-retry");
-            btn_quit = document.getElementById("pausebtn-quit");
+            var btn_continue = document.getElementById("pausebtn-continue");
+            var btn_retry = document.getElementById("pausebtn-retry");
+            var btn_quit = document.getElementById("pausebtn-quit");
             btn_continue.onclick = function () {
                self.resume();
                btn_continue.onclick = null;

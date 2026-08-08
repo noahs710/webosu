@@ -37,7 +37,8 @@
     "headless:account-dist": "node scripts/headless-account-dist.js",
     "headless:touch": "node scripts/headless-touch.js",
     "headless:perf-hud": "node scripts/headless-perf-hud.js",
-    "headless:perf-hud-dist": "node scripts/headless-perf-hud-dist.js"
+    "headless:perf-hud-dist": "node scripts/headless-perf-hud-dist.js",
+    "headless:geom-api": "node scripts/headless-geom-api.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
