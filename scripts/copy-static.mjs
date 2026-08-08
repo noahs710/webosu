@@ -1,6 +1,6 @@
 /* Postbuild: make the Vite build self-contained for static serving.
  *
- * Vite 7 build drops the legacy shell stylesheets (css/main.css, css/picnic.min.css)
+ * Vite 7 build drops the legacy shell stylesheets (css/main.css, css/base.css)
  * from the HTML while bundling only css/font.css. The shell pages also depend on
  * classic (non-ESM) scripts and assets (js/, img/, sprites.json, sw.js) that Vite
  * does not copy. This script copies those static dirs/files into dist/ and
@@ -28,11 +28,21 @@ for (const file of ["sw.js", "sprites.json", "manifest.webmanifest", "manifest.j
 }
 
 // 2) normalise shell CSS links in every built page -> three plain /css/ links
-const SHELL_LINKS =
+// v2 pages use base.css (picnic.css replacement); legacy AMD pages keep picnic.min.css
+const V2_LINKS =
+  '  <link rel="stylesheet" href="/css/base.css">\n' +
+  '  <link rel="stylesheet" href="/css/tokens.css">\n' +
+  '  <link rel="stylesheet" href="/css/main.css">\n' +
+  '  <link rel="stylesheet" href="/css/font.css">\n';
+const LEGACY_LINKS =
   '  <link rel="stylesheet" href="/css/picnic.min.css">\n' +
   '  <link rel="stylesheet" href="/css/tokens.css">\n' +
   '  <link rel="stylesheet" href="/css/main.css">\n' +
   '  <link rel="stylesheet" href="/css/font.css">\n';
+function shellLinksFor(filename) {
+  return (filename.endsWith('-v2.html') || filename === '404.html' || filename === 'bench.html')
+    ? V2_LINKS : LEGACY_LINKS;
+}
 
 // 3) generate dist/sw.js with a precache manifest of the actual built files
 //    (hashed /assets/* + copied /css /js /img + pages) so the PWA shell works
@@ -65,7 +75,7 @@ for (const f of readdirSync(DIST).filter((f) => f.endsWith(".html"))) {
   s = s.replace(/<link\s+rel="stylesheet"[^>]*href="\/assets\/[^"]*\.css"[^>]*>\n?/g, "");
   s = s.replace(/<link\s+rel="stylesheet"[^>]*href="(?:\.?\/)?css\/[^"]*\.css"[^>]*>\n?/g, "");
   // inject the three plain /css/ links right after <head>
-  s = s.replace(/<head>\n?/, (m) => m + "\n" + SHELL_LINKS);
+  s = s.replace(/<head>\n?/, (m) => m + "\n" + shellLinksFor(f));
   if (s !== orig) {
     writeFileSync(p, s);
     touched++;
