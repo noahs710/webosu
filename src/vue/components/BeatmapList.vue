@@ -8,7 +8,7 @@ const props = defineProps({
   limit: { default: 12 },
   emptyMessage: { default: "" },
 });
-const emit = defineEmits(["launch"]);
+// beatmap-launch is dispatched as a DOM CustomEvent (caught by app.js)
 const sets = ref([]);
 const loading = ref(false);
 const error = ref("");
@@ -73,7 +73,7 @@ function showDiff(set, ev) {
       '<div class="mapper">' + stars(b.difficulty_rating) + '\u2605</div></div>';
     item.onclick = (e) => {
       e.stopPropagation();
-      emit("launch", { setId: set.id, beatmapId: b.id, version: b.version, title: set.title, artist: set.artist, stars: b.difficulty_rating });
+      document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: set.id, beatmapId: b.id, version: b.version, title: set.title, artist: set.artist, stars: b.difficulty_rating } }));
       box.remove(); window._currentDiffList = null;
     };
     box.appendChild(item);

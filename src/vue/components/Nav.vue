@@ -58,19 +58,18 @@ onMounted(checkLogin);
 </script>
 
 <template>
-  <nav class="flex items-center justify-between max-w-[1400px] mx-auto h-[50px] px-4 box-border"
+  <nav id="main-nav" class="flex items-center justify-between max-w-[1400px] mx-auto h-[50px] px-4 box-border"
        style="background: linear-gradient(180deg,#1c1c28,#14141e); border-bottom: 1px solid rgba(255,255,255,0.06); box-shadow: 0 2px 14px rgba(0,0,0,0.4);">
     <div class="flex items-center gap-1 flex-shrink-0">
-      <router-link to="/" class="text-lazer-pink font-extrabold px-3 py-2">webosu!</router-link>
+      <router-link to="/" class="text-lazer-pink font-extrabold px-3 py-2" active-class="">webosu!</router-link>
       <router-link v-for="link in [
-        { to: '/new', label: 'New', key: 'new' },
-        { to: '/hot', label: 'Popular', key: 'hot' },
-        { to: '/browse', label: 'Browse', key: 'browse' },
-        { to: '/leaderboard', label: 'Leaderboard', key: 'leaderboard' },
-      ]" :key="link.key" :to="link.to" custom v-slot="{ isActive, navigate }"
-        class="px-3.5 rounded-full h-9 leading-9 transition-all text-sm cursor-pointer"
-        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
-        @click="navigate">
+        { to: '/new', label: 'New' },
+        { to: '/hot', label: 'Popular' },
+        { to: '/browse', label: 'Browse' },
+        { to: '/leaderboard', label: 'Leaderboard' },
+      ]" :key="link.to" :to="link.to"
+        active-class="bg-lazer-pink/16 text-white"
+        class="px-3.5 rounded-full h-9 leading-9 transition-all text-sm text-lazer-text hover:bg-lazer-pink/16">
         {{ link.label }}
       </router-link>
     </div>
@@ -79,18 +78,12 @@ onMounted(checkLogin);
         class="w-full bg-lazer-panel2 border border-white/8 rounded-full px-4 py-2 text-lazer-text text-sm focus:border-lazer-pink focus:outline-none" />
     </form>
     <div class="flex items-center gap-1 flex-shrink-0">
-      <router-link to="/skins" custom v-slot="{ isActive, navigate }"
-        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all cursor-pointer"
-        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
-        @click="navigate">Skins</router-link>
-      <router-link to="/liked" custom v-slot="{ isActive, navigate }"
-        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all cursor-pointer"
-        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
-        @click="navigate">Favorites</router-link>
-      <router-link to="/settings" custom v-slot="{ isActive, navigate }"
-        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all cursor-pointer"
-        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
-        @click="navigate">Settings</router-link>
+      <router-link to="/skins" active-class="bg-lazer-pink/16 text-white"
+        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all text-lazer-text hover:bg-lazer-pink/16">Skins</router-link>
+      <router-link to="/liked" active-class="bg-lazer-pink/16 text-white"
+        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all text-lazer-text hover:bg-lazer-pink/16">Favorites</router-link>
+      <router-link to="/settings" active-class="bg-lazer-pink/16 text-white"
+        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all text-lazer-text hover:bg-lazer-pink/16">Settings</router-link>
       <button v-if="!user" @click="openLogin"
         class="bg-lazer-pink text-white px-4 py-1.5 rounded-lg text-sm ml-2 hover:brightness-110 transition-all">Log in</button>
       <span v-else class="text-sm text-lazer-dim ml-2">

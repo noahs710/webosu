@@ -86,7 +86,7 @@ import Playback from "./playback.js";
    game.cursor = null;
 
    // load skin & game cursor
-   PIXI.Assets.load("sprites.json").then((sheet) => {
+   PIXI.Assets.load("/sprites.json").then((sheet) => {
          window.Skin = sheet.textures;
          // apply any custom skin textures, then signal skin ready
          applyCustomSkin(function () {
@@ -99,22 +99,22 @@ import Playback from "./playback.js";
    // load sounds
    // load hitsound set
    var sample = [
-      "hitsounds/normal-hitnormal.ogg",
-      "hitsounds/normal-hitwhistle.ogg",
-      "hitsounds/normal-hitfinish.ogg",
-      "hitsounds/normal-hitclap.ogg",
-      "hitsounds/normal-slidertick.ogg",
-      "hitsounds/soft-hitnormal.ogg",
-      "hitsounds/soft-hitwhistle.ogg",
-      "hitsounds/soft-hitfinish.ogg",
-      "hitsounds/soft-hitclap.ogg",
-      "hitsounds/soft-slidertick.ogg",
-      "hitsounds/drum-hitnormal.ogg",
-      "hitsounds/drum-hitwhistle.ogg",
-      "hitsounds/drum-hitfinish.ogg",
-      "hitsounds/drum-hitclap.ogg",
-      "hitsounds/drum-slidertick.ogg",
-      "hitsounds/combobreak.ogg",
+      "/hitsounds/normal-hitnormal.ogg",
+      "/hitsounds/normal-hitwhistle.ogg",
+      "/hitsounds/normal-hitfinish.ogg",
+      "/hitsounds/normal-hitclap.ogg",
+      "/hitsounds/normal-slidertick.ogg",
+      "/hitsounds/soft-hitnormal.ogg",
+      "/hitsounds/soft-hitwhistle.ogg",
+      "/hitsounds/soft-hitfinish.ogg",
+      "/hitsounds/soft-hitclap.ogg",
+      "/hitsounds/soft-slidertick.ogg",
+      "/hitsounds/drum-hitnormal.ogg",
+      "/hitsounds/drum-hitwhistle.ogg",
+      "/hitsounds/drum-hitfinish.ogg",
+      "/hitsounds/drum-hitclap.ogg",
+      "/hitsounds/drum-slidertick.ogg",
+      "/hitsounds/combobreak.ogg",
    ];
    // override default hitsounds with any custom sounds the user imported (settings page)
    function applyCustomHitsounds() {
@@ -199,22 +199,22 @@ import Playback from "./playback.js";
    }
 
    sounds.whenLoaded = function () {
-      game.sample[1].hitnormal = sounds["hitsounds/normal-hitnormal.ogg"];
-      game.sample[1].hitwhistle = sounds["hitsounds/normal-hitwhistle.ogg"];
-      game.sample[1].hitfinish = sounds["hitsounds/normal-hitfinish.ogg"];
-      game.sample[1].hitclap = sounds["hitsounds/normal-hitclap.ogg"];
-      game.sample[1].slidertick = sounds["hitsounds/normal-slidertick.ogg"];
-      game.sample[2].hitnormal = sounds["hitsounds/soft-hitnormal.ogg"];
-      game.sample[2].hitwhistle = sounds["hitsounds/soft-hitwhistle.ogg"];
-      game.sample[2].hitfinish = sounds["hitsounds/soft-hitfinish.ogg"];
-      game.sample[2].hitclap = sounds["hitsounds/soft-hitclap.ogg"];
-      game.sample[2].slidertick = sounds["hitsounds/soft-slidertick.ogg"];
-      game.sample[3].hitnormal = sounds["hitsounds/drum-hitnormal.ogg"];
-      game.sample[3].hitwhistle = sounds["hitsounds/drum-hitwhistle.ogg"];
-      game.sample[3].hitfinish = sounds["hitsounds/drum-hitfinish.ogg"];
-      game.sample[3].hitclap = sounds["hitsounds/drum-hitclap.ogg"];
-      game.sample[3].slidertick = sounds["hitsounds/drum-slidertick.ogg"];
-      game.sampleComboBreak = sounds["hitsounds/combobreak.ogg"];
+      game.sample[1].hitnormal = sounds["/hitsounds/normal-hitnormal.ogg"];
+      game.sample[1].hitwhistle = sounds["/hitsounds/normal-hitwhistle.ogg"];
+      game.sample[1].hitfinish = sounds["/hitsounds/normal-hitfinish.ogg"];
+      game.sample[1].hitclap = sounds["/hitsounds/normal-hitclap.ogg"];
+      game.sample[1].slidertick = sounds["/hitsounds/normal-slidertick.ogg"];
+      game.sample[2].hitnormal = sounds["/hitsounds/soft-hitnormal.ogg"];
+      game.sample[2].hitwhistle = sounds["/hitsounds/soft-hitwhistle.ogg"];
+      game.sample[2].hitfinish = sounds["/hitsounds/soft-hitfinish.ogg"];
+      game.sample[2].hitclap = sounds["/hitsounds/soft-hitclap.ogg"];
+      game.sample[2].slidertick = sounds["/hitsounds/soft-slidertick.ogg"];
+      game.sample[3].hitnormal = sounds["/hitsounds/drum-hitnormal.ogg"];
+      game.sample[3].hitwhistle = sounds["/hitsounds/drum-hitwhistle.ogg"];
+      game.sample[3].hitfinish = sounds["/hitsounds/drum-hitfinish.ogg"];
+      game.sample[3].hitclap = sounds["/hitsounds/drum-hitclap.ogg"];
+      game.sample[3].slidertick = sounds["/hitsounds/drum-slidertick.ogg"];
+      game.sampleComboBreak = sounds["/hitsounds/combobreak.ogg"];
       window.soundReady = true;
       (function (e) { if (e) e.classList.add("finished"); })(document.getElementById("sound-progress"));
       document.body.classList.add("sound-ready");

@@ -56,10 +56,12 @@ const app = createApp({
     });
   },
   template: `
-    <Nav />
-    <router-view />
+    <div id="main-page">
+      <Nav />
+      <router-view />
+    </div>
   `,
 });
 
 app.use(router);
-app.mount("#app");
+app.mount("#vue-app");
