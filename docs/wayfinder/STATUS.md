@@ -47,6 +47,18 @@ work (commit a6662e2 + the 13 increments below).
   with a null guard. Regression tests: `headless:slider-destroy`,
   `headless:pause-crash`, `headless:quit` (all green).
 
+**Code-split: game bundle never fetched by shell pages (5c4b84f)**
+- Plan invariant satisfied: shell pages (browse-v2, hot-v2, new-v2, index-v2) no
+  longer statically import the game module. `main.js` now bundles `pixi.js` +
+  `sound.js` as dependencies; shell pages call `window.__ensureGame()` (a dynamic
+  `import("/src/game/main.js")`) only when the user clicks a beatmap to play.
+- Built dist confirms: browse-v2 preloads ~24 KB (polyfill + account-widget +
+  beatmap-list), NOT the 960 KB game bundle. The 834 KB `index-*.js` (PixiJS +
+  engine) + 128 KB `main-*.js` are fetched on demand.
+- All headless tests updated to call `__ensureGame` before checking readiness flags;
+  `headless:play` 1301 hits / 0 errors, `headless:build:play` 1301 hits from
+  dist/ / 0 errors, `headless:integration` 11/11, all other tests green.
+
 **Phase 3 — lit shell + ESM**
 - 11 v2 pages, all lit components (beatmap-list, account-widget, leaderboard,
   profile, skins, settings-panel) + ESM api/gamesettings. **The v2 shell is
