@@ -145,9 +145,11 @@
         // recently-played are sid-driven from localforage. Difficulty click
         // dispatches beatmap-launch -> fetch .osz -> window.launchGame.
         import "/src/shell/beatmap-list.js";
+        import { initActivityFeed } from "/src/shell/activity-feed.js";
         import "/src/shell/account-widget.js";
         // bridge the lit account widget to the in-game scoreboard name: the game
         // reads localStorage "username", so mirror the logged-in account into it.
+        initActivityFeed();
         document.addEventListener("account-change", (e) => {
             const u = e.detail;
             if (u && u.username) { try { localStorage.setItem("username", u.username); } catch (er) {} }

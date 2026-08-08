@@ -13,6 +13,7 @@ async function main(){
   // seed settings before the page loads its modules
   await p.addInitScript((s)=>{ localStorage.setItem("osugamesettings", s); }, JSON.stringify({ dim: 25, cursorsize: 1.5, mastervolume: 10, hardrock: true }));
   await p.goto("http://localhost:5194/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.evaluate(() => window.__ensureGame && window.__ensureGame()).catch(() => {});
   await p.waitForFunction(()=>!!window.game && !!window.gamesettings, null,{timeout:15000});
   const st = await p.evaluate(()=>({
     gsDim: window.gamesettings.dim,
