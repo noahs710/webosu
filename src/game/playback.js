@@ -1633,7 +1633,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                   this.quit
                );
             }
-            self.background.tint = 0xffffff;
+            if (self.background) self.background.tint = 0xffffff;
          }
       };
 
