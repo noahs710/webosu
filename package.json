@@ -36,7 +36,8 @@
     "headless:settings-pull": "node scripts/headless-settings-pull.js",
     "headless:account-dist": "node scripts/headless-account-dist.js",
     "headless:touch": "node scripts/headless-touch.js",
-    "headless:perf-hud": "node scripts/headless-perf-hud.js"
+    "headless:perf-hud": "node scripts/headless-perf-hud.js",
+    "headless:perf-hud-dist": "node scripts/headless-perf-hud-dist.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
