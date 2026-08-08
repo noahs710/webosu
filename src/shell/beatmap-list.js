@@ -39,7 +39,6 @@ class BeatmapList extends LitElement {
         if (!r.ok) throw new Error("sets " + r.status);
         sets = await r.json();
       } else if (this.sids) {
-        // sids explicitly empty -> show empty state, no fetch
         this._sets = []; this._loading = false; return;
       } else {
         const r = await fetch(this.src);
@@ -56,30 +55,94 @@ class BeatmapList extends LitElement {
     }
   }
   _stars(rating) { return (Math.round(rating * 100) / 100).toFixed(2); }
+  _starname(star) {
+    if (star == null) return "unknown";
+    if (star < 2) return "easy";
+    if (star < 2.7) return "normal";
+    if (star < 4) return "hard";
+    if (star < 5.3) return "insane";
+    if (star < 6.5) return "expert";
+    return "expert-plus";
+  }
   _launch(set, beatmap, ev) {
     ev.preventDefault();
     this.dispatchEvent(new CustomEvent("beatmap-launch", { bubbles: true, composed: true,
       detail: { setId: set.id, beatmapId: beatmap.id, version: beatmap.version, title: set.title, artist: set.artist, stars: beatmap.difficulty_rating } }));
   }
+  _showDifficulties(set, ev) {
+    ev.preventDefault(); ev.stopPropagation();
+    // close any existing difficulty list
+    if (window._currentDiffList) {
+      const old = window._currentDiffList;
+      window.removeEventListener("click", old._close);
+      if (old.parentNode) old.parentNode.removeChild(old);
+      window._currentDiffList = null;
+    }
+    const card = ev.currentTarget;
+    const box = document.createElement("div");
+    box.className = "difficulty-box";
+    box.style.position = "absolute";
+    box.style.left = "0";
+    box.style.top = "100%";
+    box.style.zIndex = "10000";
+    box._close = function() {
+      if (box.parentNode) box.parentNode.removeChild(box);
+      window.removeEventListener("click", box._close);
+      window._currentDiffList = null;
+    };
+    // fill difficulty items
+    const diffs = (set.beatmaps || []).filter((b) => b.mode === "osu");
+    for (const b of diffs) {
+      const item = document.createElement("div");
+      item.className = "difficulty-item";
+      // ring icon
+      const ringbase = document.createElement("div"); ringbase.className = "bigringbase";
+      const ring = document.createElement("div"); ring.className = "bigring " + this._starname(b.difficulty_rating);
+      item.appendChild(ringbase); item.appendChild(ring);
+      // version + stars
+      const line = document.createElement("div"); line.className = "versionline";
+      const ver = document.createElement("div"); ver.className = "version"; ver.textContent = b.version;
+      const stars = document.createElement("div"); stars.className = "mapper"; stars.textContent = this._stars(b.difficulty_rating) + "\u2605";
+      line.appendChild(ver); line.appendChild(stars);
+      item.appendChild(line);
+      // leaderboard (optional)
+      if (window.api && window.api.leaderboard) {
+        window.api.leaderboard(b.id).then(function(top) {
+          if (top && top.length) {
+            const lb = document.createElement("div"); lb.className = "diff-leaderboard";
+            lb.textContent = "\uD83C\uDFC6 " + top[0].username + "  " + parseInt(top[0].score, 10).toLocaleString();
+            item.appendChild(lb);
+          }
+        }).catch(function() {});
+      }
+      item.onclick = (e) => { e.stopPropagation(); this._launch(set, b, e); box._close(); };
+      box.appendChild(item);
+    }
+    card.appendChild(box);
+    box.onclick = (e) => e.stopPropagation();
+    window._currentDiffList = box;
+    // defer adding the close listener so the current click doesn't immediately close it
+    setTimeout(() => window.addEventListener("click", box._close, false), 0);
+  }
   render() {
     if (this._error) return html`<div class="beatmap-list-error">Failed to load: ${this._error}</div>`;
     if (!this._loading && !this._sets.length && this.emptyMessage)
       return html`<div class="beatmap-list-empty">${this.emptyMessage}</div>`;
-    return html`${this._sets.map((s) => html`
-      <article class="beatmap-card beatmapbox">
+    return html`${this._sets.map((s) => {
+      const diffs = (s.beatmaps || []).filter((b) => b.mode === "osu");
+      return html`
+      <article class="beatmap-card beatmapbox" @click=${(e) => this._showDifficulties(s, e)}>
         <img class="beatmapcover" src="https://assets.ppy.sh/beatmaps/${s.id}/covers/card@2x.jpg" alt="" loading="lazy" onerror="this.style.display='none'"/>
+        <div class="beatmapcover-overlay"></div>
         <div class="beatmapcard-info">
           <div class="beatmapcard-title">${s.title}</div>
           <div class="beatmapcard-artist">${s.artist}</div>
-          <div class="difficulty-list">
-            ${(s.beatmaps || []).filter((b) => b.mode === "osu").map((b) => html`
-              <button class="difficulty-item" @click=${(e) => this._launch(s, b, e)}>
-                <span class="difficulty-version">${b.version}</span>
-                <span class="difficulty-stars">${this._stars(b.difficulty_rating)}★</span>
-              </button>`)}
+          <div class="beatmap-difficulties">
+            ${diffs.length <= 13 ? diffs.map((b) => html`<div class="difficulty-ring ${this._starname(b.difficulty_rating)}"></div>`) : html`<div class="difficulty-ring ${this._starname(diffs[diffs.length-1].difficulty_rating)}"></div><span class="difficulty-count">${diffs.length}</span>`}
           </div>
         </div>
-      </article>`)}`;
+      </article>`;
+    })}`;
   }
 }
 customElements.define("beatmap-list", BeatmapList);

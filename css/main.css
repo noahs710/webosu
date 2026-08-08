@@ -2148,6 +2148,7 @@ nav .nav-tool { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
   max-width: 420px;
   overflow: visible;
   position: relative;
+  cursor: pointer;
 }
 
 /* card cover image */
@@ -2171,28 +2172,21 @@ nav .nav-tool { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
 }
 
 /* difficulty list: floats above other cards, never clipped */
-.beatmap-card .difficulty-list {
-  position: relative;
-  z-index: 999;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.beatmap-card .beatmap-difficulties {
+  display: flex; align-items: center; gap: 3px; margin-top: 6px;
 }
-.beatmap-card .difficulty-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 6px 10px;
-  font-size: .85em;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
+.beatmap-card .difficulty-ring {
+  width: 12px; height: 12px; border-radius: 50%;
+  border: 2px solid; flex-shrink: 0;
 }
-.beatmap-card .difficulty-version {
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  max-width: 240px;
+.beatmap-card .difficulty-count {
+  color: var(--lazer-dim); font-size: .8em; margin-left: 2px;
 }
-.beatmap-card .difficulty-stars { font-weight: 700; flex-shrink: 0; margin-left: 8px; }
+.beatmap-card .beatmapcover-overlay {
+  position: absolute; top: 0; left: 0; right: 0; height: 140px;
+  border-radius: var(--lazer-radius) var(--lazer-radius) 0 0;
+  pointer-events: none;
+}
 
 /* activity feed: constrain width on the home page */
 .activity-feed { max-width: 900px; margin: 0 auto 1em; }
