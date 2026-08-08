@@ -5,11 +5,10 @@ import vue from "@vitejs/plugin-vue";
 // from classic <script src>/require.js to <script type="module"> one at a time;
 // until then Vite dev serves their existing scripts untouched.
 // SPA: single index.html entry (Vue Router handles all routes)
-// 404.html + bench.html are separate standalone pages
+// bench.html is a separate standalone page
 const htmlEntries = {
   index: "index.html",
-  "404": "404.html",
-  bench: "bench.html",
+    bench: "bench.html",
 };
 
 export default defineConfig({

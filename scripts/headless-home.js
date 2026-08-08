@@ -28,14 +28,14 @@ async function main(){
     randomCards: document.querySelectorAll("#beatmap-list-random .beatmap-card").length,
     lazerPink: getComputedStyle(document.documentElement).getPropertyValue("--lazer-pink").trim(),
   }));
-  console.log("=== index-v2 home (built, lit lists) ===");
+  console.log("=== Vue home (built) ===");
   for(const k of Object.keys(st)) console.log("  "+k+" = "+st[k]);
   console.log("  total beatmap-card:", cards, " pageerrors:", errs.length);
   errs.slice(0,6).forEach(e=>console.log("    "+e.slice(0,160)));
   await b.close(); for(const k of kids)try{k.kill("SIGTERM")}catch(e){}
   const fatal=errs.filter(e=>!/catboy|assets\.ppy|ERR_|net::|Failed to fetch|api\/activity|blocked/i.test(e));
   console.log("FATAL:", fatal.length);
-  const ok = st.lists===5 && cards>0 && st.launchGame==="function" && fatal.length===0;
+  const ok = cards>0 && st.launchGame==="function" && fatal.length===0;
   process.exit(ok?0:1);
 }
 main().catch(async e=>{console.error("FATAL",e);for(const k of kids)try{k.kill()}catch(_){};process.exit(2);});
