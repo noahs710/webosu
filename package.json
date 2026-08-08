@@ -39,7 +39,9 @@
     "headless:perf-hud": "node scripts/headless-perf-hud.js",
     "headless:perf-hud-dist": "node scripts/headless-perf-hud-dist.js",
     "headless:geom-api": "node scripts/headless-geom-api.js",
-    "headless:resource-api": "node scripts/headless-resource-api.js"
+    "headless:resource-api": "node scripts/headless-resource-api.js",
+    "headless:slider-destroy": "node scripts/headless-slider-destroy.js",
+    "headless:pause-crash": "node scripts/headless-pause-crash.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
