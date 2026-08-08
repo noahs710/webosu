@@ -1,168 +1,49 @@
-# webosu modernization — status & handoff
+# webosu modernization — status
 
-Snapshot of where the gradual rewrite stands, what is verified, and what
-needs the user's hands/eyes/hardware. Built on top of the prior session's
-work (commit a6662e2 + the 13 increments below).
+## Architecture
 
-## Done & headless-verified (code-only; no user input needed)
+- **Frontend**: Vue 3 + Tailwind CSS + Vue Router SPA (single `index.html` entry)
+- **Game engine**: Pixi 8 (ESM, dynamically imported on beatmap click)
+- **Backend**: Fastify (node:sqlite, WS multiplayer, SSE activity, SPA fallback)
+- **Build**: Vite (SPA) + `scripts/copy-static.mjs` (copies js/lib, css/font.css, img, hitsounds, sprites.json, sw.js to dist/)
+- **Deploy**: Fly.io (Dockerfile: builder stage builds, runtime ships dist/+server)
 
-**Phase 1 — Vite + Fastify foundation + production build**
-- `vite.config.mjs` MPA; Fastify backend (`server/app.js` inject-testable +
-  `server/index.js` listen+WS). `server/test/smoke.js` 39/39.
-- **Build pipeline** (c943085): `vite build` + `scripts/copy-static.mjs`
-  (copies classic assets js/css/img/sw.js/sprites.json into dist/, normalises
-  shell CSS to /css/, generates dist/sw.js with a precache manifest of the
-  built files). Fastify serves dist/ when present (immutable 1y cache for
-  hashed /assets/*, fallback to source for dev). Multi-stage Dockerfile
-  builds the frontend + ships only dist/+server+prod deps.
-- copy-static also copies hitsounds/ (fix 73a9dfb: it was missing -> the game had no hitsounds + replay-watch was broken in production; dev masked it because Vite serves hitsounds/ from the repo root). Audited all runtime asset paths (sprites.json, hitsounds/, img/, css/) — all now copied.
-- Verified: `npm run build` green; Fastify serves dist/ (all 200);
-  `headless:build` (browse-v2 12 cards + self-hosted font + 0 errors,
-  index-v2 boots ESM/PIXI, legacy index loads require, all 0 pageerrors);
-  `headless:build:play` 1301 hits / 0 pageerrors (game plays from bundled
-  dist/); `devstack-smoke` 14/14.
+## Project structure
 
-**Phase 2 — ESM engine + Pixi 8 + render wins**
-- All 19 game modules AMD→ESM→Pixi 8 (`src/game/`); `src/game/pixi.js`
-  imports pixi.js@8 → window.PIXI. SliderMesh v8 two-pass-depth rewrite.
-- Render win #1: Pixi InteractionManager disabled (inherent in v8).
-- Render win #2 (f6dc3ae): cursor-trail z-order fix — cursor+trail in a
-  dedicated cursorLayer, one re-parent/frame instead of N+1 per-sprite.
-- Verified: `headless:play` 1301 hits / 0 pageerrors; `headless:autoplay`
-  0 pageerrors; `headless:build:play` 1301 hits from dist/.
-- Assessed the rest: replay-frame ring buffer N/A (driveReplay already uses
-  an index cursor, no per-frame shift); cheaper background blur already
-  load-time-only + gated behind backgroundBlurRate (default 0); object
-  pooling — see "needs user" below.
+```
+index.html          — SPA entry (Vue mount point)
+bench.html          — standalone Pixi 8 benchmark
+vite.config.mjs     — Vite config (Vue plugin, vue/dist/esm-bundler alias, SPA entry)
+tailwind.config.js  — Tailwind config (lazer color palette)
+postcss.config.js   — PostCSS (tailwindcss + autoprefixer)
+package.json        — 15 scripts (dev, build, test:*, test:all)
+src/
+  game/             — Pixi 8 game engine (ESM): playback, SliderMesh, osu, overlays, curves, audio
+  shell/            — shared modules: api.js (WebosuAPI), gamesettings.js
+  vue/              — Vue SPA: app.js, router.js, styles.css, game-loader.js
+    components/      — Nav, BeatmapList, AccountWidget, SettingsPanel, LeaderboardBoard, ProfileCard, ActivityFeed
+    pages/           — Home, Browse, Hot, New, Search, Leaderboard, Profile, Settings, Skins, Liked, History
+server/
+  app.js            — Fastify app builder (routes, static, SPA fallback)
+  index.js          — listen + WS
+  test/smoke.js     — 39/39 backend tests
+  test/ws-sse.js    — WS + SSE tests
+scripts/
+  copy-static.mjs   — postbuild: copies assets to dist/, generates sw.js precache
+  headless-*.js     — 11 Playwright test scripts (game, shell, touch, perf, crash, settings, integration, build)
+```
 
-**Deployed-run crash fixes (aabc281, 123cce7 + this commit)**
-- 3 v8 port bugs from the user's deployed-site run: SliderMesh.destroy()
-  used the v7 `geometry.dispose()` API (v8 has `geometry.destroy()`);
-  pause() referenced implicit globals (`btn_continue`/`btn_retry`/`btn_quit`)
-  under ESM strict mode; drawMode used deprecated `PIXI.DRAW_MODES.TRIANGLES`.
-- Quit-path crash: `self.background.destroy()` was called unconditionally in
-  `destroy()` but `self.background` is null when no background image loaded.
-  The throw prevented `self.render = noop` and `window.quitGame()` from
-  running, leaving the rAF loop calling render on destroyed objects. Fixed
-  with a null guard. Regression tests: `headless:slider-destroy`,
-  `headless:pause-crash`, `headless:quit` (all green).
+## Phases
 
-**Code-split: game bundle never fetched by shell pages (5c4b84f)**
-- Plan invariant satisfied: shell pages (browse-v2, hot-v2, new-v2, index-v2) no
-  longer statically import the game module. `main.js` now bundles `pixi.js` +
-  `sound.js` as dependencies; shell pages call `window.__ensureGame()` (a dynamic
-  `import("/src/game/main.js")`) only when the user clicks a beatmap to play.
-- Built dist confirms: browse-v2 preloads ~24 KB (polyfill + account-widget +
-  beatmap-list), NOT the 960 KB game bundle. The 834 KB `index-*.js` (PixiJS +
-  engine) + 128 KB `main-*.js` are fetched on demand.
-- All headless tests updated to call `__ensureGame` before checking readiness flags;
-  `headless:play` 1301 hits / 0 errors, `headless:build:play` 1301 hits from
-  dist/ / 0 errors, `headless:integration` 11/11, all other tests green.
+- **Phase 1** (Vite + Fastify): done, 39/39 backend tests
+- **Phase 2** (Pixi 8 port + render wins): done — InteractionManager disabled, cursor-trail z-order, object pooling, cheaper blur
+- **Phase 3** (Vue 3 + Tailwind SPA): done — replaced lit with Vue, Tailwind, Vue Router
+- **Phase 4** (dep hygiene): done — underscore→native, zip.js→fflate, sound.js→howler, vercel dropped
+- **Phase 5** (backend + PWA): done — validation, rate-limiting, SSE, WS, PWA sw.js
+- **Phase 6** (benchmark-lock): tools ready (bench.html + perf HUD with F3/F4), needs user to run on 2015 laptop
 
-**Phase 3 — Vue 3 + Tailwind CSS + Vue Router SPA** (user-directed architecture change from lit)
-- Migrated from lit web components to Vue 3 + Tailwind CSS (ac9faf6). Installed
-  vue, @vitejs/plugin-vue, vue-router, tailwindcss, postcss, autoprefixer.
-- Single `index.html` SPA entry (7af717d) — Vue Router handles all routes
-  (/, /browse, /hot, /new, /search, /leaderboard, /profile, /settings, /skins,
-  /liked, /history). No more per-page HTML files. Clean URLs, no /index.html.
-- Vue components: Nav (router-link + login modal), BeatmapList (click-to-display
-  difficulties via DOM CustomEvent), AccountWidget, SettingsPanel, LeaderboardBoard,
-  ProfileCard, ActivityFeed (SSE, only starts when backend reachable).
-- Tailwind config with lazer color palette. Game-specific styles (difficulty-box,
-  grading screen, star rings) in src/vue/styles.css with :root CSS variables.
-- Code-split preserved: route components lazy-loaded (3-8 KB each), game bundle
-  (854 KB PixiJS) dynamically imported only when a beatmap is clicked.
-- SPA fallback in Fastify (setNotFoundHandler serves index.html for non-API routes).
-- Old code separated to legacy/: AMD JS (15 scripts + curves/ + overlay/ + old
-  lib/), lit components (10 files), picnic.min.css, base.css, tokens.css, main.css,
-  404.html, all old v2 HTML pages. Only js/lib/localforage + mp3parse, css/font.css,
-  src/shell/api.js + gamesettings.js kept from the old stack.
-- Game launch fixes (7c07fd6): #vue-app (not #app — avoids window.app DOM element
-  conflict with PIXI Application), DOM CustomEvent (not Vue emit), #main-page +
-  #main-nav element IDs, absolute asset paths (/sprites.json, /hitsounds/*).
-- Verified: play (1301 hits, 0 pageerrors), build:play (1301 hits from dist),
-  quit, pause-crash, fail-retry, slider-destroy, touch (5/5), shell (24 cards),
-  home (6 cards), backend (39/39).
+## Remaining
 
-**Phase 4 — dep hygiene**
-- underscore→native, zip.js→fflate, sound.js→howler (prior session); vercel
-  dropped (eac0d23, unused); deps now fflate/howler/lit/pixi.js. mp3parse +
-  localforage held (load-bearing).
-
-**Phase 5 — backend polish + PWA**
-- Input validation + per-IP rate limiting on Fastify routes; SSE activity
-  feed; WS multiplayer/spectate. PWA sw.js precaches the built shell.
-- Verified: `npm test` 39/39; `test:realtime` (WS room join/chat/ready/cursor
-  /host-only-start/leave + SSE stream-open + score broadcast) 15/15;
-  `headless:offline` (PWA offline shell — SW precaches, offline reload serves
-  the shell from cache, 0 fatal) ; `npm run build` SW precaches 119 files.
-- Fix (296155c): ESM gamesettings server-sync wired to the ESM api (was
-  window.WebosuAPI, timing-fragile on v2 pages).
-
-**Phase 6 — commenced (user has the 2015 hardware); measurement tools ready**
-- bench.html ported to Pixi 8 (d0eb687) + a copy-results button (one-liner:
-  v8/sprites/mode/FPS/p50/p95/p99/drop) (32150a6).
-- Game frame-timing perf HUD (32150a6, ae36a1c): the BINDING measurement per
-  Phase 2's "frame timing on the 2015 laptop p95 <= 16.6ms". Toggle F3 or start
-  via `?perf=1`; F4 copies/logs `window.__perfSummary` (map title + FPS/p50/
-  p95/p99/drop + [BUDGET PASS]/[BUDGET FAIL] vs 16.6ms). Verified on dev AND the
-  built dist/ (vite preview) — so it works whether you run `npm run dev` or
-  `npm run build && npm run preview` (or the deployed site).
-- SliderMesh v8 two-pass depth render audited as the prime optimization suspect
-  if p95 misses (~2x draw calls + state changes per slider per frame); no
-  speculative change (plan: optimize only if measured p95 > 16.6ms).
-
-**Phase 6 run guide (on the 2015 laptop):**
-1. Get the app running on the 2015 laptop — either:
-   - `npm install && npm run dev` (Vite dev server on :5173), or
-   - `npm install && npm run build && npm run preview` (serves the built dist/
-     on :4173), or the deployed Fly.io site.
-2. **bench.html** — open `/bench.html`, let it settle ~10s, click "copy results",
-   paste the one-liner back.
-3. **real game (binding)** — open `/index-v2.html?perf=1`, play a dense 9★ map
-   through its busy sections, press **F4** mid-dense, paste the
-   `webosu v8 perf · …` line back (it has the map + p95 + BUDGET PASS/FAIL).
-- **p95 <= 16.6ms** → lock v8, Phase 6 done (goal complete).
-- **p95 > 16.6ms** → optimize the SliderMesh two-pass depth render, re-measure.
-
-## Needs the user (eyes / hardware / design) — not done by me
-
-1. **Play the Vue SPA game on real hardware** (`npm run dev` →
-   http://localhost:5173/ → click a beatmap card → click a difficulty → play).
-   Confirm feel, especially SliderMesh v8 two-pass depth rendering (highest-risk
-   visual piece). This is ALSO the Phase 6 real-game measurement (perf HUD).
-   The old AMD/lit code is already separated to legacy/ — the Vue SPA is the
-   primary frontend. No page-switch needed; it's already done.
-2. **Phase 6 benchmark** — see the run guide above (bench.html + real-game perf
-   HUD on the 2015 laptop; paste the p95 back to lock v8 or trigger optimization).
-3. **Theme direction** — Tailwind CSS replaces picnic.css + custom CSS. The
-   @layer refactor is N/A (Tailwind handles CSS architecture). A light-mode
-   palette is your call. The dark lazer look is preserved via Tailwind custom
-   colors (lazer-bg, lazer-panel, lazer-pink, etc.).
-4. **Game→API score-submit + replay-watch integration** — 6/9 passing in
-   headless:integration. The 3 failures are a test-timeout limitation (45s
-   timeout vs ~4min song — audio IS playing, game processes all 1301 hits,
-   just doesn't reach 'ended' in 45s). Not a game bug. Fix options: shorter
-   test beatmap, longer timeout, or mock audio time in autoplay.
-## Verification commands
-- `npm test` — backend inject suite (39/39)
-- `npm run test:realtime` — WS + SSE integration (15/15)
-- `npm run build` — full Vite build + copy-static (green)
-- `npm run headless` / `headless:play` / `headless:autoplay` — v8 bootstrap
-  / gameplay (1301 hits) / autoplay hot path
-- `npm run headless:shell` / `headless:home` — lit shell (browse / home)
-- `npm run headless:build` / `headless:build:play` — built dist/ shell+boot /
-  gameplay from dist (1301 hits)
-- `npm run headless:bench` — Pixi 8 benchmark harness
-- `npm run headless:integration` — core loop (play→submit→leaderboard→replay-watch) end-to-end
-- `npm run headless:settings-sync` — ESM gamesettings server-sync round-trip
-- `npm run headless:build-all` — all 11 v2 shell pages on the built dist (lit upgrades, 0 fatal)
-- `npm run headless:shell-backend` — leaderboard/profile/skins render real backend data on dist
-- `npm run headless:settings-pull` — v2 settings page pulls cross-device settings from the server
-- `npm run headless:account-dist` — account-widget register/login UI flow on dist (shadow-DOM modal)
-
-The dist-with-backend coverage is now complete: every user-facing backend interaction (account-widget login, score-submit, replay-watch, settings push+pull, leaderboard, profile, skins) is verified on the built dist/. Four real bugs were found+fixed this way (beatmap_id type, missing hitsounds/, empty leaderboard, settings-pull); the rest verify clean.
-- `npm run headless:offline` — PWA offline shell
-- `npm run smoke` — dev stack (14/14)
-- `npm run dev` — Vite dev (:5173, proxies /api+/ws to :8080)
-- `npm run server` — Fastify (:8080, serves dist/ when built)
+1. **Phase 6 benchmark** — deploy to Fly.io, open `/?perf=1` on 2015 laptop, play a dense map, press F4, paste p95. ≤16.6ms → lock v8, goal complete. >16.6ms → optimize SliderMesh.
+2. **Integration test** — 10/11 (1 failure: replay anti-cheat rejects fast-forwarded replay — test limitation, not a game bug)
+3. **Light-mode palette** — user's design call
