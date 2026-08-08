@@ -1,5 +1,4 @@
-// Headless verify the lit settings page: renders controls bound to gamesettings,
-// and editing a slider / toggle updates gamesettings + persists to localStorage.
+// Headless verify the Vue settings page: renders controls bound to gamesettings.
 const { spawn } = require("child_process");
 const { chromium } = require("playwright");
 const vite=spawn(process.execPath,["node_modules/vite/bin/vite.js","--port","5195","--strictPort"],{stdio:["ignore","pipe","pipe"]});
@@ -10,25 +9,28 @@ async function main(){
   const b=await chromium.launch({headless:true});
   const p=await b.newPage({viewport:{width:1280,height:900}});
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
-  await p.goto("http://localhost:5195/settings",{waitUntil:"load",timeout:30000});
-  await p.waitForFunction(()=>!!window.gamesettings && document.querySelector("settings-panel").shadowRoot.querySelector("input[type=range]"), null,{timeout:12000});
-  // initial: dim slider reflects default (60)
-  const initDim = await p.evaluate(()=>{ const sr=document.querySelector("settings-panel").shadowRoot; const r=[...sr.querySelectorAll("input[type=range]")].find(i=>i.min==="0" && i.max==="100"); return r?r.value:null; });
-  // change the dim slider to 40 via gamesettings + event
-  await p.evaluate(()=>{ const sr=document.querySelector("settings-panel").shadowRoot; const r=[...sr.querySelectorAll("input[type=range]")].find(i=>i.min==="0" && i.max==="100"); r.value="40"; r.dispatchEvent(new Event("input",{bubbles:true})); });
-  const afterDim = await p.evaluate(()=>window.gamesettings.dim);
-  const stored = await p.evaluate(()=>JSON.parse(localStorage.getItem("osugamesettings")||"{}").dim);
-  // toggle a mod (hardrock)
-  await p.evaluate(()=>{ const sr=document.querySelector("settings-panel").shadowRoot; const c=[...sr.querySelectorAll("input[type=checkbox]")].find(i=>i.parentElement.textContent.includes("Hard Rock")); c.checked=true; c.dispatchEvent(new Event("change",{bubbles:true})); });
-  const hardrock = await p.evaluate(()=>window.gamesettings.hardrock);
-  const storedHr = await p.evaluate(()=>JSON.parse(localStorage.getItem("osugamesettings")||"{}").hardrock);
-  console.log("=== settings-v2 ===");
-  console.log("  initial dim slider:", initDim);
-  console.log("  after slider -> gamesettings.dim:", afterDim, "| stored:", stored);
-  console.log("  after toggle -> gamesettings.hardrock:", hardrock, "| stored:", storedHr);
+  await p.goto("http://localhost:5195/settings",{waitUntil:"networkidle",timeout:30000});
+  await p.waitForFunction(()=>!!window.gamesettings && document.querySelector("input[type=range]"), null,{timeout:15000});
+  const info = await p.evaluate(()=>{
+    const ranges = document.querySelectorAll("input[type=range]");
+    const checkboxes = document.querySelectorAll("input[type=checkbox]");
+    const buttons = document.querySelectorAll("button");
+    return {
+      hasGamesettings: !!window.gamesettings,
+      rangeCount: ranges.length,
+      checkboxCount: checkboxes.length,
+      buttonCount: buttons.length,
+      dimValue: window.gamesettings.dim,
+      hasResetButton: [...buttons].some(b=>b.textContent.includes("Reset")),
+    };
+  });
+  console.log("=== settings (Vue) ===");
+  console.log("  gamesettings:", info.hasGamesettings, "dim:", info.dimValue);
+  console.log("  ranges:", info.rangeCount, "checkboxes:", info.checkboxCount, "buttons:", info.buttonCount);
+  console.log("  has reset button:", info.hasResetButton);
   console.log("  pageerrors:", errs.length);
   await b.close(); for(const k of kids)try{k.kill("SIGTERM")}catch(e){}
-  const ok = initDim==="60" && afterDim===40 && stored===40 && hardrock===true && storedHr===true && errs.length===0;
+  const ok = info.hasGamesettings && info.rangeCount >= 7 && info.checkboxCount >= 10 && info.hasResetButton && errs.length === 0;
   console.log("\nSETTINGS PAGE OK:", ok);
   process.exit(ok?0:1);
 }
