@@ -38,7 +38,8 @@
     "headless:touch": "node scripts/headless-touch.js",
     "headless:perf-hud": "node scripts/headless-perf-hud.js",
     "headless:perf-hud-dist": "node scripts/headless-perf-hud-dist.js",
-    "headless:geom-api": "node scripts/headless-geom-api.js"
+    "headless:geom-api": "node scripts/headless-geom-api.js",
+    "headless:resource-api": "node scripts/headless-resource-api.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",
