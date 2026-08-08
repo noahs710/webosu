@@ -125,6 +125,33 @@ export async function launchOSU(osu, beatmapid, version) {
       else window.playback.pause();
    });
    pGameArea.appendChild(pauseBtn);
+   // ---- Phase 6 perf HUD (frame timing) ----
+   var perfHUD = document.createElement("div");
+   perfHUD.id = "perf-hud";
+   Object.assign(perfHUD.style, {
+      position: "fixed", top: "8px", left: "10px", zIndex: "50",
+      fontFamily: "monospace", fontSize: "12px", lineHeight: "1.35",
+      color: "#ececf4", background: "rgba(20,20,30,.6)",
+      border: "1px solid rgba(255,255,255,.18)", borderRadius: "8px",
+      padding: "6px 9px", pointerEvents: "none", display: "none",
+   });
+   perfHUD.innerHTML = "FPS -- · p50 -- · <b>p95 --</b> · p99 -- · drop --";
+   pGameArea.appendChild(perfHUD);
+   var perfOn = (() => {
+      try {
+         if (new URLSearchParams(location.search).get("perf") === "1") return true;
+         if (window.gamesettings && gamesettings.showFPS) return true;
+      } catch (e) {}
+      return false;
+   })();
+   if (perfOn) perfHUD.style.display = "block";
+   function togglePerf() {
+      perfOn = !perfOn;
+      perfHUD.style.display = perfOn ? "block" : "none";
+      if (!perfOn) { perfTimes.length = 0; perfLast = 0; }
+   }
+   var perfKey = function (e) { if (e.key === "F3") { e.preventDefault(); togglePerf(); } };
+   window.addEventListener("keydown", perfKey);
    pMainPage.setAttribute("hidden", "");
    pNav.setAttribute("style", "display: none");
    pGameArea.removeAttribute("hidden");
@@ -132,6 +159,8 @@ export async function launchOSU(osu, beatmapid, version) {
    var gameLoop;
    // set quit callback
    window.quitGame = function () {
+      window.removeEventListener("keydown", perfKey);
+      if (perfHUD && perfHUD.parentNode) perfHUD.parentNode.removeChild(perfHUD);
       if (pauseBtn && pauseBtn.parentNode) pauseBtn.parentNode.removeChild(pauseBtn);
       pGameArea.setAttribute("hidden", "");
       pMainPage.removeAttribute("hidden");
@@ -170,6 +199,7 @@ export async function launchOSU(osu, beatmapid, version) {
    playback.load(); // load audio
 
    // start main loop
+   var perfTimes = [], perfLast = 0, perfUI = 0, perfDropped = 0;
    gameLoop = function (timestamp) {
       if (game.scene) {
          game.scene.render(timestamp);
@@ -206,6 +236,24 @@ export async function launchOSU(osu, beatmapid, version) {
          }
       }
       app.renderer.render(game.stage);
+      // Phase 6 frame-timing sample (only when the perf HUD is on)
+      if (perfOn) {
+         var now = performance.now();
+         if (perfLast) {
+            perfTimes.push(now - perfLast);
+            if (perfTimes.length > 240) perfTimes.shift();
+         }
+         perfLast = now;
+         if (now - perfUI > 250) {
+            perfUI = now;
+            var pcts = perfTimes.slice().sort(function (a, b) { return a - b; });
+            var pct = function (arr, q) { return arr.length ? arr[Math.floor((arr.length - 1) * q)] : 0; };
+            var fps = perfTimes.length ? 1000 / (perfTimes.reduce(function (a, b) { return a + b; }, 0) / perfTimes.length) : 0;
+            var p50 = pct(pcts, 0.5), p95 = pct(pcts, 0.95), p99 = pct(pcts, 0.99);
+            if (p95 > 33) perfDropped++;
+            perfHUD.innerHTML = "FPS " + fps.toFixed(0) + " · p50 " + p50.toFixed(1) + "ms · <b style=\"" + (p95 > 16.6 ? "color:#f86" : "color:#7fd") + "\">p95 " + p95.toFixed(1) + "ms</b> · p99 " + p99.toFixed(1) + "ms · drop " + perfDropped;
+         }
+      }
       window.animationRequestID = window.requestAnimationFrame(gameLoop);
    };
    window.animationRequestID = window.requestAnimationFrame(gameLoop);
