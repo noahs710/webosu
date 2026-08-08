@@ -13,9 +13,22 @@
   <h2>Settings <span style="color:var(--lazer-dim);font-weight:400;font-size:.8em">lit + lazer-tokens</span></h2>
   <hr/>
   <settings-panel></settings-panel>
+  <div class="hitsound-section" style="margin-top:14px">
+    <h3 style="color:var(--lazer-pink);font-size:1em;margin:10px 0">Custom hitsounds</h3>
+    <label class="osk-dropzone" id="oskdrop">
+      <input id="skinhitsound" type="file" accept=".osk,.ogg,.wav" multiple hidden />
+      <span class="osk-dropzone-text">Drop a <b>.osk</b> here, or click to choose hitsound files</span>
+    </label>
+    <div class="osk-status" id="oskstatus" style="font-size:.85em;margin-top:6px;color:var(--lazer-dim)"></div>
+    <div style="font-size:.8em;color:var(--lazer-dim);margin-top:8px">
+      Extracts hitsounds from an osu! skin (.osk) or individual .ogg/.wav files. Applied on your next game.
+    </div>
+  </div>
 </div></div>
 <script type="module">
   import "./src/shell/account-widget.js";
   import "./src/shell/settings-panel.js";
+  import { initHitsoundImport } from "./src/shell/hitsound-import.js";
+  initHitsoundImport(document);
 </script>
 </body></html>
