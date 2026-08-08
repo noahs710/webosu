@@ -14,29 +14,29 @@ class LoadingMenu extends PIXI.Container {
       this.bg.alpha = 0.8;
       this.addChild(this.bg);
 
-      this.titletext = new PIXI.Text(track.metadata.Title || "-", {
+      this.titletext = new PIXI.Text({ text: track.metadata.Title || "-", style: {
          fontFamily: "Comfortaa",
          fontSize: 24,
          fill: "#ffffff",
-      });
-      this.artisttext = new PIXI.Text(track.metadata.Artist || "-", {
+      }});
+      this.artisttext = new PIXI.Text({ text: track.metadata.Artist || "-", style: {
          fontFamily: "Comfortaa",
          fontSize: 14,
          fill: "#ffffff",
-      });
-      this.versiontext = new PIXI.Text(track.metadata.Version || "-", {
+      }});
+      this.versiontext = new PIXI.Text({ text: track.metadata.Version || "-", style: {
          fontFamily: "Comfortaa",
          fontSize: 14,
          fill: "#ffffff",
+      }});
+      this.sourcetext = new PIXI.Text({
+         text: "Source: " + (track.metadata.Source || "-"),
+         style: { fontFamily: "Comfortaa", fontSize: 14, fill: "#ffffff" }
       });
-      this.sourcetext = new PIXI.Text(
-         "Source: " + (track.metadata.Source || "-"),
-         { fontFamily: "Comfortaa", fontSize: 14, fill: "#ffffff" }
-      );
-      this.mappertext = new PIXI.Text(
-         "Mapper: " + (track.metadata.Creator || "-"),
-         { fontFamily: "Comfortaa", fontSize: 14, fill: "#ffffff" }
-      );
+      this.mappertext = new PIXI.Text({
+         text: "Mapper: " + (track.metadata.Creator || "-"),
+         style: { fontFamily: "Comfortaa", fontSize: 14, fill: "#ffffff" }
+      });
       this.titletext.anchor.set(0.5);
       this.artisttext.anchor.set(0.5);
       this.versiontext.anchor.set(0.5);
