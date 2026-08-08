@@ -25,8 +25,8 @@ class BeatmapList extends LitElement {
   createRenderRoot() {
     return this; // light DOM -> global lazer CSS applies + queryable
   }
-  connectedCallback() { super.connectedCallback(); this.updateComplete.then(() => this._load()); }
-  updated(changed) { if (changed.has("src") || changed.has("sids")) this._load(); }
+  connectedCallback() { super.connectedCallback(); }
+  willUpdate(changed) { if (changed.has("src") || changed.has("sids")) this._load(); }
   async _load() {
     if (!this.src && !this.sids) return;
     this._error = "";
