@@ -60,13 +60,15 @@ export async function launchOSU(osu, beatmapid, version) {
       game.stage.addChild(game.cursorLayer);
       game.cursor = new PIXI.Sprite(Skin["cursor.png"]);
       game.cursor.anchor.x = game.cursor.anchor.y = 0.5;
-      game.cursor.scale.x = game.cursor.scale.y = 0.3 * game.cursorSize;
+      var effectiveCursorSize = (window.game && window.game.skinCursorSize) ? window.game.skinCursorSize : game.cursorSize;
+      game.cursor.scale.x = game.cursor.scale.y = 0.3 * effectiveCursorSize;
       // cursor trail: a ring buffer of recent positions fading behind the cursor
       game.cursorTrail = [];
       for (let i = 0; i < 8; i++) {
-         let t = new PIXI.Sprite(Skin["cursor.png"]);
+         let trailTex = (Skin["cursortrail.png"]) ? Skin["cursortrail.png"] : Skin["cursor.png"];
+         let t = new PIXI.Sprite(trailTex);
          t.anchor.x = t.anchor.y = 0.5;
-         t.scale.x = t.scale.y = 0.3 * game.cursorSize;
+         t.scale.x = t.scale.y = 0.3 * effectiveCursorSize;
          t.alpha = 0;
          game.cursorLayer.addChild(t);
          game.cursorTrail.push({

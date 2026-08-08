@@ -1,4 +1,5 @@
 import Osu from "./osu.js";
+import { loadCachedSkin, applySkin } from "./skin-loader.js";
 import Playback from "./playback.js";
 
    window.Osu = Osu;
@@ -89,8 +90,11 @@ import Playback from "./playback.js";
    PIXI.Assets.load("/sprites.json").then((sheet) => {
          window.Skin = sheet.textures;
          // apply any custom skin textures, then signal skin ready
+         loadCachedOskSkin(function () {
+         // fallback to legacy base64 skins in localforage
          applyCustomSkin(function () {
             window.skinReady = true;
+         });
             (function (e) { if (e) e.classList.add("finished"); })(document.getElementById("skin-progress"));
             document.body.classList.add("skin-ready");
          });

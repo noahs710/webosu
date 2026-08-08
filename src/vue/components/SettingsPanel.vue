@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { gamesettings, defaultsettings, saveToLocal } from "../../shell/gamesettings.js";
+import { loadOsk, cacheSkin, clearCachedSkin } from "../../game/skin-loader.js";
 
 const SLIDERS = [
   ["dim", "Background dim", 0, 100, 1, "%"], ["blur", "Background blur", 0, 100, 1, "%"],
@@ -14,6 +15,28 @@ const KEYS = [["K1name","K1"],["K2name","K2"],["Kpausename","Pause"],["Kpause2na
 const TOGGLE_LABELS = { easy:"Easy", hardrock:"Hard Rock", nightcore:"Nightcore", daycore:"Daycore", hidden:"Hidden", nofail:"No Fail", suddendeath:"Sudden Death", perfect:"Perfect", spunout:"Spun Out", classic:"Classic", difficultyAdjust:"Difficulty Adjust", hideNumbers:"Hide numbers", hideGreat:"Hide 300s", hideFollowPoints:"Hide follow points", snakein:"Snake-in", snakeout:"Snake-out", showhwmouse:"Hardware cursor", autofullscreen:"Auto fullscreen", sysdpi:"Use system resolution", beatmapHitsound:"Beatmap hitsounds" };
 
 const gs = ref(gamesettings);
+const skinStatus = ref("");
+const skinName = ref("");
+
+async function importOsk(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  skinStatus.value = "Loading " + file.name + "...";
+  try {
+    const skinData = await loadOsk(file);
+    await cacheSkin(skinData);
+    skinName.value = skinData.config ? skinData.config.name || file.name : file.name;
+    skinStatus.value = "Skin loaded: " + skinName.value + " (" + Object.keys(skinData.textures).length + " textures, " + Object.keys(skinData.sounds).length + " sounds). Applied on next game.";
+  } catch (e) {
+    skinStatus.value = "Failed: " + (e.message || e);
+  }
+}
+
+async function removeSkin() {
+  await clearCachedSkin();
+  skinName.value = "";
+  skinStatus.value = "Skin removed. Default will be used.";
+}
 
 function set(key, val) { gs.value[key] = val; gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
 function reset() { Object.assign(gamesettings, defaultsettings); gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
@@ -87,6 +110,13 @@ onMounted(() => {
         </label>
       </div>
     </div>
-    <button @click="reset" class="bg-lazer-pink text-white rounded-lg px-4 py-2 text-sm hover:brightness-110">Reset to defaults</button>
+    <div class="bg-lazer-panel border border-white/5 rounded-xl p-4">
+    <h3 class="text-lazer-pink font-bold mb-2.5">Skin (.osk)</h3>
+    <p class="text-lazer-dim text-sm mb-3">Import an osu! skin file (.osk). All textures, hitsounds, and skin.ini settings are applied on your next game.</p>
+    <input type="file" accept=".osk,.zip" @change="importOsk" class="mb-2" />
+    <button v-if="skinName" @click="removeSkin" class="text-red-400 text-sm ml-2">Remove skin</button>
+    <div class="text-sm mt-2" :class="skinStatus.includes('Failed') ? 'text-red-400' : 'text-lazer-dim'">{{ skinStatus }}</div>
+  </div>
+  <button @click="reset" class="bg-lazer-pink text-white rounded-lg px-4 py-2 text-sm hover:brightness-110">Reset to defaults</button>
   </div>
 </template>

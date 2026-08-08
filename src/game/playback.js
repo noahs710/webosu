@@ -433,13 +433,22 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
       }
 
       this.createJudgement = function (x, y, depth, finalTime) {
-         let judge = new PIXI.Text({ text: "", style: {
-            fontFamily: "Comfortaa",
-            fontSize: 20,
-            fill: "#ffffff",
-      } });
-         judge.anchor.set(0.5);
-         judge.scale.set(0.85 * this.hitSpriteScale, 1 * this.hitSpriteScale);
+         // Use skin judgement images (hit0/50/100/300.png) if available, else text
+         var useSprites = !!(window.Skin && window.Skin["hit300.png"]);
+         var judge;
+         if (useSprites) {
+            judge = new PIXI.Sprite(window.Skin["hit300.png"]);
+            judge.anchor.set(0.5);
+            judge.scale.set(0.85 * this.hitSpriteScale, 0.85 * this.hitSpriteScale);
+         } else {
+            judge = new PIXI.Text({ text: "", style: {
+               fontFamily: "Comfortaa",
+               fontSize: 20,
+               fill: "#ffffff",
+            } });
+            judge.anchor.set(0.5);
+            judge.scale.set(0.85 * this.hitSpriteScale, 1 * this.hitSpriteScale);
+         }
          judge.visible = false;
          judge.basex = judge.x = x;
          judge.basey = judge.y = y;
@@ -447,6 +456,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          judge.points = -1;
          judge.finalTime = finalTime;
          judge.defaultScore = 0;
+         judge.useSprites = useSprites;
          return judge;
       };
 
@@ -454,9 +464,23 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          judge.visible = true;
          judge.points = points;
          judge.t0 = time;
-         if (!this.hideGreat || points != 300)
-            judge.text = judgementText(points);
-         judge.tint = judgementColor(points);
+         if (judge.useSprites && window.Skin) {
+            // Map points to skin judgement texture
+            var texKey = "hit300.png";
+            if (points == 0) texKey = "hit0.png";
+            else if (points == 50) texKey = "hit50.png";
+            else if (points == 100) texKey = "hit100.png";
+            else if (points == 300) {
+               texKey = "hit300.png";
+               // Use hit300g for perfect (full combo) if available
+               if (this.fullcombo && window.Skin["hit300g.png"]) texKey = "hit300g.png";
+            }
+            if (window.Skin[texKey]) judge.texture = window.Skin[texKey];
+         } else {
+            if (!this.hideGreat || points != 300)
+               judge.text = judgementText(points);
+            judge.tint = judgementColor(points);
+         }
          this.updateJudgement(judge, time);
       };
 
@@ -566,15 +590,24 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          return (+color[0] << 16) | (+color[1] << 8) | (+color[2] << 0);
       }
       var combos = [];
-      for (var i = 0; i < track.colors.length; i++) {
-         combos.push(convertcolor(track.colors[i]));
+      if (window.game && window.game.skinComboColors && window.game.skinComboColors.length > 0) {
+         // Use skin.ini combo colors
+         combos = window.game.skinComboColors.slice();
+      } else {
+         for (var i = 0; i < track.colors.length; i++) {
+            combos.push(convertcolor(track.colors[i]));
+         }
       }
       var SliderTrackOverride;
       var SliderBorder;
       // leave them undefined if they're undefined in the beatmap
-      if (track.colors.SliderTrackOverride)
+      if (window.game && window.game.skinSliderTrackOverride != null)
+         SliderTrackOverride = window.game.skinSliderTrackOverride;
+      else if (track.colors.SliderTrackOverride)
          SliderTrackOverride = convertcolor(track.colors.SliderTrackOverride);
-      if (track.colors.SliderBorder)
+      if (window.game && window.game.skinSliderBorder != null)
+         SliderBorder = window.game.skinSliderBorder;
+      else if (track.colors.SliderBorder)
          SliderBorder = convertcolor(track.colors.SliderBorder);
 
       self.game.stage.addChild(this.gamefield);
