@@ -1992,6 +1992,22 @@ form input[type="text"]:focus { border-color: var(--lazer-pink); outline: none; 
   transform: translateX(3px);
   border-color: rgba(255, 102, 170, 0.35);
 }
+.difficulty-item {
+  height: auto !important;
+  overflow: visible !important;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* override old cursor:wait rules (game loads dynamically now) */
+body:not(.script-ready) .difficulty-item,
+body:not(.skin-ready) .difficulty-item,
+body:not(.sound-ready) .difficulty-item { cursor: pointer; }
+.difficulty-item .versionline { display: flex; flex-direction: column; flex: 1; }
+.difficulty-item .version { font-size: .95em; font-weight: 600; }
+.difficulty-item .mapper { font-size: .8em; color: var(--lazer-dim); }
 .diff-leaderboard { color: var(--lazer-pink); }
 .bigringbase { background: #2b2b3a; }
 .bigring { background: #2b2b3a; border-width: 5px; }
