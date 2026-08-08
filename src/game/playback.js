@@ -515,7 +515,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                return;
             }
             judge.alpha = t < 100 ? t / 100 : 1 - (t - 100) / 400;
-            judge.letterSpacing = 70 * (Math.pow(t / 1800 - 1, 5) + 1);
+            if (!judge.useSprites) judge.letterSpacing = 70 * (Math.pow(t / 1800 - 1, 5) + 1);
          }
       };
 
