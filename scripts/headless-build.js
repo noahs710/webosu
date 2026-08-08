@@ -54,6 +54,8 @@ async function main() {
   // index-v2 game entry boot
   const p2 = await ctx.newPage();
   const e2 = await load(p2, "http://localhost:5180/index-v2.html");
+  await p2.evaluate(() => window.__ensureGame && window.__ensureGame()).catch(() => {});
+  await p2.waitForFunction(() => window.scriptReady && window.skinReady, null, { timeout: 15000 }).catch(() => {});
   let ready = await p2.evaluate(() => ({ scriptReady: !!window.scriptReady, skinReady: !!window.skinReady, pixi: typeof window.PIXI, app: !!window.app }));
   console.log("=== index-v2 (built) ===");
   console.log("  ", JSON.stringify(ready), "pageerrors:", e2.length);

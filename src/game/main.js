@@ -1,3 +1,5 @@
+import "./pixi.js";
+import "./sound.js";
 // webosu ESM game entry. Loading this module runs initgame's side effects
 // (sets window.game, loads skin + hitsounds via PIXI.Loader, sets window.Osu /
 // window.Playback + the skinReady/soundReady/scriptReady readiness flags), and

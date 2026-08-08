@@ -21,6 +21,8 @@ async function main() {
   await page.goto("http://localhost:5176/index-v2.html", { waitUntil: "load", timeout: 30000 });
   // give skin+sound loading time
   await page.waitForTimeout(6000);
+  await page.evaluate(() => window.__ensureGame && window.__ensureGame()).catch(() => {});
+  await page.waitForFunction(() => window.skinReady, null, { timeout: 15000 }).catch(() => {});
   const state = await page.evaluate(() => ({
     launchGame: typeof window.launchGame,
     launchReplay: typeof window.launchReplay,

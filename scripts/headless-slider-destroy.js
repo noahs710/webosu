@@ -13,6 +13,7 @@ async function main(){
   const p=await b.newPage();
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
   await p.goto("http://localhost:5202/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
   await p.waitForFunction(()=>typeof window.PIXI==="object" && window.PIXI.Geometry, null, {timeout:15000}).catch(()=>{});
   // import the SliderMesh class + construct (creates this.geometry) + destroy
   const r = await p.evaluate(async () => {

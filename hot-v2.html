@@ -4,9 +4,6 @@
 <link rel="stylesheet" href="css/picnic.min.css"><link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/main.css"><link rel="stylesheet" href="css/font.css">
 <script src="js/lib/localforage.min.js"></script><script src="js/lib/mp3parse.min.js"></script>
-<script type="module" src="/src/game/pixi.js"></script>
-    <script type="module" src="/src/game/sound.js"></script>
-    <script type="module" src="/src/game/main.js"></script>
 </head><body>
 <nav id="main-nav">
   <div class="nav-link"><a href="index-v2.html" class="brand">webosu!</a><a href="new-v2.html" class="pseudo button">New</a><a href="hot-v2.html" class="pseudo button active">Popular</a><a href="browse-v2.html" class="pseudo button">Browse</a><a href="leaderboard-v2.html" class="pseudo button">Leaderboard</a></div>
@@ -20,9 +17,11 @@
 <script type="module">
   import "./src/shell/account-widget.js";
   import "./src/shell/beatmap-list.js";
-  document.addEventListener("beatmap-launch", async (e) => {
+  window.__ensureGame = async () => { if (!window.launchGame) await import("/src/game/main.js"); };
+    document.addEventListener("beatmap-launch", async (e) => {
     const { setId, beatmapId, version } = e.detail;
-    try { const r = await fetch("https://catboy.best/d/" + setId + "n"); window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version); }
+    try { await window.__ensureGame();
+        const r = await fetch("https://catboy.best/d/" + setId + "n"); window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version); }
     catch (err) { console.warn("launch failed:", err); }
   });
 </script>

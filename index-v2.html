@@ -15,9 +15,6 @@
                 <!-- ESM game bootstrap (Phase 2): classic libs set globals (PIXI/sounds/makeSound/_/localforage/zip/mp3Parser); the ESM entry wires the game + launchers. -->
     <script src="js/lib/mp3parse.min.js"></script>
     <script type="module" src="/src/shell/gamesettings.js"></script>
-    <script type="module" src="/src/game/pixi.js"></script>
-    <script type="module" src="/src/game/sound.js"></script>
-    <script type="module" src="/src/game/main.js"></script>
     <script src="js/lib/localforage.min.js"></script>
 </head>
 <body>
@@ -155,10 +152,12 @@
             const u = e.detail;
             if (u && u.username) { try { localStorage.setItem("username", u.username); } catch (er) {} }
         });
+        window.__ensureGame = async () => { if (!window.launchGame) await import("/src/game/main.js"); };
         document.addEventListener("beatmap-launch", async (e) => {
             const { setId, beatmapId, version } = e.detail;
             try {
-                const r = await fetch("https://catboy.best/d/" + setId + "n");
+                await window.__ensureGame();
+            const r = await fetch("https://catboy.best/d/" + setId + "n");
                 const blob = new Blob([await r.arrayBuffer()]);
                 window.launchGame(blob, beatmapId, version);
             } catch (err) { console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
@@ -196,6 +195,7 @@
             const q = new URLSearchParams(location.search);
             const watch = q.get("watch");
             if (!watch) return;
+            window.__ensureGame();
             const bid = parseInt(q.get("bid") || "0", 10);
             const sid = q.get("sid");
             const version = q.get("v") || "";

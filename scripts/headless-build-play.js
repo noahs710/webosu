@@ -16,7 +16,8 @@ async function main(){
   const errors=[]; p.on("pageerror",e=>{errors.push(String(e)); console.log("PAGEERROR-STACK:",String(e.stack||e).split("\n").slice(0,6).join(" | "));});
   p.on("console",m=>{if(m.type()==="error" && !/catboy|api\/activity|500/.test(m.text())) console.log("CONSOLE-ERR:",m.text().slice(0,160))});
   await p.goto("http://localhost:5177/index-v2.html",{waitUntil:"load",timeout:30000});
-  await p.waitForFunction(()=>typeof window.launchGame==="function" && window.skinReady && window.soundReady, null, {timeout:20000}).catch(()=>{});
+  await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
+  await p.waitForFunction(()=>window.skinReady && window.soundReady, null, {timeout:20000}).catch(()=>{});
   console.log("bootstrap: launchGame="+typeof (await p.evaluate(()=>window.launchGame))+" skinReady="+await p.evaluate(()=>window.skinReady)+" soundReady="+await p.evaluate(()=>window.soundReady));
   console.log("launching map set "+SET+" bid "+BID+" ...");
   const launchInfo = await p.evaluate(async (set)=>{

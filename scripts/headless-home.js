@@ -16,6 +16,8 @@ async function main(){
   // wait for the home lists to render beatmap cards (catboy.best fetch in-browser)
   let cards=0;
   try { await p.waitForFunction(()=>document.querySelectorAll(".beatmap-card").length>0, null, {timeout:20000}); cards=await p.evaluate(()=>document.querySelectorAll(".beatmap-card").length); } catch(e) {}
+  await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
+  await p.waitForFunction(()=>window.skinReady, null, {timeout:15000}).catch(()=>{});
   const st=await p.evaluate(()=>({
     scriptReady: !!window.scriptReady,
     pixi: typeof window.PIXI,

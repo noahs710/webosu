@@ -17,7 +17,8 @@ async function main(){
   const errors=[]; p.on("pageerror",e=>errors.push(String(e)));
   p.on("console",m=>{if(m.type()==="error" && !/catboy|api\/activity|500/.test(m.text())) console.log("CONSOLE-ERR:",m.text().slice(0,150))});
   await p.goto("http://localhost:5178/index-v2.html",{waitUntil:"load",timeout:30000});
-  await p.waitForFunction(()=>typeof window.launchGame==="function" && window.skinReady && window.soundReady, null,{timeout:20000}).catch(()=>{});
+  await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
+  await p.waitForFunction(()=>window.skinReady && window.soundReady, null,{timeout:20000}).catch(()=>{});
   // enable autoplay + prevent fullscreen
   await p.evaluate(()=>{ window.game.autoplay = true; window.game.autofullscreen = false; });
   console.log("autoplay set: " + await p.evaluate(()=>window.game.autoplay));

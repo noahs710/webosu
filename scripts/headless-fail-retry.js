@@ -14,7 +14,8 @@ async function main(){
   const p=await b.newPage({viewport:{width:1280,height:720}});
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
   await p.goto("http://localhost:5205/index-v2.html",{waitUntil:"load",timeout:30000});
-  await p.waitForFunction(()=>typeof window.launchGame==="function" && window.skinReady && window.soundReady, null,{timeout:20000}).catch(()=>{});
+  await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
+  await p.waitForFunction(()=>window.skinReady && window.soundReady, null,{timeout:20000}).catch(()=>{});
   await p.evaluate(()=>{ if(window.game){ window.game.autoplay=true; window.game.autofullscreen=false; } });
   await p.evaluate(async (set)=>{ const r=await fetch("https://catboy.best/d/"+set+"n"); const ab=await (await r.blob()).arrayBuffer(); window.__osublob=new Blob([ab]); window.launchGame(window.__osublob,4174364,"Lightspeed"); }, SET);
   await p.waitForFunction(()=>!!window.playback && !!window.playback.osu && !!window.playback.osu.audio && !!window.app, null,{timeout:20000}).catch(()=>{});
