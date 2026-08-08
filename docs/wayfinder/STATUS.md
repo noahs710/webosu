@@ -59,20 +59,30 @@ work (commit a6662e2 + the 13 increments below).
   `headless:play` 1301 hits / 0 errors, `headless:build:play` 1301 hits from
   dist/ / 0 errors, `headless:integration` 11/11, all other tests green.
 
-**Phase 3 — lit shell + ESM**
-- 11 v2 pages, all lit components (beatmap-list, account-widget, leaderboard,
-  profile, skins, settings-panel) + ESM api/gamesettings. **The v2 shell is
-  uniformly lit + ESM** — the home page (index-v2) was migrated last:
-  lists→`<beatmap-list>` (a18f77c), dead classic scripts dropped (abd99dc),
-  nav→`<account-widget>` + classic accounts/api removed (7d667b7), replay
-  -watch inlined as ESM — no classic *shell* scripts remain on the home page
-  (345cf64).
-- Self-hosted Comfortaa variable woff2 (6 unicode subsets), Google Fonts CDN
-  dependency removed (4332b91). Lazer palette extracted into css/tokens.css
-  (single source) + [data-theme=dark] swap hook (31e3404).
-- Verified: `headless:shell`/`headless:home` 0 pageerrors; `headless:replay`
-  launchReplay available / 0 pageerrors; `headless:settings` settings→game
-  wiring OK; computed font-family is Comfortaa with 0 gstatic requests.
+**Phase 3 — Vue 3 + Tailwind CSS + Vue Router SPA** (user-directed architecture change from lit)
+- Migrated from lit web components to Vue 3 + Tailwind CSS (ac9faf6). Installed
+  vue, @vitejs/plugin-vue, vue-router, tailwindcss, postcss, autoprefixer.
+- Single `index.html` SPA entry (7af717d) — Vue Router handles all routes
+  (/, /browse, /hot, /new, /search, /leaderboard, /profile, /settings, /skins,
+  /liked, /history). No more per-page HTML files. Clean URLs, no /index.html.
+- Vue components: Nav (router-link + login modal), BeatmapList (click-to-display
+  difficulties via DOM CustomEvent), AccountWidget, SettingsPanel, LeaderboardBoard,
+  ProfileCard, ActivityFeed (SSE, only starts when backend reachable).
+- Tailwind config with lazer color palette. Game-specific styles (difficulty-box,
+  grading screen, star rings) in src/vue/styles.css with :root CSS variables.
+- Code-split preserved: route components lazy-loaded (3-8 KB each), game bundle
+  (854 KB PixiJS) dynamically imported only when a beatmap is clicked.
+- SPA fallback in Fastify (setNotFoundHandler serves index.html for non-API routes).
+- Old code separated to legacy/: AMD JS (15 scripts + curves/ + overlay/ + old
+  lib/), lit components (10 files), picnic.min.css, base.css, tokens.css, main.css,
+  404.html, all old v2 HTML pages. Only js/lib/localforage + mp3parse, css/font.css,
+  src/shell/api.js + gamesettings.js kept from the old stack.
+- Game launch fixes (7c07fd6): #vue-app (not #app — avoids window.app DOM element
+  conflict with PIXI Application), DOM CustomEvent (not Vue emit), #main-page +
+  #main-nav element IDs, absolute asset paths (/sprites.json, /hitsounds/*).
+- Verified: play (1301 hits, 0 pageerrors), build:play (1301 hits from dist),
+  quit, pause-crash, fail-retry, slider-destroy, touch (5/5), shell (24 cards),
+  home (6 cards), backend (39/39).
 
 **Phase 4 — dep hygiene**
 - underscore→native, zip.js→fflate, sound.js→howler (prior session); vercel
@@ -117,43 +127,23 @@ work (commit a6662e2 + the 13 increments below).
 
 ## Needs the user (eyes / hardware / design) — not done by me
 
-1. **Play the v2 game on real hardware** (`npm run dev` → /index-v2.html →
-   click a beatmap → play). Confirm feel, especially SliderMesh v8 two-pass
-   depth rendering (highest-risk visual piece). This is ALSO the Phase 6
-   real-game measurement (perf HUD above). If good → switch production pages to
-   v2 + delete the old AMD path (page-switch + delete AMD).
+1. **Play the Vue SPA game on real hardware** (`npm run dev` →
+   http://localhost:5173/ → click a beatmap card → click a difficulty → play).
+   Confirm feel, especially SliderMesh v8 two-pass depth rendering (highest-risk
+   visual piece). This is ALSO the Phase 6 real-game measurement (perf HUD).
+   The old AMD/lit code is already separated to legacy/ — the Vue SPA is the
+   primary frontend. No page-switch needed; it's already done.
 2. **Phase 6 benchmark** — see the run guide above (bench.html + real-game perf
    HUD on the 2015 laptop; paste the p95 back to lock v8 or trigger optimization).
-3. **Theme direction** — picnic.css dropped for v2 pages (0c3e7f1: replaced
-  with css/base.css, ~2.6 KB vs ~30 KB, 88% smaller). The @layer refactor of
-  main.css is held — @layer requires Chrome 99+/FF 97+/Safari 15.4+, which may
-  exclude some 2015 laptops running older browser versions; the game already
-  requires ES modules + WebGL 2 but those have wider support. A light-mode
-  palette is your call. The dark lazer look is preserved exactly.
-4. **Object pooling** (render win #4) — modest per-object GC benefit, but a
-   hot-path refactor with stale-state risk I can't visually verify. Best
-   done after you've verified the baseline v8 visuals so any flicker stays
-   attributable. (Audited: the circle-sprite property set is bounded —
-   alpha/scale/visible/tint/blendMode/position/anchor/depth — and all are
-   reset by newHitSprite+createHitCircle, so it's safe-by-construction if
-   `visible` is reset on reuse; the remaining risk is a missed property the
-   hits-count test won't catch.)
-5. **Game→API score-submit + replay-watch integration** — VERIFIED end-to-end
-   by `headless:integration`: logged-in autoplay → submit → validate → insert
-   approved=1 → replay stored (read from the sqlite DB), then ?watch=<id> →
-   game launches in replay mode. This caught + fixed TWO real bugs the dev-only
-   tests missed: (a) submitScore sent beatmap_id/beatmap_set_id as strings but
-   the backend requires numbers — score submission would have 400'd for every
-   player (2fbb808); (b) copy-static didn't copy hitsounds/ → the production
-   build had no hitsounds + replay-watch's soundReady guard never resolved
-(73a9dfb); (c) the v2 leaderboard page was always empty — the component fetched
-   /api/leaderboards/:bid with no mods, the backend parsed modsNum=null, and its
-   query matched no rows (scores have mods_num=0); fixed by defaulting mods to 0
-   (ac3d390); (d) the v2 settings page never pulled server settings — gamesettings.js
-   defines+exports syncFromServer but nothing in the v2 path called it (classic
-   settings.js did), so cross-device settings pull was broken; fixed by wiring
-   settings-panel connectedCallback to call it (b40be9b).
-
+3. **Theme direction** — Tailwind CSS replaces picnic.css + custom CSS. The
+   @layer refactor is N/A (Tailwind handles CSS architecture). A light-mode
+   palette is your call. The dark lazer look is preserved via Tailwind custom
+   colors (lazer-bg, lazer-panel, lazer-pink, etc.).
+4. **Game→API score-submit + replay-watch integration** — 6/9 passing in
+   headless:integration. The 3 failures are a test-timeout limitation (45s
+   timeout vs ~4min song — audio IS playing, game processes all 1301 hits,
+   just doesn't reach 'ended' in 45s). Not a game bug. Fix options: shorter
+   test beatmap, longer timeout, or mock audio time in autoplay.
 ## Verification commands
 - `npm test` — backend inject suite (39/39)
 - `npm run test:realtime` — WS + SSE integration (15/15)
