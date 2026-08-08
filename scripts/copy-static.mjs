@@ -31,7 +31,6 @@ for (const file of ["sw.js", "sprites.json", "manifest.webmanifest", "manifest.j
 // Vue pages only need font.css (Comfortaa @font-face); legacy pages keep old CSS
 const VUE_LINKS = '  <link rel="stylesheet" href="/css/font.css">\n';
 const LEGACY_LINKS =
-  '  <link rel="stylesheet" href="/css/picnic.min.css">\n' +
   '  <link rel="stylesheet" href="/css/tokens.css">\n' +
   '  <link rel="stylesheet" href="/css/main.css">\n' +
   '  <link rel="stylesheet" href="/css/font.css">\n';
