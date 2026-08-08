@@ -150,7 +150,10 @@ export async function launchOSU(osu, beatmapid, version) {
       perfHUD.style.display = perfOn ? "block" : "none";
       if (!perfOn) { perfTimes.length = 0; perfLast = 0; }
    }
-   var perfKey = function (e) { if (e.key === "F3") { e.preventDefault(); togglePerf(); } };
+   var perfKey = function (e) {
+      if (e.key === "F3") { e.preventDefault(); togglePerf(); }
+      else if (e.key === "F4") { e.preventDefault(); var sum = window.__perfSummary || "perf: (no samples yet)"; console.log(sum); try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(function(){}); } catch (er) {} var orig = perfHUD.innerHTML; perfHUD.innerHTML = "copied to console"; setTimeout(function(){ perfHUD.innerHTML = orig; }, 1200); }
+   };
    window.addEventListener("keydown", perfKey);
    pMainPage.setAttribute("hidden", "");
    pNav.setAttribute("style", "display: none");
@@ -252,6 +255,8 @@ export async function launchOSU(osu, beatmapid, version) {
             var p50 = pct(pcts, 0.5), p95 = pct(pcts, 0.95), p99 = pct(pcts, 0.99);
             if (p95 > 33) perfDropped++;
             perfHUD.innerHTML = "FPS " + fps.toFixed(0) + " · p50 " + p50.toFixed(1) + "ms · <b style=\"" + (p95 > 16.6 ? "color:#f86" : "color:#7fd") + "\">p95 " + p95.toFixed(1) + "ms</b> · p99 " + p99.toFixed(1) + "ms · drop " + perfDropped;
+            var meta = (window.playback && window.playback.track && window.playback.track.metadata) ? (window.playback.track.metadata.Title + " [" + window.playback.track.metadata.Version + "]") : "?";
+            window.__perfSummary = "webosu v8 perf · " + meta + " · FPS " + fps.toFixed(0) + " p50 " + p50.toFixed(1) + "ms p95 " + p95.toFixed(1) + "ms p99 " + p99.toFixed(1) + "ms drop " + perfDropped + (p95 <= 16.6 ? " [BUDGET PASS]" : " [BUDGET FAIL]");
          }
       }
       window.animationRequestID = window.requestAnimationFrame(gameLoop);
