@@ -59,7 +59,6 @@ for (const f of readdirSync(DIST).filter((f) => f.endsWith(".html"))) {
   const orig = s;
   // remove Vite-bundled shell stylesheet links (/assets/*.css) and any
   // source shell css links; leave the Google Fonts <link> (https) untouched.
-  s = s.replace(/<link\s+rel="stylesheet"[^>]*href="\/assets\/[^"]*\.css"[^>]*>\n?/g, "");
   s = s.replace(/<link\s+rel="stylesheet"[^>]*href="(?:\.?\/)?css\/[^"]*\.css"[^>]*>\n?/g, "");
   // inject the three plain /css/ links right after <head>
   s = s.replace(/<head>\n?/, (m) => m + "\n" + SHELL_LINKS);
