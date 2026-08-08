@@ -1,15 +1,16 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import { readdirSync } from "fs";
 
 // Gradual rewrite: every top-level HTML page is a build entry. Pages migrate
 // from classic <script src>/require.js to <script type="module"> one at a time;
 // until then Vite dev serves their existing scripts untouched.
-const htmlEntries = Object.fromEntries(
-  readdirSync(".")
-    .filter((f) => f.endsWith(".html"))
-    .map((f) => [f.replace(/\.html$/, ""), f])
-);
+// SPA: single index.html entry (Vue Router handles all routes)
+// 404.html + bench.html are separate standalone pages
+const htmlEntries = {
+  index: "index.html",
+  "404": "404.html",
+  bench: "bench.html",
+};
 
 export default defineConfig({
   plugins: [vue()],

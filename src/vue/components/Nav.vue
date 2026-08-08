@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 
 const props = defineProps({ active: String });
+const searchQuery = ref("");
 const user = ref(null);
 const showLogin = ref(false);
 const username = ref("");
@@ -60,29 +61,36 @@ onMounted(checkLogin);
   <nav class="flex items-center justify-between max-w-[1400px] mx-auto h-[50px] px-4 box-border"
        style="background: linear-gradient(180deg,#1c1c28,#14141e); border-bottom: 1px solid rgba(255,255,255,0.06); box-shadow: 0 2px 14px rgba(0,0,0,0.4);">
     <div class="flex items-center gap-1 flex-shrink-0">
-      <a href="index.html" class="text-lazer-pink font-extrabold px-3 py-2">webosu!</a>
-      <a v-for="link in [
-        { href: 'new.html', label: 'New', key: 'new' },
-        { href: 'hot.html', label: 'Popular', key: 'hot' },
-        { href: 'browse.html', label: 'Browse', key: 'browse' },
-        { href: 'leaderboard.html', label: 'Leaderboard', key: 'leaderboard' },
-      ]" :key="link.key" :href="link.href"
-        class="px-3.5 rounded-full h-9 leading-9 transition-all text-sm"
-        :class="active === link.key ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'">
+      <router-link to="/" class="text-lazer-pink font-extrabold px-3 py-2">webosu!</router-link>
+      <router-link v-for="link in [
+        { to: '/new', label: 'New', key: 'new' },
+        { to: '/hot', label: 'Popular', key: 'hot' },
+        { to: '/browse', label: 'Browse', key: 'browse' },
+        { to: '/leaderboard', label: 'Leaderboard', key: 'leaderboard' },
+      ]" :key="link.key" :to="link.to" custom v-slot="{ isActive, navigate }"
+        class="px-3.5 rounded-full h-9 leading-9 transition-all text-sm cursor-pointer"
+        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
+        @click="navigate">
         {{ link.label }}
-      </a>
+      </router-link>
     </div>
-    <form action="search.html" class="flex-1 max-w-[480px] mx-4">
-      <input type="text" name="q" placeholder="Search for a beatmap or enter a Set ID"
+    <form @submit.prevent="$router.push('/search?q=' + encodeURIComponent(searchQuery))" class="flex-1 max-w-[480px] mx-4">
+      <input v-model="searchQuery" type="text" placeholder="Search for a beatmap or enter a Set ID"
         class="w-full bg-lazer-panel2 border border-white/8 rounded-full px-4 py-2 text-lazer-text text-sm focus:border-lazer-pink focus:outline-none" />
     </form>
     <div class="flex items-center gap-1 flex-shrink-0">
-      <a href="skins.html" class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all"
-        :class="active === 'skins' ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'">Skins</a>
-      <a href="liked.html" class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all"
-        :class="active === 'favorites' ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'">Favorites</a>
-      <a href="settings.html" class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all"
-        :class="active === 'settings' ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'">Settings</a>
+      <router-link to="/skins" custom v-slot="{ isActive, navigate }"
+        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all cursor-pointer"
+        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
+        @click="navigate">Skins</router-link>
+      <router-link to="/liked" custom v-slot="{ isActive, navigate }"
+        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all cursor-pointer"
+        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
+        @click="navigate">Favorites</router-link>
+      <router-link to="/settings" custom v-slot="{ isActive, navigate }"
+        class="px-3.5 rounded-full h-9 leading-9 text-sm transition-all cursor-pointer"
+        :class="isActive ? 'bg-lazer-pink/16 text-white' : 'text-lazer-text hover:bg-lazer-pink/16'"
+        @click="navigate">Settings</router-link>
       <button v-if="!user" @click="openLogin"
         class="bg-lazer-pink text-white px-4 py-1.5 rounded-lg text-sm ml-2 hover:brightness-110 transition-all">Log in</button>
       <span v-else class="text-sm text-lazer-dim ml-2">

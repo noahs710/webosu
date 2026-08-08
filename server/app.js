@@ -295,6 +295,19 @@ function buildApp({ serveStatic = true } = {}) {
     });
   }
 
+  // SPA fallback: serve index.html for any non-API, non-file route
+  // (Vue Router handles client-side routing)
+  app.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith("/api/")) {
+      reply.code(404).send({ error: "not found" });
+    } else if (serveStatic) {
+      const staticRoot = fs.existsSync(path.join(DIST, "index.html")) ? DIST : ROOT;
+      reply.sendFile(path.join(staticRoot, "index.html"));
+    } else {
+      reply.code(404).send("not found");
+    }
+  });
+
   return app;
 }
 
