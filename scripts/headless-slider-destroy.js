@@ -8,11 +8,12 @@ const vite = spawn(process.execPath, ["node_modules/vite/bin/vite.js","--port","
 const kids=[vite]; let ve=""; vite.stderr.on("data",d=>ve+=d);
 async function wait(u,ms=20000){const t0=Date.now();while(Date.now()-t0<ms){try{const r=await fetch(u);if(r.status<500)return true;}catch(e){}await new Promise(r=>setTimeout(r,200));}return false;}
 async function main(){
-  if(!(await wait("http://localhost:5202/index-v2.html"))){console.log("vite not ready",ve);process.exit(1);}
+  if(!(await wait("http://localhost:5202/browse"))){console.log("vite not ready",ve);process.exit(1);}
   const b=await chromium.launch({headless:true, args:["--use-gl=swiftshader","--enable-webgl"]});
   const p=await b.newPage();
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
-  await p.goto("http://localhost:5202/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.goto("http://localhost:5202/browse",{waitUntil:"load",timeout:30000});
+await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {timeout:15000}).catch(()=>{});
   await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
   await p.waitForFunction(()=>typeof window.PIXI==="object" && window.PIXI.Geometry, null, {timeout:15000}).catch(()=>{});
   // import the SliderMesh class + construct (creates this.geometry) + destroy

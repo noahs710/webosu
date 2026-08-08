@@ -4,11 +4,12 @@ const vite = spawn(process.execPath, ["node_modules/vite/bin/vite.js","--port","
 const kids=[vite];
 async function wait(u,ms=20000){const t0=Date.now();while(Date.now()-t0<ms){try{const r=await fetch(u);if(r.status<500)return true;}catch(e){}await new Promise(r=>setTimeout(r,200));}return false;}
 async function main(){
-  if(!(await wait("http://localhost:5181/index-v2.html"))){process.exit(1);}
+  if(!(await wait("http://localhost:5181/browse"))){process.exit(1);}
   const b=await chromium.launch({headless:true, args:["--use-gl=swiftshader","--enable-webgl","--autoplay-policy=no-user-gesture-required"]});
   const p=await b.newPage({viewport:{width:1280,height:720}});
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
-  await p.goto("http://localhost:5181/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.goto("http://localhost:5181/browse",{waitUntil:"load",timeout:30000});
+await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {timeout:15000}).catch(()=>{});
   await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
   await p.waitForFunction(()=>window.skinReady && window.soundReady, null,{timeout:20000}).catch(()=>{});
   await p.evaluate(()=>{ window.game.autoplay = true; window.game.autofullscreen = false; });

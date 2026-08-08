@@ -6,11 +6,11 @@ const vite=spawn(process.execPath,["node_modules/vite/bin/vite.js","--port","519
 const kids=[vite];
 async function wait(u,ms=20000){const t0=Date.now();while(Date.now()-t0<ms){try{const r=await fetch(u);if(r.status<500)return true;}catch(e){}await new Promise(r=>setTimeout(r,200));}return false;}
 async function main(){
-  if(!(await wait("http://localhost:5195/settings-v2.html"))){process.exit(1);}
+  if(!(await wait("http://localhost:5195/settings"))){process.exit(1);}
   const b=await chromium.launch({headless:true});
   const p=await b.newPage({viewport:{width:1280,height:900}});
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
-  await p.goto("http://localhost:5195/settings-v2.html",{waitUntil:"load",timeout:30000});
+  await p.goto("http://localhost:5195/settings",{waitUntil:"load",timeout:30000});
   await p.waitForFunction(()=>!!window.gamesettings && document.querySelector("settings-panel").shadowRoot.querySelector("input[type=range]"), null,{timeout:12000});
   // initial: dim slider reflects default (60)
   const initDim = await p.evaluate(()=>{ const sr=document.querySelector("settings-panel").shadowRoot; const r=[...sr.querySelectorAll("input[type=range]")].find(i=>i.min==="0" && i.max==="100"); return r?r.value:null; });

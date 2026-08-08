@@ -90,3 +90,5 @@ vite.*.log
 dist-probe/
 
 scripts/*.png
+
+tmp/

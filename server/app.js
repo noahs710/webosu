@@ -302,7 +302,7 @@ function buildApp({ serveStatic = true } = {}) {
       reply.code(404).send({ error: "not found" });
     } else if (serveStatic) {
       const staticRoot = fs.existsSync(path.join(DIST, "index.html")) ? DIST : ROOT;
-      reply.sendFile(path.join(staticRoot, "index.html"));
+      reply.sendFile("index.html");
     } else {
       reply.code(404).send("not found");
     }

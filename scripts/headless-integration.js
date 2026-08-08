@@ -39,7 +39,8 @@ async function main() {
   const p = await ctx.newPage();
   const errs = []; p.on("pageerror", e => errs.push(String(e)));
   p.on("console", m => { if (m.type() === "error" && !/catboy|api\/activity|500|Failed to fetch|ERR_|net::|blocked|404/i.test(m.text())) console.log("CONSOLE-ERR:", m.text().slice(0, 160)); });
-  await p.goto("http://localhost:" + PORT + "/index-v2.html", { waitUntil: "load", timeout: 30000 });
+  await p.goto("http://localhost:" + PORT + "/browse", { waitUntil: "load", timeout: 30000 });
+await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {timeout:15000}).catch(()=>{});
   await p.evaluate(() => window.__ensureGame && window.__ensureGame()).catch(() => {});
   await p.waitForFunction(() => window.skinReady && window.soundReady, null, { timeout: 25000 }).catch(() => {});
   check("game bootstrap ready", await p.evaluate(() => window.skinReady), "skinReady=" + await p.evaluate(() => window.skinReady));
@@ -75,7 +76,7 @@ async function main() {
   // replay-watch: open ?watch=<scoreId> -> the home page's inlined replay-watch
   // fetches /api/replays/:id + the .osz and launches the game in replay mode.
   if (inserted && inserted.id) {
-    const watchUrl = "http://localhost:" + PORT + "/index-v2.html?watch=" + inserted.id + "&bid=" + BID + "&sid=" + SET + "&v=" + encodeURIComponent(VER);
+    const watchUrl = "http://localhost:" + PORT + "/browse?watch=" + inserted.id + "&bid=" + BID + "&sid=" + SET + "&v=" + encodeURIComponent(VER);
     // server-side: what does /api/replays/:id return?
     const rep = await j("GET", "/api/replays/" + inserted.id);
     console.log("=== /api/replays/" + inserted.id + " ===");

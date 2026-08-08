@@ -6,13 +6,14 @@ const vite=spawn(process.execPath,["node_modules/vite/bin/vite.js","--port","519
 const kids=[vite];
 async function wait(u,ms=20000){const t0=Date.now();while(Date.now()-t0<ms){try{const r=await fetch(u);if(r.status<500)return true;}catch(e){}await new Promise(r=>setTimeout(r,200));}return false;}
 async function main(){
-  if(!(await wait("http://localhost:5194/index-v2.html"))){process.exit(1);}
+  if(!(await wait("http://localhost:5194/settings"))){process.exit(1);}
   const b=await chromium.launch({headless:true});
   const p=await b.newPage();
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
   // seed settings before the page loads its modules
   await p.addInitScript((s)=>{ localStorage.setItem("osugamesettings", s); }, JSON.stringify({ dim: 25, cursorsize: 1.5, mastervolume: 10, hardrock: true }));
-  await p.goto("http://localhost:5194/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.goto("http://localhost:5194/settings",{waitUntil:"load",timeout:30000});
+await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {timeout:15000}).catch(()=>{});
   await p.evaluate(() => window.__ensureGame && window.__ensureGame()).catch(() => {});
   await p.waitForFunction(()=>!!window.game && !!window.gamesettings, null,{timeout:15000});
   const st = await p.evaluate(()=>({

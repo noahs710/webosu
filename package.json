@@ -30,7 +30,7 @@
     "headless:home": "node scripts/headless-home.js",
     "headless:replay": "node scripts/headless-replay.js",
     "headless:offline": "node scripts/headless-offline.js",
-    "headless:integration": "node scripts/headless-integration.js",
+    "headless:integration": "npm run build && node scripts/headless-integration.js",
     "headless:settings-sync": "node scripts/headless-settings-sync.js",
     "headless:build-all": "node scripts/headless-build-all.js",
     "headless:settings-pull": "node scripts/headless-settings-pull.js",

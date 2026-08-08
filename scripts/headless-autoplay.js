@@ -11,12 +11,13 @@ const vite = spawn(process.execPath, ["node_modules/vite/bin/vite.js","--port","
 const kids=[vite]; let viteErr=""; vite.stderr.on("data",d=>viteErr+=d);
 async function wait(url,ms=20000){const t0=Date.now();while(Date.now()-t0<ms){try{const r=await fetch(url);if(r.status<500)return true;}catch(e){}await new Promise(r=>setTimeout(r,200));}return false;}
 async function main(){
-  if(!(await wait("http://localhost:5178/index-v2.html"))){console.log("vite not ready",viteErr);process.exit(1);}
+  if(!(await wait("http://localhost:5178/browse"))){console.log("vite not ready",viteErr);process.exit(1);}
   const b=await chromium.launch({headless:true, args:["--use-gl=swiftshader","--enable-webgl","--autoplay-policy=no-user-gesture-required"]});
   const p=await b.newPage({viewport:{width:1280,height:720}});
   const errors=[]; p.on("pageerror",e=>errors.push(String(e)));
   p.on("console",m=>{if(m.type()==="error" && !/catboy|api\/activity|500/.test(m.text())) console.log("CONSOLE-ERR:",m.text().slice(0,150))});
-  await p.goto("http://localhost:5178/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.goto("http://localhost:5178/browse",{waitUntil:"load",timeout:30000});
+await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {timeout:15000}).catch(()=>{});
   await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
   await p.waitForFunction(()=>window.skinReady && window.soundReady, null,{timeout:20000}).catch(()=>{});
   // enable autoplay + prevent fullscreen

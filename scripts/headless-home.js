@@ -7,12 +7,12 @@ const preview = spawn(process.execPath, ["node_modules/vite/bin/vite.js","previe
 const kids=[preview]; let pe=""; preview.stderr.on("data",d=>pe+=d);
 async function wait(u,ms=20000){const t0=Date.now();while(Date.now()-t0<ms){try{const r=await fetch(u);if(r.status<500)return true;}catch(e){}await new Promise(r=>setTimeout(r,200));}return false;}
 async function main(){
-  if(!(await wait("http://localhost:5183/index-v2.html"))){console.log("vite preview not ready",pe);process.exit(1);}
+  if(!(await wait("http://localhost:5183/"))){console.log("vite preview not ready",pe);process.exit(1);}
   const b=await chromium.launch({headless:true, args:["--use-gl=swiftshader","--enable-webgl"]});
   const p=await b.newPage({viewport:{width:1280,height:900}});
   const errs=[]; p.on("pageerror",e=>errs.push(String(e)));
   p.on("console",m=>{if(m.type()==="error" && !/catboy|api\/activity|500|assets\.ppy|Failed to fetch|ERR_|net::|blocked/i.test(m.text())) console.log("CONSOLE-ERR:",m.text().slice(0,160))});
-  await p.goto("http://localhost:5183/index-v2.html",{waitUntil:"load",timeout:30000});
+  await p.goto("http://localhost:5183/",{waitUntil:"load",timeout:30000});
   // wait for the home lists to render beatmap cards (catboy.best fetch in-browser)
   let cards=0;
   try { await p.waitForFunction(()=>document.querySelectorAll(".beatmap-card").length>0, null, {timeout:20000}); cards=await p.evaluate(()=>document.querySelectorAll(".beatmap-card").length); } catch(e) {}

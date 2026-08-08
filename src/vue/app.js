@@ -3,6 +3,7 @@ import "./styles.css";
 import { router } from "./router.js";
 import Nav from "./components/Nav.vue";
 import { ensureGame } from "./game-loader.js";
+window.__ensureGame = ensureGame;
 
 // Game area + pause menu must be in light DOM (game code accesses by ID)
 const gameAreaHTML = `
