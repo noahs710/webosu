@@ -247,7 +247,7 @@
          }
       };
 
-      this.charspacing = 10; // in texture pixel
+      this.charspacing = 12; // in texture pixel (was 10, increased to reduce overlapping)
 
       this.setSpriteArrayText = function (arr, str) {
          let width = 0;
