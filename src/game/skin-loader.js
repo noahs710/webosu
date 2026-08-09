@@ -190,13 +190,13 @@ function isGameplayTexture(name) {
 
 // ── Extract and load a .osk file ──
 export async function loadOsk(file) {
-  if (file.size > 20 * 1024 * 1024) throw new Error("osk too large");
+  if (file.size > 50 * 1024 * 1024) throw new Error("osk too large (50MB limit)");
   const ab = await file.arrayBuffer();
-  if (ab.byteLength > 20 * 1024 * 1024) throw new Error("osk too large");
+  if (ab.byteLength > 50 * 1024 * 1024) throw new Error("osk too large (50MB limit)");
   const extracted = unzipSync(new Uint8Array(ab));
-  if (Object.keys(extracted).length > 300) throw new Error("too many files in osk");
+  if (Object.keys(extracted).length > 1000) throw new Error("too many files in osk (1000 limit)");
   let tot = 0; for (const k in extracted) tot += extracted[k].length;
-  if (tot > 50 * 1024 * 1024) throw new Error("osk unzipped too large");
+  if (tot > 200 * 1024 * 1024) throw new Error("osk unzipped too large (200MB limit)");
   const files = {};
   for (const path in extracted) {
     files[path.toLowerCase()] = extracted[path];
