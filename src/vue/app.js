@@ -25,14 +25,13 @@ const app = createApp({
       // inject game-area + pause-menu into the DOM (outside Vue's control)
       document.body.insertAdjacentHTML("beforeend", gameAreaHTML);
 
-      // global beatmap-launch handler (works across all routes)
+      // global beatmap-launch handler — always no-video for 0 download impact (video scrapped)
       document.addEventListener("beatmap-launch", async (e) => {
         const { setId, beatmapId, version } = e.detail;
         try {
           await ensureGame();
-          const noVideo = window.gamesettings && window.gamesettings.disableVideo;
-          const suffix = noVideo ? "n" : "";
-          console.log("[app] launch beatmap", { setId, beatmapId, version, noVideo, url: "https://catboy.best/d/" + setId + suffix });
+          const suffix = "n"; // always no-video for speed
+          console.log("[app] launch beatmap", { setId, beatmapId, version, url: "https://catboy.best/d/" + setId + suffix });
           const r = await fetch("https://catboy.best/d/" + setId + suffix);
           if (!r.ok) throw new Error("download " + r.status);
           window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version);
@@ -50,8 +49,7 @@ const app = createApp({
               .then((r) => r.json())
               .then((frames) => {
                 if (!Array.isArray(frames) || !frames.length) { alert("Replay unavailable for this score."); return; }
-                const noVideo = window.gamesettings && window.gamesettings.disableVideo;
-                const suffix = noVideo ? "n" : "";
+                const suffix = "n"; // always no-video
                 return fetch("https://catboy.best/d/" + q.get("sid") + suffix)
                   .then((r) => r.arrayBuffer())
                   .then((ab) => { window.launchReplay(new Blob([ab]), parseInt(q.get("bid") || "0"), q.get("v") || "", frames); });

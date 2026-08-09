@@ -168,20 +168,15 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             height: window.innerHeight,
          });
 
-         if (self.background) {
+         if (self.background && self.background.texture) {
             self.background.x = window.innerWidth / 2;
             self.background.y = window.innerHeight / 2;
-            const texW = self.background.texture?.width || self._bgVideo?.videoWidth || window.innerWidth;
-            const texH = self.background.texture?.height || self._bgVideo?.videoHeight || window.innerHeight;
-            if (texW && texH) {
-               self.background.scale.set(Math.max(window.innerWidth / texW, window.innerHeight / texH));
-            }
-         }
-         if (self._bgVideoSprite && self._bgVideo) {
-            self._bgVideoSprite.x = window.innerWidth / 2;
-            self._bgVideoSprite.y = window.innerHeight / 2;
-            const vw = self._bgVideo.videoWidth || 1920, vh = self._bgVideo.videoHeight || 1080;
-            self._bgVideoSprite.scale.set(Math.max(window.innerWidth / vw, window.innerHeight / vh));
+            self.background.scale.set(
+               Math.max(
+                  window.innerWidth / self.background.texture.width,
+                  window.innerHeight / self.background.texture.height
+               )
+            );
          }
 
          SliderMesh.prototype.resetTransform({
@@ -328,7 +323,6 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          if (this.osu.audio.pause()) {
             // pause music success
             this.game.paused = true;
-            if (self._bgVideo) try { self._bgVideo.pause(); } catch(e){}
             let menu = document.getElementById("pause-menu");
             if (!menu) { gerror("playback", "pause-menu element not found"); return; }
             menu.removeAttribute("hidden");
@@ -357,7 +351,6 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       this.resume = function () {
          glog("playback", "resume");
          this.osu.audio.play();
-         if (self._bgVideo) try { self._bgVideo.play().catch(()=>{}); } catch(e){}
          this.game.paused = false;
          const m = document.getElementById("pause-menu");
          if (m) m.setAttribute("hidden", "");
@@ -639,35 +632,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       };
 
       this.createBackground = function () {
-         // helper to find background image and video files from events
-         function findBackgroundFiles(events) {
-            let bgFile = null, videoFile = null;
-            for (let ev of events) {
-               if (!ev || ev.length < 3) continue;
-               const type = (ev[0] || "").trim();
-               const filename = (ev[2] || "").trim();
-               if (!filename) continue;
-               const clean = filename.replace(/^"|"$/g, "").replace(/^'|'$/g, "");
-               if (!clean) continue;
-               const lower = clean.toLowerCase();
-               const isVideo = type.toLowerCase() === "video" || lower.endsWith(".mp4") || lower.endsWith(".avi") || lower.endsWith(".flv") || lower.endsWith(".mov") || lower.endsWith(".mkv");
-               if (isVideo && !videoFile) videoFile = clean;
-               else if (!isVideo && !bgFile && (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".bmp"))) bgFile = clean;
-               if (type === "0" || type === "1") { // background type in osu
-                  if (lower.match(/\.(jpg|jpeg|png|bmp)$/) && !bgFile) bgFile = clean;
-                  if (lower.match(/\.(mp4|avi|flv|mov|mkv)$/) && !videoFile) videoFile = clean;
-               }
-            }
-            // also check legacy check for first event being Video
-            if (!videoFile && events.length && events[0][0] === "Video" && events[0][2]) videoFile = events[0][2].replace(/^"|"$/g, "");
-            if (!bgFile && events.length && events[0][2]) {
-               const f = events[0][2].replace(/^"|"$/g, "");
-               if (f.match(/\.(jpg|jpeg|png|bmp)$/i)) bgFile = f;
-            }
-            return { bgFile, videoFile };
-         }
          function loadBackground(uri) {
-            glog("playback", "loadBackground image", uri.slice(0, 60));
+            glog("playback", "loadBackground", uri.slice(0, 60));
             const bgTexture = PIXI.Texture.from(uri); (async () => {
                let sprite = new PIXI.Sprite(bgTexture);
                   if (self.game.backgroundBlurRate > 0.0001) {
@@ -683,7 +649,6 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                      blurFilter.autoFit = false;
                      sprite.filters = [blurFilter];
                   }
-                  // wait for texture to be valid
                   if (!bgTexture.valid) {
                      try { await bgTexture.source.resource.load?.(); } catch (_) {}
                   }
@@ -697,91 +662,35 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                   self.background.scale.set(Math.max(window.innerWidth / self.background.texture.width, window.innerHeight / self.background.texture.height));
                   self.background.alpha = 0;
                   self.game.stage.addChildAt(self.background, 0);
-                  glog("playback", "background image added");
+                  glog("playback", "background added");
                })();
          }
-         function loadVideoBackground(uri) {
-            glog("playback", "loadBackground video", uri.slice(0, 60));
-            try {
-               const video = document.createElement("video");
-               video.src = uri;
-               video.crossOrigin = "anonymous";
-               video.loop = true;
-               video.muted = true;
-               video.playsInline = true;
-               video.preload = "auto";
-               // create PIXI texture from video element
-               const videoTexture = PIXI.Texture.from(video);
-               const sprite = new PIXI.Sprite(videoTexture);
-               sprite.anchor.set(0.5);
-               sprite.x = window.innerWidth / 2;
-               sprite.y = window.innerHeight / 2;
-               // blur handling for video: apply filter directly (no RenderTexture)
-               if (self.game.backgroundBlurRate > 0.0001) {
-                  let blurFilter = new PIXI.BlurFilter(self.game.backgroundBlurRate * Math.min(window.innerWidth, window.innerHeight) * 0.2, 4);
-                  sprite.filters = [blurFilter];
-               }
-               function updateScale() {
-                  if (!video.videoWidth) return;
-                  const scale = Math.max(window.innerWidth / video.videoWidth, window.innerHeight / video.videoHeight);
-                  sprite.scale.set(scale);
-               }
-               video.addEventListener("loadedmetadata", () => {
-                  updateScale();
-                  glog("playback", "video metadata", video.videoWidth, video.videoHeight);
-                  video.play().catch(e=> gwarn("playback", "video play failed", e));
-               });
-               video.addEventListener("error", (e)=> gerror("playback", "video error", e));
-               // store for pause/resume and cleanup
-               self._bgVideo = video;
-               self._bgVideoSprite = sprite;
-               self.background = sprite;
-               self.game.stage.addChildAt(sprite, 0);
-               // initial scale fallback
-               sprite.scale.set(Math.max(window.innerWidth / 1920, window.innerHeight / 1080));
-               glog("playback", "video background sprite added");
-            } catch (e) {
-               gerror("playback", "video background failed, falling back to image", e);
-               loadBackground("img/defaultbg.jpg");
-            }
-         }
          if (self.track.events.length != 0) {
-            const { bgFile, videoFile } = findBackgroundFiles(self.track.events);
-            const disableVideo = !!(window.game && window.game.disableVideo);
-            glog("playback", "background candidates", { bgFile, videoFile, disableVideo, events: self.track.events.length });
-            // Prefer video if available and not disabled, otherwise image
-            if (videoFile && !disableVideo) {
-               const entry = osu.zip.getChildByName(videoFile);
-               if (entry) {
-                  const ext = videoFile.split(".").pop().toLowerCase();
-                  const mime = ext === "mp4" ? "video/mp4" : ext === "avi" ? "video/x-msvideo" : ext === "mov" ? "video/quicktime" : "video/mp4";
-                  entry.getBlob(mime, function (blob) {
-                     const uri = URL.createObjectURL(blob);
-                     loadVideoBackground(uri);
-                  });
-                  self.createBackground = function(){}; // prevent double
-                  return;
-               } else {
-                  gwarn("playback", "video file not found in zip", videoFile);
-               }
+            // Use first non-video background image; skip Video events entirely for performance
+            let bgFile = null;
+            for (let ev of self.track.events) {
+               if (!ev || ev.length < 3) continue;
+               const type = (ev[0] || "").trim();
+               const fn = (ev[2] || "").trim().replace(/^"|"$/g, "");
+               if (!fn) continue;
+               const lower = fn.toLowerCase();
+               if (type.toLowerCase() === "video") continue; // scrap video — no impact
+               if (lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".png") || lower.endsWith(".bmp")) { bgFile = fn; break; }
             }
-            // fallback to image
-            let file = bgFile;
-            if (!file && self.track.events[0] && self.track.events[0][2]) {
-               file = self.track.events[0][2].replace(/^"|"$/g, "");
-               if (file.toLowerCase().endsWith(".mp4")) file = null; // skip video if we already tried
+            if (!bgFile && self.track.events[0] && self.track.events[0][2]) {
+               const f = self.track.events[0][2].replace(/^"|"$/g, "");
+               if (!f.toLowerCase().endsWith(".mp4") && !f.toLowerCase().endsWith(".avi")) bgFile = f;
             }
-            if (file) {
-               const entry = osu.zip.getChildByName(file);
+            glog("playback", "background file", bgFile);
+            if (bgFile) {
+               const entry = osu.zip.getChildByName(bgFile);
                if (entry) {
-                  const isVideo = file.toLowerCase().match(/\.(mp4|avi|mov|mkv|flv)$/);
-                  const mime = isVideo ? "video/mp4" : "image/jpeg";
-                  entry.getBlob(mime, function (blob) {
+                  entry.getBlob("image/jpeg", function (blob) {
                      const uri = URL.createObjectURL(blob);
-                     if (isVideo && !disableVideo) loadVideoBackground(uri); else loadBackground(uri);
+                     loadBackground(uri);
                   });
                } else {
-                  gwarn("playback", "bg file not found, using default", file);
+                  gwarn("playback", "bg file not found, using default", bgFile);
                   loadBackground("img/defaultbg.jpg");
                }
             } else {
@@ -2056,8 +1965,6 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          self.progressOverlay.destroy(opt);
          self.gamefield.destroy(opt);
          if (self.background) self.background.destroy();
-         if (self._bgVideo) { try { self._bgVideo.pause(); self._bgVideo.src = ""; self._bgVideo.load(); } catch(e){} self._bgVideo = null; }
-         if (self._bgVideoSprite) { try { self._bgVideoSprite.destroy(); } catch(e){} self._bgVideoSprite = null; }
          // clean up event listeners
          window.onresize = null;
          window.removeEventListener("blur", blurCallback);
