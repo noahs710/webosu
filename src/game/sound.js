@@ -28,7 +28,7 @@ const sounds = {
     this.toLoad = arr.length; this.loaded = 0;
     if (!arr.length && this.whenLoaded) { this.whenLoaded(); return; }
     for (const url of arr) {
-      const s = new GameSound(url, null, () => console.warn("hitsound load failed:", url));
+      const s = new GameSound(url, null, () => { if (import.meta.env.DEV) console.warn("hitsound load failed:", url); });
       s._howl.once("load", () => {
         this.loaded++;
         if (this.toLoad === this.loaded) { this.toLoad = 0; this.loaded = 0; if (this.whenLoaded) this.whenLoaded(); }

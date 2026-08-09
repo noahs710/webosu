@@ -41,7 +41,7 @@ export async function launchOSU(osu, beatmapid, version) {
    // save alert function and replace with silent alert to prevent pop-up in game
    let defaultAlert = window.alert;
    window.alert = function (msg) {
-      console.log("IN-GAME ALERT " + msg);
+      if (import.meta.env.DEV) console.log("IN-GAME ALERT " + msg);
    };
    // get ready for gaming
    document.addEventListener("contextmenu", function (e) {
@@ -62,17 +62,23 @@ export async function launchOSU(osu, beatmapid, version) {
       // Trail sprites keep a fixed back-to-front order; the cursor is added
       // last so it renders above the trail.
       game.cursorLayer = new PIXI.Container();
+      game.cursorLayer.eventMode = 'none';
+      game.cursorLayer.cullable = true;
       game.stage.addChild(game.cursorLayer);
       const cursorCentre = !(window.game && window.game.skinConfig && window.game.skinConfig.cursorCentre === false);
       const anchorVal = cursorCentre ? 0.5 : 0;
       game.cursor = new PIXI.Sprite(Skin["cursor.png"]);
       game.cursor.anchor.x = game.cursor.anchor.y = anchorVal;
+      game.cursor.eventMode = 'none';
+      game.cursor.cullable = true;
       var effectiveCursorSize = (window.game && window.game.skinCursorSize) ? window.game.skinCursorSize : game.cursorSize;
       game.cursor.scale.x = game.cursor.scale.y = 0.3 * effectiveCursorSize;
       // cursormiddle is an optional inner dot from skin (if present, rendered on top of cursor)
       if (Skin["cursormiddle.png"]) {
          game.cursorMiddle = new PIXI.Sprite(Skin["cursormiddle.png"]);
          game.cursorMiddle.anchor.set(anchorVal);
+         game.cursorMiddle.eventMode = 'none';
+         game.cursorMiddle.cullable = true;
          game.cursorMiddle.scale.set(0.15 * effectiveCursorSize);
       }
       // store for anchor handling in trail
@@ -83,6 +89,8 @@ export async function launchOSU(osu, beatmapid, version) {
          let trailTex = (Skin["cursortrail.png"]) ? Skin["cursortrail.png"] : Skin["cursor.png"];
          let t = new PIXI.Sprite(trailTex);
          t.anchor.x = t.anchor.y = anchorVal;
+         t.eventMode = 'none';
+         t.cullable = true;
          t.scale.x = t.scale.y = 0.3 * effectiveCursorSize;
          t.alpha = 0;
          game.cursorLayer.addChild(t);
@@ -170,7 +178,7 @@ export async function launchOSU(osu, beatmapid, version) {
    }
    var perfKey = function (e) {
       if (e.key === "F3") { e.preventDefault(); togglePerf(); }
-      else if (e.key === "F4") { e.preventDefault(); var sum = window.__perfSummary || "perf: (no samples yet)"; console.log(sum); try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(function(){}); } catch (er) {} var orig = perfHUD.innerHTML; perfHUD.innerHTML = "copied to console"; setTimeout(function(){ perfHUD.innerHTML = orig; }, 1200); }
+      else if (e.key === "F4") { e.preventDefault(); var sum = window.__perfSummary || "perf: (no samples yet)"; if (import.meta.env.DEV) console.log(sum); try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(sum).catch(function(){}); } catch (er) {} var orig = perfHUD.innerHTML; perfHUD.innerHTML = "copied to console"; setTimeout(function(){ perfHUD.innerHTML = orig; }, 1200); }
    };
    window.addEventListener("keydown", perfKey);
    pMainPage.setAttribute("hidden", "");

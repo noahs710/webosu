@@ -10,9 +10,7 @@ export default {
     const randomSrc = ref("");
     const randomKey = ref(0);
     function makeRandomSrc() {
-      // Use a more reliable random: random offset + random status, not just a-p filtered query which often empty
-      const offset = Math.floor(Math.random() * 800);
-      // catboy.best random: use empty query with random offset and varied status for diversity
+      const offset = Math.floor(Math.random() * 400);
       return `https://catboy.best/api/v2/search?q=&limit=6&offset=${offset}&status=1&status=3&status=4&mode=0`;
     }
     function randomize() {

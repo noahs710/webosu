@@ -210,7 +210,7 @@ function buildApp({ serveStatic = true } = {}) {
   // Discord webhook-compatible score relay — proxied via Fly :8080 -> /api/webhook/score
   // Accepts either a Discord-style payload (content/embeds) or the legacy webosu summary.
   // If DISCORD_WEBHOOK_URL is set, forwards to Discord; always stores to local DB if auth'd.
-  app.post("/api/webhook/score", async (req, reply) => {
+  app.post("/api/webhook/score", { preHandler: makeRateLimit(60000, 20) }, async (req, reply) => {
     const body = req.body || {};
     // If body looks like a Discord payload with _webosu, extract summary
     const summary = body._webosu || body;
@@ -295,7 +295,7 @@ function buildApp({ serveStatic = true } = {}) {
   });
 
   // ---------- skins (webosu-specific sharing) ----------
-  app.get("/api/skins", async (req, reply) => {
+  app.get("/api/skins", { preHandler: makeRateLimit(60000, 30) }, async (req, reply) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const offset = parseInt(req.query.offset, 10) || 0;
     reply.send(D.listSkins(limit, offset));

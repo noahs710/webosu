@@ -26,7 +26,7 @@ wss.on("connection", (ws) => {
     let m;
     try { m = JSON.parse(msg.toString()); } catch (e) { return; }
     if (m.type === "join") {
-      const roomId = String(m.room || "lobby").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 30);
+      const roomId = String(m.room || "lobby").toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 30);
       joinedRoom = roomId;
       joinedName = String(m.username || "guest").replace(/[<>&"]/g, "_").slice(0, 20);
       if (!rooms.has(roomId))

@@ -208,17 +208,31 @@ export async function loadOsk(file) {
     config = parseSkinIni(new TextDecoder().decode(files["skin.ini"]));
   }
 
-  // Load textures — only gameplay-relevant, capped to avoid OUT_OF_MEMORY (WhiteCat has 806)
-  const textures = {};
-  const usedFiles = new Set();
-  let loadedCount = 0;
-  const MAX_TEXTURES = 120; // gameplay needs ~60-80, cap to prevent GPU OOM
+   // Load textures — only gameplay-relevant, capped to avoid OUT_OF_MEMORY (WhiteCat has 806)
+   const textures = {};
+   const usedFiles = new Set();
+   let loadedCount = 0;
+   const getMaxTextures = () => {
+      try {
+         const lowMem = typeof navigator !== 'undefined' && navigator.deviceMemory && navigator.deviceMemory <= 4;
+         const lowCpu = typeof navigator !== 'undefined' && navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+         const highDpr = (typeof window !== 'undefined' && window.devicePixelRatio > 2);
+         if (lowMem || lowCpu || highDpr) return 40;
+      } catch {}
+      return 60;
+   };
+   const MAX_TEXTURES = getMaxTextures(); // 60 desktop, 40 low-end (deviceMemory<=4 / hwConcurrency<=4 / dpr>2)
   for (const name in files) {
     if (!name.endsWith(".png")) continue;
     if (name.includes("@2x")) continue;
     // skip non-gameplay (menu/ranking) to save GPU memory
     if (!isGameplayTexture(name)) continue;
-    // skip numbered hit variants like hit0-0.png (60 variants per hit) — only need base hit0.png
+     // low-end: drop non-essential first (keep GPU <30MB) — lighting/star/playfield/comboburst, then followpoint 6-9
+    if (MAX_TEXTURES === 40) {
+       if (["lighting.png","star.png","star2.png","playfield.png","comboburst.png"].includes(name)) continue;
+       if (name.match(/^followpoint-[6-9]\.png$/)) continue;
+    }
+     // skip numbered hit variants like hit0-0.png (60 variants per hit) — only need base hit0.png
     if (name.match(/^hit(0|50|100|300)[k]?-\d+\.png$/)) continue;
     if (name.match(/^followpoint-\d+\.png$/)) {
        const idx = parseInt(name.match(/followpoint-(\d+)\.png/)[1], 10);
@@ -271,42 +285,59 @@ export async function loadOsk(file) {
 }
 
 // ── Apply skin to the game ──
-export function applySkin(skinData) {
+export async function applySkin(skinData) {
   if (!skinData) return;
 
-  // Apply textures — use Assets cache properly to avoid OUT_OF_MEMORY and bad image data
+  // Apply textures — use Assets.load with parser:"texture" for blob: URLs (no extension, needs parser per Assets skill)
   if (skinData.textures && window.Skin) {
     const keys = Object.keys(skinData.textures);
     clog("skin-loader", "applying", keys.length, "textures (capped)");
     for (const key of keys) {
       try {
         const url = skinData.textures[key].url;
-        // Use PIXI.Assets to properly cache and handle blob URLs for Pixi v8
-        // This avoids "Asset id blob:... not found" and ensures image is decoded before GPU upload
+        // Use Assets cache + parser:"texture" for blob: URLs (supported types table: blob has no extension)
         let tex;
         try {
-          // Try to get from cache first
           if (PIXI.Assets && PIXI.Assets.cache && PIXI.Assets.cache.has(url)) {
             tex = PIXI.Assets.cache.get(url);
           } else {
-            tex = PIXI.Texture.from(url);
-            // Prime cache to avoid warning on subsequent gets
+            // For blob: URLs, parser is required
+            try {
+              tex = await PIXI.Assets.load({ src: url, parser: "texture", data: { scaleMode: "linear", autoGenerateMipmaps: false } });
+            } catch {
+              tex = PIXI.Texture.from(url);
+            }
             try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, tex); } catch (_) {}
           }
         } catch (e) {
           tex = PIXI.Texture.from(url);
         }
-        // Fix Pixi v8 deprecation: ensure source is used, not baseTexture
         if (tex && tex.source) {
           tex.source.autoGenerateMipmaps = false;
           tex.source.scaleMode = 'linear';
+          // revoke after valid / GPU upload to avoid leaking 60+ blob URLs per skin
+          const doRevoke = () => { try { URL.revokeObjectURL(url); } catch {} };
+          if (tex.valid) {
+            // already uploaded — revoke on next tick to ensure GPU upload done
+            if (tex.source.once) tex.source.once("update", doRevoke);
+            setTimeout(doRevoke, 500);
+          } else {
+            if (tex.source.once) tex.source.once("loaded", doRevoke);
+            tex.once?.("update", doRevoke);
+            setTimeout(() => { if (tex.valid) doRevoke(); }, 2000);
+          }
+        }
+        // destroy old texture without destroying shared source (prevents GPU leak)
+        const old = window.Skin[key];
+        if (old && old !== tex && old !== PIXI.Texture.WHITE && typeof old.destroy === "function") {
+          try { old.destroy(false); } catch {}
         }
         window.Skin[key] = tex;
       } catch (e) {
         cwarn("skin-loader", "texture apply failed:", key, e);
       }
     }
-    clog("skin-loader", "queued", keys.length, "textures (Pixi will upload on first use)");
+    clog("skin-loader", "queued", keys.length, "textures");
   }
 
   // Apply hitsounds to game.sample
@@ -499,7 +530,7 @@ export async function cacheSkin(skinData) {
       tx.onerror = () => { db.close(); resolve(); };
     });
   } catch (e) {
-    console.warn("skin cache failed:", e);
+    if (import.meta.env.DEV) console.warn("skin cache failed:", e);
   }
 }
 
@@ -564,6 +595,6 @@ export async function clearCachedSkin() {
       tx.onerror = () => { db.close(); resolve(); };
     });
   } catch (e) {
-    console.warn("skin clear failed:", e);
+    if (import.meta.env.DEV) console.warn("skin clear failed:", e);
   }
 }

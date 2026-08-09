@@ -259,12 +259,16 @@
             let ch = str[i];
             if (ch == "%") ch = "percent";
             let cand = prefix === "default" ? ch + ".png" : prefix + "-" + ch + ".png";
-            let textname = (window.Skin && window.Skin[cand]) ? cand : "score-" + ch + ".png";
-            // fallback to digit naming if score- variant missing
-            if (!window.Skin || !window.Skin[textname]) textname = (window.Skin && window.Skin[ch + ".png"]) ? ch + ".png" : "score-" + ch + ".png";
-            arr[i].texture = Skin[textname];
+            let textname = (window.Skin && window.Skin[cand]?.valid) ? cand : "score-" + ch + ".png";
+            // fallback to digit naming if score- variant missing or not valid
+            if (!window.Skin || !window.Skin[textname]?.valid) textname = (window.Skin && window.Skin[ch + ".png"]?.valid) ? ch + ".png" : "score-" + ch + ".png";
+            // final guard: if still not valid, try score- fallback; if none valid, skip width
+            const tex = Skin[textname];
+            arr[i].texture = tex && tex.valid ? tex : Skin["score-0.png"] || tex;
+            const texForWidth = (tex && tex.valid) ? tex : (Skin["score-0.png"] && Skin["score-0.png"].valid ? Skin["score-0.png"] : tex);
+            const w = (texForWidth && texForWidth.valid && texForWidth.width) ? texForWidth.width : 14;
             arr[i].knownwidth =
-               arr[i].scale.x * (Skin[textname].width + effSpacing);
+               arr[i].scale.x * (w + effSpacing);
             arr[i].visible = true;
             width += arr[i].knownwidth;
          }
@@ -388,9 +392,9 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
          }).then(r => r.json().catch(()=>({}))).then(d => {
-            if (d && d.error) console.warn("[score] webhook relay:", d.error);
-            else console.log("[score] webhook relay ok");
-         }).catch(e => console.warn("[score] webhook failed", e));
+            if (d && d.error) { if (import.meta.env.DEV) console.warn("[score] webhook relay:", d.error); }
+            else if (import.meta.env.DEV) console.log("[score] webhook relay ok");
+         }).catch(e => { if (import.meta.env.DEV) console.warn("[score] webhook failed", e); });
          // also keep local webosu leaderboard submission (handled below via WebosuAPI.submitScore)
       }
 
@@ -516,12 +520,12 @@
                         if (gs.loadToGame) gs.loadToGame();
                         offsetDiv.title = `Auto-calibrated audio offset ${cur}→${next}ms (avg ${avg.toFixed(1)}ms)`;
                         offsetDiv.innerText += ` → audio offset ${next}ms`;
-                        console.log(`[score] autocalibrate offset ${cur} -> ${next} (avg ${avg.toFixed(1)}ms)`);
+                        if (import.meta.env.DEV) console.log(`[score] autocalibrate offset ${cur} -> ${next} (avg ${avg.toFixed(1)}ms)`);
                      }
                   }
                }
             }
-         } catch (e) { console.warn("[score] autocalibrate failed", e); }
+         } catch (e) { if (import.meta.env.DEV) console.warn("[score] autocalibrate failed", e); }
 
          // buttons
          let btns = newdiv(panel, "results-buttons");
@@ -634,7 +638,7 @@
                         };
                      })(),
                   });
-               } catch (e) { console.warn("webosu score submit failed", e); }
+               } catch (e) { if (import.meta.env.DEV) console.warn("webosu score submit failed", e); }
             }
          };
          if (!isReplay) addPlayHistory(summary);
@@ -659,7 +663,7 @@
                postBtn.textContent = "Posting...";
                postBtn.style.opacity = "0.7";
                postBtn.style.pointerEvents = "none";
-               try { doPost(); } catch (e) { console.warn("post anyways failed", e); }
+               try { doPost(); } catch (e) { if (import.meta.env.DEV) console.warn("post anyways failed", e); }
                setTimeout(() => { postBtn.textContent = "Posted!"; failMsg.innerText = "Your fail is now public. Respect for owning it."; }, 600);
             };
          }

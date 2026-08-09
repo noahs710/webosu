@@ -22,7 +22,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
          // Decodes a .osu file
          var lines = self.track.replace("\r", "").split("\n");
          if (lines[0] != "osu file format v14") {
-            console.warn("[osu] unexpected format header:", lines[0]);
+            if (import.meta.env.DEV) console.warn("[osu] unexpected format header:", lines[0]);
          }
          var section = null;
          var combo = 0,
@@ -192,7 +192,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                         filename: hitSample[4],
                      };
                   } else {
-                     console.log(
+                     if (import.meta.env.DEV) console.log(
                         "Attempted to decode unknown hit object type, get yo catch the fruit playin' ass outta here" +
                            hit.type +
                            ": " +
@@ -232,7 +232,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                this.difficulty.ApproachRate ||
                this.difficulty.OverallDifficulty;
          } else {
-            console.warn("[preproc]", "Overall Difficulty Undefined");
+            if (import.meta.env.DEV) console.warn("[preproc]", "Overall Difficulty Undefined");
          }
 
          // calculate inherited timing points
@@ -451,7 +451,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                   hit.curve = new LinearBezier(hit, hit.sliderType === "L");
             } else {
                if (hit.sliderType == "C")
-                  console.warn(
+                  if (import.meta.env.DEV) console.warn(
                      "[curve]",
                      track.metadata.BeatmapID ||
                         track.metadata.Title + "/" + track.metadata.Version,
@@ -522,7 +522,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                if (stacked[j]) {
                   // intersecting with a previous chain.
                   // this shouldn't happen in a usual beatmap.
-                  console.warn(
+                  if (import.meta.env.DEV) console.warn(
                      "[preproc]",
                      track.metadata.BeatmapID ||
                         track.metadata.Title + "/" + track.metadata.Version,

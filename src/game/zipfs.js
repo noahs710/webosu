@@ -31,7 +31,7 @@ ZipDir.prototype.importBlob = function (blob, ok, err) {
          if (ab.byteLength > 50 * 1024 * 1024) { if (err) err(new Error("osz too large")); return; }
          unzip(new Uint8Array(ab), (e, unzipped) => {
             if (e) { if (err) err(e); return; }
-            if (!unzipped || Object.keys(unzipped).length > 500) { if (err) err(new Error("too many files")); return; }
+            if (!unzipped || Object.keys(unzipped).length > 300) { if (err) err(new Error("too many files")); return; }
             let total = 0;
             for (const n in unzipped) total += unzipped[n].length;
             if (total > 200 * 1024 * 1024) { if (err) err(new Error("unzipped too large")); return; }

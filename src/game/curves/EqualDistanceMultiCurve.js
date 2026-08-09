@@ -39,7 +39,7 @@ const CURVE_POINTS_SEPERATION = 5;
                         curPoint = curCurve.ncurve - 1;
                         if (lastDistanceAt === distanceAt) {
                             if (distanceAt < pixelLength * 0.97) {
-                                console.warn("[curve] L/B shorter than given", distanceAt / pixelLength);
+                                if (import.meta.env.DEV) console.warn("[curve] L/B shorter than given", distanceAt / pixelLength);
                             }
                             // out of points even though the preferred distance hasn't been reached
                             break;

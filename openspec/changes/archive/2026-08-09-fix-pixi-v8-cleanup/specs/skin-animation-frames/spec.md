@@ -1,8 +1,7 @@
-# skin-animation-frames Specification
+# skin-animation-frames
 
-## Purpose
-TBD - created by archiving change full-osk-skin-support. Update Purpose after archive.
-## Requirements
+## MODIFIED Requirements
+
 ### Requirement: Follow point animation
 When a skin contains `followpoint-0.png` through `followpoint-9.png`, the game SHALL cycle through these frames as an animation instead of using the static `followpoint.png`. Only 0-9 SHALL be loaded (cap), even if skin contains 0-60.
 
@@ -23,4 +22,3 @@ The system SHALL advance animation frames at a consistent rate based on `time` (
 #### Scenario: Fallback when no frames
 - **WHEN** no numbered followpoint frames exist
 - **THEN** the static `followpoint.png` is used
-

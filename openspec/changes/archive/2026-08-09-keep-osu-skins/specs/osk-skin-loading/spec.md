@@ -1,8 +1,7 @@
-# osk-skin-loading Specification
+# osk-skin-loading
 
-## Purpose
-TBD - created by archiving change full-osk-skin-support. Update Purpose after archive.
-## Requirements
+## MODIFIED Requirements
+
 ### Requirement: Unified .osk file import
 The system SHALL accept a .osk file (renamed .zip) via drag-and-drop or file picker and extract all contents using fflate's `unzipSync`. The system SHALL reject files larger than 20MB, with more than 300 entries, or with unzipped total >50MB to prevent zip bombs.
 
@@ -69,4 +68,3 @@ The system SHALL apply skin.ini `Combo1-8` colors to override beatmap combo colo
 #### Scenario: Combo colors from skin.ini
 - **WHEN** `skin.ini` defines `Combo1` and a beatmap loads
 - **THEN** combo 0 uses the skin's Combo1 color instead of the beatmap's
-

@@ -87,6 +87,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
       var gfx = (window.gfx = {}); // game field area
       self.gamefield = new PIXI.Container();
+      self.gamefield.eventMode = 'none';
+      self.gamefield.cullable = true;
       // Recommended field size = the playfield as it renders on a 1920x1080
       // screen (80% fit = 1152x864). The field/notes scale with the screen only
       // when the screen is smaller than this recommended minimum (touchscreens /
@@ -644,11 +646,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                gdebug("playback", "Assets.load failed, fallback to Texture.from", e.message);
                bgTexture = PIXI.Texture.from(uri);
             }
-            // Ensure texture is valid before use
+            // Ensure texture is valid before use — Pixi v8 uses texture.source not baseTexture
             if (!bgTexture || !bgTexture.valid) {
                try {
                   const src = bgTexture?.source;
-                  if (src && src.resource && src.resource.load) await src.resource.load();
+                  if (src && src.load) await src.load();
+                  else if (bgTexture?.source?.resource?.load) await bgTexture.source.resource.load();
                } catch (_) {}
             }
             if (!bgTexture || !bgTexture.valid) {
@@ -665,21 +668,33 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                let blurstrength = self.game.backgroundBlurRate * Math.min(width, height);
                let t = Math.max(Math.min(width, height), Math.max(10, blurstrength) * 3);
                sprite.scale.set(t / (t - 2 * Math.max(10, blurstrength)));
-               let blurFilter = new PIXI.BlurFilter(blurstrength, 14);
+               let blurFilter = new PIXI.BlurFilter({ strength: blurstrength, quality: 4 });
                blurFilter.autoFit = false;
                sprite.filters = [blurFilter];
             }
-            // Pixi v8: render with options object, not (sprite, texture) second arg deprecated
+            // Pixi v8: render with options object { container, target }
             let w = bgTexture.width || 1920, h = bgTexture.height || 1080;
             let texture = PIXI.RenderTexture.create({ width: w, height: h });
             try {
-               // v8 API: render({ container, target })
-               if (window.app.renderer.render.length === 1) {
-                  await window.app.renderer.render({ container: sprite, target: texture });
-               } else {
-                  window.app.renderer.render(sprite, texture);
-               }
-            } catch (e) { gerror("playback", "background render failed", e); texture = bgTexture; sprite = new PIXI.Sprite(texture); }
+               await window.app.renderer.render({ container: sprite, target: texture });
+            } catch (e) {
+               try { window.app.renderer.render(sprite, texture); } catch (e2) { gerror("playback", "background render failed", e2); texture = bgTexture; sprite = new PIXI.Sprite(texture); }
+            }
+            // revoke blob URL after GPU upload (if it was a blob)
+            if (uri && uri.startsWith("blob:")) {
+               try { if (bgTexture && bgTexture.valid) URL.revokeObjectURL(uri); else if (bgTexture?.source) bgTexture.source.once?.("loaded", () => { try { URL.revokeObjectURL(uri); } catch {} }); } catch {}
+            }
+                  // destroy previous background RenderTexture to prevent GPU leak
+                  if (self.background) {
+                     try {
+                        const oldTex = self.background.texture;
+                        if (oldTex && oldTex !== PIXI.Texture.WHITE && oldTex !== bgTexture) {
+                           try { oldTex.destroy(true); } catch {}
+                        }
+                        self.game.stage.removeChild(self.background);
+                        self.background.destroy({ children: true, texture: false });
+                     } catch {}
+                  }
                   self.background = new PIXI.Sprite(texture);
                   self.background.anchor.set(0.5);
                   self.background.x = window.innerWidth / 2;
@@ -785,6 +800,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.visible = true;      // a pooled sprite may have been hidden on fade-out
             sprite.tint = 0xffffff;     // base/glow/approach re-tint below; overlay stays white
             sprite.blendMode = "normal"; // glow re-set to "add" below
+            sprite.eventMode = 'none';
+            sprite.cullable = true;
             sprite._pooledTex = tex;    // mark for return-to-pool on despawn
             hit.objects.push(sprite);
             return sprite;
@@ -819,17 +836,21 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             this.createJudgement(hit.x, hit.y, 4, hit.time + this.MehTime)
          );
 
-         // create combo number — respect skin.ini HitCirclePrefix/ScorePrefix
-         function hitNumberKey(digit) {
+         // create combo number — respect skin.ini HitCirclePrefix/ScorePrefix, gated to valid
+          function hitNumberKey(digit) {
             let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.hitCirclePrefix) || "score";
             let cand;
             if (prefix === "default") cand = digit + ".png";
             else cand = prefix + "-" + digit + ".png";
+            if (window.Skin && window.Skin[cand]?.valid) return cand;
+            // fallback to score- and digit variants only if valid
+            if (window.Skin && window.Skin["score-" + digit + ".png"]?.valid) return "score-" + digit + ".png";
+            if (window.Skin && window.Skin[digit + ".png"]?.valid) return digit + ".png";
+            // last fallback: any available, even if not valid (will be white)
             if (window.Skin && window.Skin[cand]) return cand;
-            // fallback to score- and digit variants
             if (window.Skin && window.Skin["score-" + digit + ".png"]) return "score-" + digit + ".png";
             return digit + ".png";
-         }
+          }
          hit.numbers = [];
          if (index <= 9) {
             hit.numbers.push(
@@ -871,17 +892,24 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
          // create slider body — Graphics-based SliderMesh is now the primary (no GL shader)
          let body;
-         try {
+          try {
             if (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2) throw new Error("invalid curve");
             body = new SliderMesh(hit.curve, this.circleRadius, hit.combo % combos.length);
+            body.visible = true;
+            body.eventMode = 'none';
+            body.cullable = true;
             // ponytail: geometry check is legacy GL; Graphics always has geometry after first draw, so skip
             gdebug("playback", "slider body created", hit.hitIndex, "combo", hit.combo, "pts", hit.curve.curve.length, "len", hit.pixelLength);
          } catch (e) {
             // only log at debug to avoid flooding (was gerror per-slider → hundreds of logs)
             gdebug("playback", "SliderMesh fallback", e.message, hit.hitIndex);
             body = new PIXI.Graphics();
+            body.visible = true;
+            body.eventMode = 'none';
+            body.cullable = true;
             try {
-               const col = combos[hit.combo % combos.length] || 0xffffff;
+               const col = SliderTrackOverride ?? combos[hit.combo % combos.length] ?? 0xffffff;
+               const brd = SliderBorder ?? 0xffffff;
                const pts = hit.curve?.curve || [{x: hit.x, y: hit.y}, {x: hit.x+50, y: hit.y}];
                const w = this.circleRadius * 2;
                // shadow / outline: draw slightly wider, darker line first
@@ -891,7 +919,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                // border
                body.moveTo(pts[0].x, pts[0].y);
                for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
-               body.stroke({ width: w + 2, color: 0xffffff, alpha: 0.95, cap: "round", join: "round" });
+               body.stroke({ width: w + 2, color: brd, alpha: 0.95, cap: "round", join: "round" });
                // inner track
                body.moveTo(pts[0].x, pts[0].y);
                for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
@@ -915,6 +943,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.y = y;
             sprite.depth = 4.9999 - 0.0001 * hit.hitIndex;
             sprite.alpha = 0;
+            sprite.eventMode = 'none';
+            sprite.cullable = true;
             hit.objects.push(sprite);
             return sprite;
          }
@@ -1024,6 +1054,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.y = hit.y;
             sprite.depth = 4.9999 - 0.0001 * (hit.hitIndex || 1);
             sprite.alpha = 0;
+            sprite.eventMode = 'none';
+            sprite.cullable = true;
             hit.objects.push(sprite);
             return sprite;
          }
@@ -1055,6 +1087,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
          var container = new PIXI.Container();
          container.depth = 3;
+         container.eventMode = 'none';
+         container.cullable = true;
          container.x1 = x1;
          container.y1 = y1;
          container.t1 = t1;
@@ -1084,6 +1118,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             p.rotation = rotation;
             p.anchor.set(0.5);
             p.alpha = 0;
+            p.eventMode = 'none';
+            p.cullable = true;
             p.fraction = d / distance; // store for convenience
             container.addChild(p);
          }
@@ -1989,7 +2025,17 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          self.breakOverlay.destroy(opt);
          self.progressOverlay.destroy(opt);
          self.gamefield.destroy(opt);
-         if (self.background) self.background.destroy();
+         if (self.background) {
+            try {
+               const tex = self.background.texture;
+               if (tex && tex !== PIXI.Texture.WHITE && tex.destroy) {
+                  try { tex.destroy(true); } catch {}
+               }
+            } catch {}
+            try { self.game.stage.removeChild(self.background); } catch {}
+            self.background.destroy({ children: true, texture: false });
+            self.background = null;
+         }
          // clean up event listeners
          window.onresize = null;
          window.removeEventListener("blur", blurCallback);

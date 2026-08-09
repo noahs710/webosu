@@ -178,11 +178,11 @@ import { gamesettings } from "../shell/gamesettings.js";
                false,
                { response: buffer },
                function (src, err) {
-                  console.warn("custom hitsound decode failed", src, err);
+                  if (import.meta.env.DEV) console.warn("custom hitsound decode failed", src, err);
                }
             );
          } catch (e) {
-            console.warn("custom hitsound failed", key, e);
+            if (import.meta.env.DEV) console.warn("custom hitsound failed", key, e);
          }
       }
    }
@@ -212,7 +212,7 @@ import { gamesettings } from "../shell/gamesettings.js";
                   );
                }
             } catch (e) {
-               console.warn("custom skin apply failed", osuName, e);
+               if (import.meta.env.DEV) console.warn("custom skin apply failed", osuName, e);
             }
          }
          done();

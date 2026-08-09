@@ -64,7 +64,22 @@ async function load(force = false) {
       if (!r.ok) throw new Error("search " + r.status);
       data = await r.json();
     }
-    const filtered = (data || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+    let filtered = (data || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+    // retry once if search returned empty (random offset may hit empty page)
+    if (!filtered.length && props.src && props.src.includes('search') && !props.sids) {
+       try {
+         const retrySrc = props.src.includes('offset=') ? props.src.replace(/offset=\d+/, `offset=${Math.floor(Math.random()*400)}`) : `https://catboy.best/api/v2/search?q=&limit=6&offset=${Math.floor(Math.random()*400)}&status=1&status=3&status=4&mode=0`;
+         const rr = await fetch(retrySrc);
+         if (rr.ok) {
+           const rdata = await rr.json();
+           const rfiltered = (rdata || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+           if (rfiltered.length) {
+              filtered = rfiltered;
+              if (import.meta.env.DEV) console.log("[BeatmapList] retry hit", retrySrc, rfiltered.length);
+           }
+         }
+       } catch {}
+    }
     sets.value = filtered;
     // cache filtered result for smoother back-navigation
     try { setCachedBeatmaps(cacheKey, filtered); } catch {}

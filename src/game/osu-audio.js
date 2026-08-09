@@ -25,12 +25,12 @@
    function offset_predict_mp3(tags) {
       let default_offset = 22;
       if (!tags || !tags.length) {
-         console.warn("mp3 offset predictor: mp3 tag missing");
+         if (import.meta.env.DEV) console.warn("mp3 offset predictor: mp3 tag missing");
          return default_offset;
       }
       let frametag = tags[tags.length - 1];
       if (frametag._section.sampleLength != 1152) {
-         console.warn("mp3 offset predictor: unexpected sample length");
+         if (import.meta.env.DEV) console.warn("mp3 offset predictor: unexpected sample length");
          return default_offset;
       }
       let vbr_tag = null;
@@ -40,18 +40,18 @@
          return default_offset;
       }
       if (!vbr_tag.identifier) {
-         console.warn("mp3 offset predictor: vbr tag identifier missing");
+         if (import.meta.env.DEV) console.warn("mp3 offset predictor: vbr tag identifier missing");
          return default_offset;
       }
       if (vbr_tag.vbrinfo.ENC_DELAY != 576) {
-         console.warn("mp3 offset predictor: vbr ENC_DELAY value unexpected");
+         if (import.meta.env.DEV) console.warn("mp3 offset predictor: vbr ENC_DELAY value unexpected");
          return default_offset;
       }
       let sampleRate = vbr_tag.header.samplingRate;
       if (sampleRate == 32000) return 89 - 1152000 / sampleRate;
       if (sampleRate == 44100) return 68 - 1152000 / sampleRate;
       if (sampleRate == 48000) return 68 - 1152000 / sampleRate;
-      console.warn("mp3 offset predictor: sampleRate unexpected");
+      if (import.meta.env.DEV) console.warn("mp3 offset predictor: sampleRate unexpected");
       return default_offset;
    }
 

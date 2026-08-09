@@ -35,7 +35,7 @@ const app = createApp({
           const r = await fetch("https://catboy.best/d/" + setId + suffix);
           if (!r.ok) throw new Error("download " + r.status);
           window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version);
-        } catch (err) { console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
+        } catch (err) { if (import.meta.env.DEV) console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
       });
 
       // replay watch: ?watch=<replayId>&bid=<beatmapId>&sid=<setId>&v=<version>

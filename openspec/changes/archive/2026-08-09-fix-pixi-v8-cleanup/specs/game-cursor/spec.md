@@ -1,8 +1,7 @@
-# game-cursor Specification
+# game-cursor
 
-## Purpose
-TBD - created by archiving change full-osk-skin-support. Update Purpose after archive.
-## Requirements
+## MODIFIED Requirements
+
 ### Requirement: Cursor trail texture from skin
 When a skin contains `cursortrail.png`, the game SHALL use it as the cursor trail texture instead of cloning the `cursor.png` sprite. When no skin is loaded, the game SHALL fall back to the current behavior (cloned cursor sprite).
 
@@ -41,4 +40,3 @@ When `skin.ini` specifies `CursorCentre: 0`, the cursor anchor SHALL be `0,0` (t
 #### Scenario: Cursor anchor respects CursorCentre
 - **WHEN** `skin.ini` has `CursorCentre: 0`
 - **THEN** `game.cursor.anchor` and `game.cursorTrail` sprites use `0,0`
-
