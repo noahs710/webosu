@@ -73,14 +73,14 @@ export async function launchOSU(osu, beatmapid, version) {
       // last so it renders above the trail.
       game.cursorLayer = new PIXI.Container();
       game.cursorLayer.eventMode = 'none';
-      game.cursorLayer.cullable = true;
+      game.cursorLayer.cullable = false;
       game.stage.addChild(game.cursorLayer);
       const cursorCentre = !(window.game && window.game.skinConfig && window.game.skinConfig.cursorCentre === false);
       const anchorVal = cursorCentre ? 0.5 : 0;
       game.cursor = new PIXI.Sprite(window.Skin?.["cursor.png"] || PIXI.Texture.WHITE);
       game.cursor.anchor.x = game.cursor.anchor.y = anchorVal;
       game.cursor.eventMode = 'none';
-      game.cursor.cullable = true;
+      game.cursor.cullable = false;
       var effectiveCursorSize = (window.game && window.game.skinCursorSize) ? window.game.skinCursorSize : game.cursorSize;
       game.cursor.scale.x = game.cursor.scale.y = 0.3 * effectiveCursorSize;
       // cursormiddle is an optional inner dot from skin (if present, rendered on top of cursor)
@@ -88,7 +88,7 @@ export async function launchOSU(osu, beatmapid, version) {
          game.cursorMiddle = new PIXI.Sprite(window.Skin?.["cursormiddle.png"] || PIXI.Texture.WHITE);
          game.cursorMiddle.anchor.set(anchorVal);
          game.cursorMiddle.eventMode = 'none';
-         game.cursorMiddle.cullable = true;
+         game.cursorMiddle.cullable = false;
          game.cursorMiddle.scale.set(0.15 * effectiveCursorSize);
       }
       // store for anchor handling in trail
@@ -100,7 +100,7 @@ export async function launchOSU(osu, beatmapid, version) {
          let t = new PIXI.Sprite(trailTex);
          t.anchor.x = t.anchor.y = anchorVal;
          t.eventMode = 'none';
-         t.cullable = true;
+         t.cullable = false;
          t.scale.x = t.scale.y = 0.3 * effectiveCursorSize;
          t.alpha = 0;
          game.cursorLayer.addChild(t);

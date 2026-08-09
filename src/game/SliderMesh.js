@@ -44,14 +44,14 @@ import { log, warn } from "./logger.js";
                const tex = PIXI.Texture.WHITE;
                const fillCol = this._override ?? (this._colors ? this._colors[this.tintid % this._colors.length] : 0xffffff);
                const borderCol = this._border ?? 0xffffff;
-               // border behind, fill on top — two ropes for outline
+               // border behind, fill on top — two ropes for outline, not cullable to ensure visible
                this._borderRope = new PIXI.MeshRope({ texture: tex, points: pts.slice(), width: this._radius * 2 + 6, textureScale: 0 });
                this._borderRope.eventMode = 'none';
-               this._borderRope.cullable = true;
+               this._borderRope.cullable = false;
                try { this._borderRope.tint = borderCol; } catch {}
                this._rope = new PIXI.MeshRope({ texture: tex, points: pts, width: this._radius * 2, textureScale: 0 });
                this._rope.eventMode = 'none';
-               this._rope.cullable = true;
+               this._rope.cullable = false;
                try { this._rope.tint = fillCol; } catch {}
                this.addChild(this._borderRope);
                this.addChild(this._rope);
@@ -66,7 +66,7 @@ import { log, warn } from "./logger.js";
             try {
                this._g = new PIXI.Graphics();
                this._g.eventMode = 'none';
-               this._g.cullable = true;
+               this._g.cullable = false;
                this.addChild(this._g);
             } catch {}
          }
@@ -110,7 +110,7 @@ import { log, warn } from "./logger.js";
                   const newBorder = new PIXI.MeshRope({ texture: tex, points: slice.slice(), width: this._radius * 2 + 6, textureScale: 0 });
                   newRope.tint = col; newBorder.tint = borderCol;
                   newRope.eventMode = 'none'; newBorder.eventMode = 'none';
-                  newRope.cullable = true; newBorder.cullable = true;
+                  newRope.cullable = false; newBorder.cullable = false;
                   this.removeChild(this._borderRope); this.removeChild(this._rope);
                   try { this._rope.destroy(); } catch {}
                   try { this._borderRope.destroy(); } catch {}
@@ -124,7 +124,7 @@ import { log, warn } from "./logger.js";
             try {
                this._g = new PIXI.Graphics();
                this._g.eventMode = 'none';
-               this._g.cullable = true;
+               this._g.cullable = false;
                this.addChild(this._g);
             } catch { return; }
          }

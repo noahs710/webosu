@@ -88,7 +88,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       var gfx = (window.gfx = {}); // game field area
       self.gamefield = new PIXI.Container();
       self.gamefield.eventMode = 'none';
-      self.gamefield.cullable = true;
+      self.gamefield.cullable = false;
       // Recommended field size = the playfield as it renders on a 1920x1080
       // screen (80% fit = 1152x864). The field/notes scale with the screen only
       // when the screen is smaller than this recommended minimum (touchscreens /
@@ -443,9 +443,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       }
 
       this.createJudgement = function (x, y, depth, finalTime) {
-         // Use skin judgement images if available, else text — always create sprite path as primary for visibility
-         var hasSkinHit = !!(window.Skin?.["hit300.png"]);
-         var useSprites = hasSkinHit || true; // always try sprites first, fallback to WHITE tinted if needed
+         var useSprites = !!(window.Skin?.["hit300.png"]);
          var judge;
          if (useSprites) {
             const initTex = window.Skin?.["hit300.png"] || PIXI.Texture.WHITE;
@@ -456,7 +454,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             judge.baseScaleY = 0.85 * this.hitSpriteScale;
             if (initTex === PIXI.Texture.WHITE) judge.tint = 0x66ccff;
             judge.eventMode = 'none';
-            judge.cullable = true;
+            judge.cullable = false;
          } else {
             judge = new PIXI.Text({ text: "", style: {
                fontFamily: "Comfortaa",
@@ -468,7 +466,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             judge.baseScaleX = 0.85 * this.hitSpriteScale;
             judge.baseScaleY = 1 * this.hitSpriteScale;
             judge.eventMode = 'none';
-            judge.cullable = true;
+            judge.cullable = false;
          }
          judge.visible = false;
          judge.basex = judge.x = x;
@@ -812,7 +810,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.tint = 0xffffff;     // base/glow/approach re-tint below; overlay stays white
             sprite.blendMode = "normal"; // glow re-set to "add" below
             sprite.eventMode = 'none';
-            sprite.cullable = true;
+            sprite.cullable = false;
             sprite._pooledTex = tex;    // mark for return-to-pool on despawn
             hit.objects.push(sprite);
             return sprite;
@@ -908,7 +906,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             body = new SliderMesh(hit.curve, this.circleRadius, hit.combo % combos.length);
             body.visible = true;
             body.eventMode = 'none';
-            body.cullable = true;
+            body.cullable = false;
             // ponytail: geometry check is legacy GL; Graphics always has geometry after first draw, so skip
             gdebug("playback", "slider body created", hit.hitIndex, "combo", hit.combo, "pts", hit.curve.curve.length, "len", hit.pixelLength);
          } catch (e) {
@@ -917,7 +915,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             body = new PIXI.Graphics();
             body.visible = true;
             body.eventMode = 'none';
-            body.cullable = true;
+            body.cullable = false;
             try {
                const col = SliderTrackOverride ?? combos[hit.combo % combos.length] ?? 0xffffff;
                const brd = SliderBorder ?? 0xffffff;
@@ -955,7 +953,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.depth = 4.9999 - 0.0001 * hit.hitIndex;
             sprite.alpha = 0;
             sprite.eventMode = 'none';
-            sprite.cullable = true;
+            sprite.cullable = false;
             hit.objects.push(sprite);
             return sprite;
          }
@@ -1066,7 +1064,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.depth = 4.9999 - 0.0001 * (hit.hitIndex || 1);
             sprite.alpha = 0;
             sprite.eventMode = 'none';
-            sprite.cullable = true;
+            sprite.cullable = false;
             hit.objects.push(sprite);
             return sprite;
          }
@@ -1099,7 +1097,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          var container = new PIXI.Container();
          container.depth = 3;
          container.eventMode = 'none';
-         container.cullable = true;
+         container.cullable = false;
          container.x1 = x1;
          container.y1 = y1;
          container.t1 = t1;
@@ -1130,7 +1128,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             p.anchor.set(0.5);
             p.alpha = 0;
             p.eventMode = 'none';
-            p.cullable = true;
+            p.cullable = false;
             p.fraction = d / distance; // store for convenience
             container.addChild(p);
          }
