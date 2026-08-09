@@ -138,29 +138,7 @@ export async function launchOSU(osu, beatmapid, version) {
       pGameArea.classList.remove("showhwmousesmall");
       pGameArea.classList.remove("showhwmousetiny");
    }
-   // on-screen pause button (touch-accessible; ESC isn't available on touchscreens)
-   var pauseBtn = document.createElement("button");
-   pauseBtn.textContent = "\u23f8"; // ⏸
-   pauseBtn.setAttribute("aria-label", "Pause");
-   pauseBtn.title = "Pause (Esc)";
-   Object.assign(pauseBtn.style, {
-      position: "fixed", top: "8px", right: "10px", zIndex: "50",
-      width: "44px", height: "44px", // touch-target sized
-      borderRadius: "10px",
-      background: "rgba(20,20,30,.55)", color: "#ececf4",
-      border: "1px solid rgba(255,255,255,.18)",
-      font: "600 20px/1 system-ui, sans-serif", cursor: "pointer",
-      display: "flex", alignItems: "center", justifyContent: "center",
-      backdropFilter: "blur(4px)", webkitBackdropFilter: "blur(4px)",
-      userSelect: "none", touchAction: "manipulation",
-   });
-   pauseBtn.addEventListener("click", function (e) {
-      e.preventDefault(); e.stopPropagation();
-      if (!window.playback) return;
-      if (window.game && window.game.paused) window.playback.resume();
-      else window.playback.pause();
-   });
-   pGameArea.appendChild(pauseBtn);
+   // pause via ESC only (removed on-screen pause button per user request)
    // ---- Phase 6 perf HUD (frame timing) ----
    var perfHUD = document.createElement("div");
    perfHUD.id = "perf-hud";
@@ -200,7 +178,6 @@ export async function launchOSU(osu, beatmapid, version) {
    window.quitGame = function () {
       window.removeEventListener("keydown", perfKey);
       if (perfHUD && perfHUD.parentNode) perfHUD.parentNode.removeChild(perfHUD);
-      if (pauseBtn && pauseBtn.parentNode) pauseBtn.parentNode.removeChild(pauseBtn);
       pGameArea.setAttribute("hidden", "");
       pMainPage.removeAttribute("hidden");
       pNav.removeAttribute("style");
