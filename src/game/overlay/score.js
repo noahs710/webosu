@@ -259,14 +259,11 @@
             let ch = str[i];
             if (ch == "%") ch = "percent";
             let cand = prefix === "default" ? ch + ".png" : prefix + "-" + ch + ".png";
-            let textname = (window.Skin && window.Skin?.[cand]?.valid) ? cand : "score-" + ch + ".png";
-            // fallback to digit naming if score- variant missing or not valid
-            if (!window.Skin || !window.Skin?.[textname]?.valid) textname = (window.Skin && window.Skin?.[ch + ".png"]?.valid) ? ch + ".png" : "score-" + ch + ".png";
-            // final guard: if still not valid, try score- fallback; if none valid, skip width
+            let textname = (window.Skin && window.Skin[cand]) ? cand : "score-" + ch + ".png";
+            if (!window.Skin || !window.Skin[textname]) textname = (window.Skin && window.Skin[ch + ".png"]) ? ch + ".png" : "score-" + ch + ".png";
             const tex = window.Skin?.[textname] || PIXI.Texture.WHITE;
-            arr[i].texture = tex && tex.valid ? tex : window.Skin?.["score-0.png"] || tex;
-            const texForWidth = (tex && tex.valid) ? tex : (window.Skin?.["score-0.png"] && window.Skin?.["score-0.png"].valid ? window.Skin?.["score-0.png"] : tex);
-            const w = (texForWidth && texForWidth.valid && texForWidth.width) ? texForWidth.width : 14;
+            arr[i].texture = tex;
+            const w = (tex && tex.valid && tex.width) ? tex.width : (window.Skin?.["score-0.png"]?.valid ? window.Skin["score-0.png"].width : 14);
             arr[i].knownwidth =
                arr[i].scale.x * (w + effSpacing);
             arr[i].visible = true;
