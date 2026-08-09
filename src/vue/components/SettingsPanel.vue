@@ -39,7 +39,7 @@ async function removeSkin() {
   skinStatus.value = "Skin removed. Default will be used.";
 }
 
-function set(key, val) { gs.value[key] = val; gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
+function set(key, val) { gamesettings[key] = val; gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
 function reset() { Object.assign(gamesettings, defaultsettings); gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
 function captureKey(ev, key) {
   ev.preventDefault();
