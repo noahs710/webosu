@@ -45,7 +45,7 @@ build/Release
 
 # Dependency directories
 node_modules
-package-lock.json
+# keep package-lock.json for reproducible Docker builds (flyctl requires it)
 yarn.lock
 
 # Optional npm cache directory

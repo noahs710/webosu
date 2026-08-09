@@ -6,9 +6,9 @@
 FROM node:22-slim AS builder
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-COPY package.json package-lock.json ./
-COPY server/package.json ./server/
-RUN npm ci --no-audit --no-fund && cd server && npm install --omit=dev --no-audit --no-fund
+COPY package.json package-lock.json* ./
+COPY server/package.json server/package-lock.json* ./server/
+RUN if [ -f package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi && cd server && if [ -f package-lock.json ]; then npm ci --omit=dev --no-audit --no-fund; else npm install --omit=dev --no-audit --no-fund; fi
 COPY . .
 RUN npm run build
 
