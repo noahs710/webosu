@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { gamesettings, defaultsettings, saveToLocal } from "../../shell/gamesettings.js";
-import { loadOsk, cacheSkin, clearCachedSkin } from "../../game/skin-loader.js";
+import { loadOsk, cacheSkin, clearCachedSkin, saveLocalSkin } from "../../game/skin-loader.js";
 
 const SLIDERS = [
   ["dim", "Background dim", 0, 100, 1, "%"], ["blur", "Background blur", 0, 100, 1, "%"],
@@ -24,12 +24,13 @@ async function importOsk(ev) {
   skinStatus.value = "Loading " + file.name + "...";
   try {
     const skinData = await loadOsk(file);
-    await cacheSkin(skinData);
+    await saveLocalSkin(skinData, file.name);
     skinName.value = skinData.config ? skinData.config.name || file.name : file.name;
-    skinStatus.value = "Skin loaded: " + skinName.value + " (" + Object.keys(skinData.textures).length + " textures, " + Object.keys(skinData.sounds).length + " sounds). Applied on next game.";
+    skinStatus.value = "Skin loaded: " + skinName.value + " (" + Object.keys(skinData.textures).length + " textures, " + Object.keys(skinData.sounds).length + " sounds). Stored locally and applied on next game.";
   } catch (e) {
     skinStatus.value = "Failed: " + (e.message || e);
   }
+  ev.target.value = "";
 }
 
 async function removeSkin() {

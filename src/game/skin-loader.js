@@ -350,19 +350,121 @@ export function applySkin(skinData) {
   }
 }
 
-// ── Cache skin in IndexedDB ──
+// ── Cache skin in IndexedDB (single active skin for fast load) ──
 const DB_NAME = "webosu-skins";
 const STORE_NAME = "skinFiles";
+const LOCAL_STORE = "localSkins"; // multi-skin vault
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
+    const req = indexedDB.open(DB_NAME, 2);
     req.onupgradeneeded = () => {
-      req.result.createObjectStore(STORE_NAME);
+      if (!req.result.objectStoreNames.contains(STORE_NAME)) req.result.createObjectStore(STORE_NAME);
+      if (!req.result.objectStoreNames.contains(LOCAL_STORE)) req.result.createObjectStore(LOCAL_STORE, { keyPath: "id" });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
+}
+
+// ── Local skin vault (multiple skins, best performance via IndexedDB) ──
+let _localSkinCache = null; // in-memory cache of metadata list
+export async function listLocalSkins() {
+  if (_localSkinCache) return _localSkinCache;
+  try {
+    const db = await openDB();
+    const tx = db.transaction(LOCAL_STORE, "readonly");
+    const store = tx.objectStore(LOCAL_STORE);
+    const all = await new Promise((res, rej) => {
+      const req = store.getAll();
+      req.onsuccess = () => res(req.result || []);
+      req.onerror = () => rej(req.error);
+    });
+    db.close();
+    _localSkinCache = all.sort((a,b) => (b.updated||0)-(a.updated||0));
+    return _localSkinCache;
+  } catch (e) { cwarn("skin-loader", "listLocalSkins failed", e); return []; }
+}
+export async function saveLocalSkin(skinData, fileName) {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2,6)}`;
+  const meta = {
+    id,
+    name: skinData.config?.name || fileName.replace(/\.osk$/i, "") || "Unnamed",
+    author: skinData.config?.author || "",
+    fileName,
+    texCount: Object.keys(skinData.textures).length,
+    sndCount: Object.keys(skinData.sounds).length,
+    updated: Date.now(),
+    // store raw buffers for best performance (no re-parse)
+    _textures: skinData.textures,
+    _sounds: skinData.sounds,
+    _config: skinData.config,
+  };
+  // also store in active cache for instant apply
+  await cacheSkin(skinData);
+  // persist to vault
+  try {
+    const db = await openDB();
+    const tx = db.transaction(LOCAL_STORE, "readwrite");
+    tx.objectStore(LOCAL_STORE).put(meta);
+    await new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+    _localSkinCache = null; // invalidate
+    // also remember active id in localStorage for fast startup
+    try { localStorage.setItem("webosu_active_skin", id); } catch {}
+    clog("skin-loader", "saved local skin", meta.name, id);
+    return meta;
+  } catch (e) { cwarn("skin-loader", "saveLocalSkin failed", e); return null; }
+}
+export async function loadLocalSkin(id) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(LOCAL_STORE, "readonly");
+    const rec = await new Promise((res, rej) => {
+      const r = tx.objectStore(LOCAL_STORE).get(id);
+      r.onsuccess = () => res(r.result);
+      r.onerror = () => rej(r.error);
+    });
+    db.close();
+    if (!rec) return null;
+    // reconstruct skinData from stored buffers (already have URLs? recreate)
+    const textures = {};
+    for (const k in rec._textures) {
+      const e = rec._textures[k];
+      // e may be {url, buffer} or already buffer; handle both
+      const buf = e.buffer || e;
+      const blob = new Blob([buf], { type: "image/png" });
+      textures[k] = { url: URL.createObjectURL(blob), buffer: buf };
+    }
+    const sounds = {};
+    for (const k in rec._sounds) {
+      const e = rec._sounds[k];
+      const buf = e.buffer || e;
+      const blob = new Blob([buf], { type: "audio/wav" });
+      sounds[k] = { url: URL.createObjectURL(blob), buffer: buf };
+    }
+    const skinData = { textures, sounds, config: rec._config, rawFiles: {} };
+    await cacheSkin(skinData);
+    try { localStorage.setItem("webosu_active_skin", id); } catch {}
+    clog("skin-loader", "loaded local skin", rec.name);
+    return skinData;
+  } catch (e) { cwarn("skin-loader", "loadLocalSkin failed", e); return null; }
+}
+export async function deleteLocalSkin(id) {
+  try {
+    const db = await openDB();
+    const tx = db.transaction(LOCAL_STORE, "readwrite");
+    tx.objectStore(LOCAL_STORE).delete(id);
+    await new Promise((res, rej) => { tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); });
+    db.close();
+    _localSkinCache = null;
+    const cur = (()=>{ try{ return localStorage.getItem("webosu_active_skin"); }catch{return null; }})();
+    if (cur === id) try { localStorage.removeItem("webosu_active_skin"); } catch {}
+    return true;
+  } catch (e) { cwarn("skin-loader", "deleteLocalSkin failed", e); return false; }
+}
+export async function getActiveSkinId() {
+  try { return localStorage.getItem("webosu_active_skin"); } catch { return null; }
 }
 
 export async function cacheSkin(skinData) {
