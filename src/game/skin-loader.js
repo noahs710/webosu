@@ -190,13 +190,15 @@ function isGameplayTexture(name) {
 
 // ── Extract and load a .osk file ──
 export async function loadOsk(file) {
-  if (file.size > 50 * 1024 * 1024) throw new Error("osk too large (50MB limit)");
+  if (file.size > 80 * 1024 * 1024) throw new Error("osk too large (80MB limit)");
   const ab = await file.arrayBuffer();
-  if (ab.byteLength > 50 * 1024 * 1024) throw new Error("osk too large (50MB limit)");
+  if (ab.byteLength > 80 * 1024 * 1024) throw new Error("osk too large (80MB limit)");
   const extracted = unzipSync(new Uint8Array(ab));
-  if (Object.keys(extracted).length > 1000) throw new Error("too many files in osk (1000 limit)");
+  const entryCount = Object.keys(extracted).length;
+  if (entryCount > 1000) clog("skin-loader", "many files", entryCount, "capping to gameplay 60");
   let tot = 0; for (const k in extracted) tot += extracted[k].length;
-  if (tot > 200 * 1024 * 1024) throw new Error("osk unzipped too large (200MB limit)");
+  if (tot > 300 * 1024 * 1024) throw new Error("osk unzipped too large (300MB limit)");
+  if (tot > 200 * 1024 * 1024) clog("skin-loader", "large unzipped", (tot/1024/1024).toFixed(1)+"MB", "capping");
   const files = {};
   for (const path in extracted) {
     files[path.toLowerCase()] = extracted[path];
@@ -289,19 +291,19 @@ export async function applySkin(skinData) {
   if (!skinData) return;
 
   // Apply textures — use Assets.load with parser:"texture" for blob: URLs (no extension, needs parser per Assets skill)
+  // Most performant: concurrent with cap, only selected skin via loadCachedSkin, whitelist already 60/40
   if (skinData.textures && window.Skin) {
     const keys = Object.keys(skinData.textures);
     clog("skin-loader", "applying", keys.length, "textures (capped)");
-    for (const key of keys) {
+    const CONCURRENCY = 6;
+    const loadOne = async (key) => {
       try {
         const url = skinData.textures[key].url;
-        // Use Assets cache + parser:"texture" for blob: URLs (supported types table: blob has no extension)
         let tex;
         try {
           if (PIXI.Assets && PIXI.Assets.cache && PIXI.Assets.cache.has(url)) {
             tex = PIXI.Assets.cache.get(url);
           } else {
-            // For blob: URLs, parser is required
             try {
               tex = await PIXI.Assets.load({ src: url, parser: "texture", data: { scaleMode: "linear", autoGenerateMipmaps: false } });
             } catch {
@@ -315,10 +317,8 @@ export async function applySkin(skinData) {
         if (tex && tex.source) {
           tex.source.autoGenerateMipmaps = false;
           tex.source.scaleMode = 'linear';
-          // revoke after valid / GPU upload to avoid leaking 60+ blob URLs per skin
           const doRevoke = () => { try { URL.revokeObjectURL(url); } catch {} };
           if (tex.valid) {
-            // already uploaded — revoke on next tick to ensure GPU upload done
             if (tex.source.once) tex.source.once("update", doRevoke);
             setTimeout(doRevoke, 500);
           } else {
@@ -327,7 +327,6 @@ export async function applySkin(skinData) {
             setTimeout(() => { if (tex.valid) doRevoke(); }, 2000);
           }
         }
-        // destroy old texture without destroying shared source (prevents GPU leak)
         const old = window.Skin?.[key];
         if (old && old !== tex && old !== PIXI.Texture.WHITE && typeof old.destroy === "function") {
           try { old.destroy(false); } catch {}
@@ -336,6 +335,10 @@ export async function applySkin(skinData) {
       } catch (e) {
         cwarn("skin-loader", "texture apply failed:", key, e);
       }
+    };
+    for (let i = 0; i < keys.length; i += CONCURRENCY) {
+      const chunk = keys.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(loadOne));
     }
     clog("skin-loader", "queued", keys.length, "textures");
   }
