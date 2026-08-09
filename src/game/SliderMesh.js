@@ -66,7 +66,7 @@ var Container = PIXI.Container;
          for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
          g.stroke({ width: w-1, color: col, alpha: 1, cap: "round", join: "round" });
       }
-      get geometry() { return this._g.geometry; }
+      get geometry() { return this._g.geometry || this._g || { dummy: true }; }
       set geometry(v) {}
       destroy(options) { super.destroy(options); if (this._g) this._g.destroy(options); }
    }

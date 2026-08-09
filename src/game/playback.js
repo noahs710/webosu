@@ -634,7 +634,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       this.createBackground = function () {
          function loadBackground(uri) {
             glog("playback", "loadBackground", uri.slice(0, 60));
-            const bgTexture = PIXI.Texture.from(uri); (async () => {
+            let bgTexture = PIXI.Texture.from(uri); (async () => {
                let sprite = new PIXI.Sprite(bgTexture);
                   if (self.game.backgroundBlurRate > 0.0001) {
                      let width = bgTexture.width || window.innerWidth;
@@ -649,12 +649,17 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                      blurFilter.autoFit = false;
                      sprite.filters = [blurFilter];
                   }
-                  if (!bgTexture.valid) {
+                  if (bgTexture && !bgTexture.valid) {
                      try {
                         const src = bgTexture.source || bgTexture.baseTexture?.source || bgTexture.baseTexture;
                         if (src && src.resource && src.resource.load) await src.resource.load();
                         else if (bgTexture.baseTexture && bgTexture.baseTexture.resource && bgTexture.baseTexture.resource.load) await bgTexture.baseTexture.resource.load();
                      } catch (_) {}
+                  }
+                  if (!bgTexture || !bgTexture.valid) {
+                     gerror("playback", "bgTexture invalid after load, using default");
+                     bgTexture = PIXI.Texture.WHITE;
+                     sprite.texture = bgTexture;
                   }
                   let w = bgTexture.width || 1920, h = bgTexture.height || 1080;
                   let texture = PIXI.RenderTexture.create({ width: w, height: h });
@@ -849,15 +854,16 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          hit.lastrep = 0; // for current-repeat counting
          hit.nexttick = 0; // for tick hit counting
 
-         // create slider body — with fallback if SliderMesh fails
+         // create slider body — Graphics-based SliderMesh is now the primary (no GL shader)
          let body;
          try {
             if (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2) throw new Error("invalid curve");
             body = new SliderMesh(hit.curve, this.circleRadius, hit.combo % combos.length);
-            if (!body || !body.geometry) throw new Error("SliderMesh geometry missing");
+            // ponytail: geometry check is legacy GL; Graphics always has geometry after first draw, so skip
             gdebug("playback", "slider body created", hit.hitIndex, "combo", hit.combo, "pts", hit.curve.curve.length, "len", hit.pixelLength);
          } catch (e) {
-            gerror("playback", "SliderMesh creation failed, using Graphics fallback", e, hit);
+            // only log at debug to avoid flooding (was gerror per-slider → hundreds of logs)
+            gdebug("playback", "SliderMesh fallback", e.message, hit.hitIndex);
             body = new PIXI.Graphics();
             try {
                const col = combos[hit.combo % combos.length] || 0xffffff;
