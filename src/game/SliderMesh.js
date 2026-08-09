@@ -52,11 +52,14 @@ import { log, warn } from "./logger.js";
       _draw() {
          const g = this._g;
          g.clear();
-         const col = this._override ?? (this._colors ? this._colors[this.tintid % this._colors.length] : 0xffffff);
+         const hasColors = this._colors && this._colors.length > 0;
+         const col = this._override ?? (hasColors ? this._colors[this.tintid % this._colors.length] : 0xffffff);
+         const finalCol = (col == null || col === undefined) ? 0xffffff : col;
          const brd = this._border ?? 0xffffff;
-         const borderCol = this._borderCol ?? brd;
-         const w = this._radius * 2;
-         const pts = this.curve.curve;
+         const borderCol = (this._borderCol != null ? this._borderCol : brd) ?? 0xffffff;
+         const w = (this._radius || 20) * 2;
+         const pts = this.curve && this.curve.curve ? this.curve.curve : null;
+         if (!pts || pts.length < 2) return;
          const t0 = this._startt, t1 = this._endt;
          let i0 = 0, i1 = pts.length - 1;
          for (let i=0;i<pts.length;i++) if (pts[i].t < t0) i0=i;
@@ -68,7 +71,8 @@ import { log, warn } from "./logger.js";
          g.stroke({ width: w + 6, color: borderCol, alpha: 0.95, cap: "round", join: "round" });
          g.moveTo(pts[i0].x, pts[i0].y);
          for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
-         g.stroke({ width: w, color: col, alpha: 0.9, cap: "round", join: "round" });
+         g.stroke({ width: w, color: finalCol, alpha: 0.9, cap: "round", join: "round" });
+         this._g.visible = true;
       }
       get geometry() { return { dummy: true }; }
       set geometry(v) {}
