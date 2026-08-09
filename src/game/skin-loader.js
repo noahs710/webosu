@@ -24,6 +24,7 @@ const OSK_NAME_MAP = {
 
 // Textures that exist in .osk skins but NOT in the default webosu spritesheet.
 // These are loaded as new PIXI textures and added to window.Skin dynamically.
+// Keep this list minimal for gameplay — alphabet is handled generically on demand, not prelisted.
 const OSK_EXTRA_TEXTURES = [
   "hit0.png", "hit50.png", "hit100.png", "hit300.png", "hit300g.png",
   "hit300k.png", "hit100k.png", "hit50k.png",
@@ -32,16 +33,11 @@ const OSK_EXTRA_TEXTURES = [
   "followpoint-0.png", "followpoint-1.png", "followpoint-2.png",
   "followpoint-3.png", "followpoint-4.png", "followpoint-5.png",
   "followpoint-6.png", "followpoint-7.png", "followpoint-8.png", "followpoint-9.png",
-  "comboburst.png", "lighting.png", "playfield.png", "star.png",
+  "comboburst.png", "lighting.png", "playfield.png", "star.png", "star2.png",
   "scorebar-bg.png", "scorebar-colour.png", "scorebar-ki.png", "scorebar-kidanger.png", "scorebar-kidanger2.png",
   "spinner-approachcircle.png", "spinner-background.png", "spinner-clear.png", "spinner-warning.png", "spinner-glow.png", "spinner-rpm.png",
   "ring-glow.png", "hitcircleoverlay.png", "approachcircle.png",
   "sliderscorepoint.png", "sliderfollowcircle.png", "reversearrow.png",
-  // alphabet for score/default prefixes — loaded generically but listed for @2x detection
-  "score-a.png", "score-b.png", "score-c.png", "score-d.png", "score-e.png", "score-f.png", "score-g.png", "score-h.png", "score-i.png", "score-j.png", "score-k.png", "score-l.png", "score-m.png", "score-n.png", "score-o.png", "score-p.png", "score-q.png", "score-r.png", "score-s.png", "score-t.png", "score-u.png", "score-v.png", "score-w.png", "score-x.png", "score-y.png", "score-z.png",
-  "score-comma.png", "score-dot.png", "score-percent.png",
-  "a.png", "b.png", "c.png", "d.png", "e.png", "f.png", "g.png", "h.png", "i.png", "j.png", "k.png", "l.png", "m.png", "n.png", "o.png", "p.png", "q.png", "r.png", "s.png", "t.png", "u.png", "v.png", "w.png", "x.png", "y.png", "z.png",
-  "comma.png", "dot.png", "percent.png",
 ];
 
 // Hitsound canonical names (without extension) → game.sample mapping
@@ -164,26 +160,32 @@ function pickBestResolution(files, name) {
 
 // ── Gameplay-relevant texture filter — prevents OUT_OF_MEMORY from loading 800+ menu/ranking images
 function isGameplayTexture(name) {
-  // Keep only textures actually used during gameplay; skip menu/ranking/selection etc.
-  // Whitelist: hitcircle/slider/cursor/followpoint/score/default/hit judgements/hpbar/spinner/etc.
   const n = name.toLowerCase();
-  if (n.startsWith("hit") || n.startsWith("default-") || n.startsWith("score") || n.startsWith("numbers-") || n.startsWith("combos-")) return true;
-  if (n.startsWith("cursor") || n.startsWith("followpoint") || n.startsWith("slider") || n.startsWith("approachcircle") || n.startsWith("hitcircle")) return true;
-  if (n === "disc.png" || n === "hitcircleoverlay.png" || n === "ring-glow.png" || n === "hitburst.png") return true;
-  if (n.startsWith("sliderscorepoint") || n.startsWith("sliderfollowcircle") || n.startsWith("reversearrow") || n.startsWith("sliderendcircle")) return true;
-  if (n.startsWith("hpbar") || n.startsWith("scorebar") || n.startsWith("errormeter") || n.startsWith("spinner") || n.startsWith("bar") || n.startsWith("dot.png") || n.startsWith("percent") || n.startsWith("a.png") || n.startsWith("0.png")) return true;
-  if (["cursor.png","cursortrail.png","cursormiddle.png","cursor-smoke.png","followpoint.png","approachcircle.png","disc.png","hitcircleoverlay.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","hitburst.png","hitcircle.png","sliderb0.png"].includes(n)) return true;
-  if (n.startsWith("a.png") || n.startsWith("b.png") || n.match(/^[0-9]\.png$/)) return true;
-  // for skin.ini prefixes, allow any score-*/default-* that are single char or digit
-  if (n.match(/^(score|default)-[a-z0-9]\.png$/)) return true;
-  if (n.match(/^(score|default)-(dot|comma|percent|x)\.png$/)) return true;
+  // block menu/ranking/selection/fail/pause etc. immediately (huge, not gameplay)
+  if (n.startsWith("menu-") || n.startsWith("ranking-") || n.startsWith("selection-") || n.startsWith("fail-") || n.startsWith("pause-") || n.startsWith("play-") || n.startsWith("mode-") || n.startsWith("welcome") || n.startsWith("inputoverlay") || n.includes("background") || n.includes("ranking") || n.includes("menu-")) return false;
+  // whitelist: only gameplay essentials
+  if (n.startsWith("hit") && n.match(/^hit(0|50|100|300)[k]?\.png$/)) return true; // only base hit judgements, not hit0-0.png variants
+  if (n.match(/^default-[0-9]\.png$/)) return true;
+  if (n.match(/^default-(dot|comma|percent|x)\.png$/)) return true;
+  if (n.match(/^score-[0-9]\.png$/)) return true;
+  if (n.match(/^score-(dot|comma|percent|x)\.png$/)) return true;
+  if (n.startsWith("cursor") || n.startsWith("followpoint") || n.startsWith("slider") || n.startsWith("approachcircle") || n.startsWith("hitcircle")) {
+     // for followpoint, only 0-9
+     if (n.match(/^followpoint-\d+\.png$/)) {
+        const idx = parseInt(n.match(/followpoint-(\d+)\.png/)[1], 10);
+        return idx >=0 && idx <=9;
+     }
+     // for sliderb, only base and 0
+     if (n.match(/^sliderb\d*\.png$/)) return true;
+     return true;
+  }
+  if (["disc.png","hitcircleoverlay.png","ring-glow.png","hitburst.png","followpoint.png","approachcircle.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","sliderendcircle.png","sliderendcircleoverlay.png","cursortrail.png","cursormiddle.png","cursor.png","cursor-smoke.png","dot.png","percent.png","score-x.png","score-dot.png","score-percent.png","0.png","1.png","2.png","3.png","4.png","5.png","6.png","7.png","8.png","9.png","hit0.png","hit50.png","hit100.png","hit300.png","hit300g.png","scorebar-bg.png","scorebar-colour.png","errormeterbar.png","errormeterindicator.png","spinnerbase.png","spinnerprogress.png","spinnertop.png","bar.png","barend.png","comboburst.png","lighting.png","star.png","star2.png","playfield.png"].includes(n)) return true;
   if (OSK_EXTRA_TEXTURES.includes(name) || OSK_NAME_MAP[name]) return true;
-  if (["lighting.png","star.png","comboburst.png","star2.png"].includes(n)) return true;
-  // block menu/ranking/selection/fail-background etc. (huge, not gameplay)
-  if (n.startsWith("menu-") || n.startsWith("ranking-") || n.startsWith("selection-") || n.startsWith("fail-") || n.startsWith("pause-") || n.startsWith("play-") || n.startsWith("mode-") || n.startsWith("welcome") || n.startsWith("star.png") || n.startsWith("inputoverlay")) return false;
-  // default: allow direct spritesheet keys (approachcircle, etc.) but block obvious menu images
-  if (n.includes("background") || n.includes("ranking") || n.includes("menu-")) return false;
-  return true;
+  // numbers/combos prefixes for WhiteCat — only digits, not letters (letters not needed for gameplay numbers)
+  if (n.match(/^(numbers|combos)-[0-9]\.png$/)) return true;
+  if (n.match(/^(numbers|combos)-(dot|comma|percent|x)\.png$/)) return true;
+  // default: block everything else (including score-a-z, ranking, etc.)
+  return false;
 }
 
 // ── Extract and load a .osk file ──
@@ -267,42 +269,39 @@ export async function loadOsk(file) {
 export function applySkin(skinData) {
   if (!skinData) return;
 
-  // Apply textures — load images properly before GPU upload to avoid OUT_OF_MEMORY
+  // Apply textures — use Assets cache properly to avoid OUT_OF_MEMORY and bad image data
   if (skinData.textures && window.Skin) {
     const keys = Object.keys(skinData.textures);
     clog("skin-loader", "applying", keys.length, "textures (capped)");
-    let queued = 0;
     for (const key of keys) {
       try {
         const url = skinData.textures[key].url;
-        const img = new Image();
-        // Use decode async and wait for load event before creating texture to ensure image data is valid
-        img.decoding = "async";
-        img.src = url;
-        // Create texture from image element - PIXI will handle the load event and upload when ready
-        // Use source API for Pixi v8
+        // Use PIXI.Assets to properly cache and handle blob URLs for Pixi v8
+        // This avoids "Asset id blob:... not found" and ensures image is decoded before GPU upload
         let tex;
         try {
-          tex = PIXI.Texture.from(img);
+          // Try to get from cache first
+          if (PIXI.Assets && PIXI.Assets.cache && PIXI.Assets.cache.has(url)) {
+            tex = PIXI.Assets.cache.get(url);
+          } else {
+            tex = PIXI.Texture.from(url);
+            // Prime cache to avoid warning on subsequent gets
+            try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, tex); } catch (_) {}
+          }
         } catch (e) {
           tex = PIXI.Texture.from(url);
         }
-        // Also cache for Assets.get to silence warning
-        try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, tex); } catch (_) {}
-        // Handle image load errors gracefully
-        img.onerror = () => cwarn("skin-loader", "image load failed", key, url.slice(0,50));
-        window.Skin[key] = tex;
-        queued++;
-        // throttle to avoid flooding GPU with 100+ textures at once - stagger creation
-        if (queued % 30 === 0) {
-          // allow event loop to breathe
-          // eslint-disable-next-line no-await-in-loop
+        // Fix Pixi v8 deprecation: ensure source is used, not baseTexture
+        if (tex && tex.source) {
+          tex.source.autoGenerateMipmaps = false;
+          tex.source.scaleMode = 'linear';
         }
+        window.Skin[key] = tex;
       } catch (e) {
         cwarn("skin-loader", "texture apply failed:", key, e);
       }
     }
-    clog("skin-loader", "queued", queued, "textures for GPU upload (lazy, on first use)");
+    clog("skin-loader", "queued", keys.length, "textures (Pixi will upload on first use)");
   }
 
   // Apply hitsounds to game.sample
