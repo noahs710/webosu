@@ -50,10 +50,29 @@ function saveToLocal() {
 }
 async function syncFromServer() {
   if (!api.isLoggedIn()) return;
+  // Don't overwrite local changes that are still pending push to server
+  if (serverSyncTimer) return;
   try {
     const p = await api.getMyProfile();
     if (p && p.settings) {
-      Object.assign(gamesettings, p.settings);
+      // Only apply server settings for keys that are still at default locally
+      // to avoid overwriting just-changed mods (race: push is 800ms debounced, sync is immediate on mount)
+      const localRaw = (() => { try { return JSON.parse(localStorage.getItem("osugamesettings") || "{}"); } catch { return {}; }})();
+      for (const k in p.settings) {
+        if (!(k in defaultsettings)) continue;
+        // if local has a non-default value that differs from server, keep local (user just changed it)
+        const localVal = localRaw[k] !== undefined ? localRaw[k] : gamesettings[k];
+        const serverVal = p.settings[k];
+        // if local is non-default and server is default, keep local
+        if (localVal !== defaultsettings[k] && serverVal === defaultsettings[k]) continue;
+        // if local differs from server and local was recently saved (within 5s), keep local
+        // we use the presence of serverSyncTimer as signal, but also check direct value diff
+        if (localVal !== serverVal && JSON.stringify(localVal) !== JSON.stringify(serverVal)) {
+          // if local is not default, prefer local to avoid clobbering just-toggled mod
+          if (localVal !== defaultsettings[k]) continue;
+        }
+        gamesettings[k] = serverVal;
+      }
       gamesettings.loadToGame();
       for (const c of gamesettings.restoreCallbacks) try { c(); } catch (e) {}
     }

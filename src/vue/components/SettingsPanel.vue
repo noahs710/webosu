@@ -54,7 +54,21 @@ function captureKey(ev, key) {
 }
 
 onMounted(() => {
-  if (gamesettings.syncFromServer) gamesettings.syncFromServer().then(() => { gs.value = { ...gamesettings }; }).catch(() => {});
+  // Sync from server only once per session and only if local is still at defaults
+  // to avoid overwriting just-toggled mods (push is 800ms debounced, sync is immediate)
+  const hasLocalChanges = (() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem("osugamesettings") || "{}");
+      return Object.keys(raw).some(k => k in defaultsettings && JSON.stringify(raw[k]) !== JSON.stringify(defaultsettings[k]));
+    } catch { return false; }
+  })();
+  if (!hasLocalChanges && gamesettings.syncFromServer) {
+    gamesettings.syncFromServer().then(() => { gs.value = { ...gamesettings }; }).catch(() => {});
+  } else {
+    // ensure UI reflects current local settings (already loaded via loadFromLocal)
+    gs.value = { ...gamesettings };
+    if (window.game) gamesettings.loadToGame();
+  }
 });
 </script>
 
