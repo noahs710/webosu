@@ -61,16 +61,26 @@ export async function launchOSU(osu, beatmapid, version) {
       // last so it renders above the trail.
       game.cursorLayer = new PIXI.Container();
       game.stage.addChild(game.cursorLayer);
+      const cursorCentre = !(window.game && window.game.skinConfig && window.game.skinConfig.cursorCentre === false);
+      const anchorVal = cursorCentre ? 0.5 : 0;
       game.cursor = new PIXI.Sprite(Skin["cursor.png"]);
-      game.cursor.anchor.x = game.cursor.anchor.y = 0.5;
+      game.cursor.anchor.x = game.cursor.anchor.y = anchorVal;
       var effectiveCursorSize = (window.game && window.game.skinCursorSize) ? window.game.skinCursorSize : game.cursorSize;
       game.cursor.scale.x = game.cursor.scale.y = 0.3 * effectiveCursorSize;
+      // cursormiddle is an optional inner dot from skin (if present, rendered on top of cursor)
+      if (Skin["cursormiddle.png"]) {
+         game.cursorMiddle = new PIXI.Sprite(Skin["cursormiddle.png"]);
+         game.cursorMiddle.anchor.set(anchorVal);
+         game.cursorMiddle.scale.set(0.15 * effectiveCursorSize);
+      }
+      // store for anchor handling in trail
+      game._cursorAnchor = anchorVal;
       // cursor trail: a ring buffer of recent positions fading behind the cursor
       game.cursorTrail = [];
       for (let i = 0; i < 8; i++) {
          let trailTex = (Skin["cursortrail.png"]) ? Skin["cursortrail.png"] : Skin["cursor.png"];
          let t = new PIXI.Sprite(trailTex);
-         t.anchor.x = t.anchor.y = 0.5;
+         t.anchor.x = t.anchor.y = anchorVal;
          t.scale.x = t.scale.y = 0.3 * effectiveCursorSize;
          t.alpha = 0;
          game.cursorLayer.addChild(t);
@@ -82,6 +92,7 @@ export async function launchOSU(osu, beatmapid, version) {
       }
       game.cursorTrailHead = 0;
       game.cursorLayer.addChild(game.cursor);
+      if (game.cursorMiddle) game.cursorLayer.addChild(game.cursorMiddle);
    }
 
    // switch page to game view
@@ -214,6 +225,11 @@ export async function launchOSU(osu, beatmapid, version) {
          // Handle cursor
          game.cursor.x = (game.mouseX / 512) * gfx.width + gfx.xoffset;
          game.cursor.y = (game.mouseY / 384) * gfx.height + gfx.yoffset;
+         if (game.cursorMiddle) {
+            game.cursorMiddle.x = game.cursor.x;
+            game.cursorMiddle.y = game.cursor.y;
+            if (window.game && window.game.skinCursorRotate) game.cursorMiddle.rotation += 0.02;
+         }
          // CursorRotate: spin cursor if skin.ini says so
          if (window.game && window.game.skinCursorRotate) {
             game.cursor.rotation += 0.02;
@@ -223,6 +239,10 @@ export async function launchOSU(osu, beatmapid, version) {
             var targetScale = (game.mouseDown ? 1.3 : 1.0) * 0.3 * effectiveCursorSize;
             game.cursor.scale.x += (targetScale - game.cursor.scale.x) * 0.3;
             game.cursor.scale.y = game.cursor.scale.x;
+            if (game.cursorMiddle) {
+               var midScale = 0.15 * effectiveCursorSize * (game.mouseDown ? 1.3 : 1.0);
+               game.cursorMiddle.scale.set(midScale);
+            }
          }
          // cursor trail: write the newest position, fade the rest by age
          if (game.cursorTrail) {

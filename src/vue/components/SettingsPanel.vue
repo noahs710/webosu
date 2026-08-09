@@ -9,10 +9,10 @@ const SLIDERS = [
   ["mastervolume", "Master volume", 0, 100, 1, "%"], ["effectvolume", "Effect volume", 0, 100, 1, "%"],
   ["musicvolume", "Music volume", 0, 100, 1, "%"], ["audiooffset", "Audio offset", -200, 200, 1, "ms"],
 ];
-const DISPLAY_TOGGLES = ["hideNumbers","hideGreat","hideFollowPoints","snakein","snakeout","showhwmouse","autofullscreen","sysdpi"];
+const DISPLAY_TOGGLES = ["hideNumbers","hideGreat","hideFollowPoints","snakein","snakeout","showhwmouse","autofullscreen","sysdpi","disableVideo"];
 const MOD_TOGGLES = ["easy","hardrock","nightcore","daycore","hidden","nofail","suddendeath","perfect","spunout","classic","difficultyAdjust"];
 const KEYS = [["K1name","K1"],["K2name","K2"],["Kpausename","Pause"],["Kpause2name","Pause 2"],["Kskipname","Skip"]];
-const TOGGLE_LABELS = { easy:"Easy", hardrock:"Hard Rock", nightcore:"Nightcore", daycore:"Daycore", hidden:"Hidden", nofail:"No Fail", suddendeath:"Sudden Death", perfect:"Perfect", spunout:"Spun Out", classic:"Classic", difficultyAdjust:"Difficulty Adjust", hideNumbers:"Hide numbers", hideGreat:"Hide 300s", hideFollowPoints:"Hide follow points", snakein:"Snake-in", snakeout:"Snake-out", showhwmouse:"Hardware cursor", autofullscreen:"Auto fullscreen", sysdpi:"Use system resolution", beatmapHitsound:"Beatmap hitsounds" };
+const TOGGLE_LABELS = { easy:"Easy", hardrock:"Hard Rock", nightcore:"Nightcore", daycore:"Daycore", hidden:"Hidden", nofail:"No Fail", suddendeath:"Sudden Death", perfect:"Perfect", spunout:"Spun Out", classic:"Classic", difficultyAdjust:"Difficulty Adjust", hideNumbers:"Hide numbers", hideGreat:"Hide 300s", hideFollowPoints:"Hide follow points", snakein:"Snake-in", snakeout:"Snake-out", showhwmouse:"Hardware cursor", autofullscreen:"Auto fullscreen", sysdpi:"Use system resolution", beatmapHitsound:"Beatmap hitsounds", disableVideo:"Disable video (force no-video beatmap)" };
 
 const gs = ref(gamesettings);
 const skinStatus = ref("");

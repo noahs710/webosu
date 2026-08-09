@@ -122,10 +122,20 @@
       this.accuracyDigits = this.newSpriteArray(7, 0.2, 0xddffff); // 100.00%
 
       this.HPbar = this.newSpriteArray(3, 0.5);
-      this.HPbar[0].texture = Skin["hpbarleft.png"];
-      this.HPbar[1].texture = Skin["hpbarright.png"];
-      this.HPbar[2].texture = Skin["hpbarmid.png"];
-      this.HPbar[0].anchor.x = 1;
+      // Prefer scorebar-* if skin provides it (osu! skins use scorebar-bg/colour), otherwise hpbar
+      if (Skin["scorebar-bg.png"] && Skin["scorebar-colour.png"]) {
+         this.HPbar[0].texture = Skin["scorebar-bg.png"];
+         this.HPbar[1].texture = Skin["scorebar-bg.png"];
+         this.HPbar[2].texture = Skin["scorebar-colour.png"];
+         this.HPbar[0].anchor.x = 0;
+         this._useScorebar = true;
+      } else {
+         this.HPbar[0].texture = Skin["hpbarleft.png"];
+         this.HPbar[1].texture = Skin["hpbarright.png"];
+         this.HPbar[2].texture = Skin["hpbarmid.png"];
+         this.HPbar[0].anchor.x = 1;
+         this._useScorebar = false;
+      }
       this.HPbar[0].scale.x = this.field.width / 500;
       this.HPbar[1].scale.x = this.field.width / 500;
       this.HPbar[0].y = -7 * this.scaleMul;
@@ -243,6 +253,8 @@
          let width = 0;
          if (str.length > arr.length) console.error("displaying string failed");
          let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.scorePrefix) || "score";
+         const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.scoreOverlap) || 0;
+         const effSpacing = this.charspacing - overlap;
          for (let i = 0; i < str.length; ++i) {
             let ch = str[i];
             if (ch == "%") ch = "percent";
@@ -252,7 +264,7 @@
             if (!window.Skin || !window.Skin[textname]) textname = (window.Skin && window.Skin[ch + ".png"]) ? ch + ".png" : "score-" + ch + ".png";
             arr[i].texture = Skin[textname];
             arr[i].knownwidth =
-               arr[i].scale.x * (Skin[textname].width + this.charspacing);
+               arr[i].scale.x * (Skin[textname].width + effSpacing);
             arr[i].visible = true;
             width += arr[i].knownwidth;
          }
@@ -266,8 +278,10 @@
       this.setSpriteArrayPos = function (arr, x, y) {
          let curx = x;
          if (arr.useLength <= 0) throw "wtf!";
+         const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.scoreOverlap) || 0;
+         const effSpacing = this.charspacing - overlap;
          for (let i = 0; i < arr.useLength; ++i) {
-            arr[i].x = curx + (arr[i].scale.x * this.charspacing) / 2;
+            arr[i].x = curx + (arr[i].scale.x * effSpacing) / 2;
             arr[i].y = y;
             curx += arr[i].knownwidth;
          }
@@ -295,10 +309,18 @@
             }
             this.HP4display.set(time, Math.max(0, this.HP));
          }
-         let HPpos = this.HP4display.valueAt(time) * this.field.width;
-         this.HPbar[0].x = HPpos;
-         this.HPbar[1].x = HPpos;
-         this.HPbar[2].x = HPpos;
+         let hp = this.HP4display.valueAt(time);
+         if (this._useScorebar) {
+            // scorebar: bg full width, colour width = hp * width
+            this.HPbar[0].x = 0; this.HPbar[0].width = this.field.width; this.HPbar[0].scale.x = this.field.width / this.HPbar[0].texture.width;
+            this.HPbar[1].x = 0; this.HPbar[1].width = this.field.width;
+            this.HPbar[2].x = 0; this.HPbar[2].width = Math.max(0, hp) * this.field.width; this.HPbar[2].scale.x = (Math.max(0, hp) * this.field.width) / this.HPbar[2].texture.width;
+         } else {
+            let HPpos = hp * this.field.width;
+            this.HPbar[0].x = HPpos;
+            this.HPbar[1].x = HPpos;
+            this.HPbar[2].x = HPpos;
+         }
 
          this.setSpriteArrayText(
             this.scoreDigits,

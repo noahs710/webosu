@@ -30,7 +30,11 @@ const app = createApp({
         const { setId, beatmapId, version } = e.detail;
         try {
           await ensureGame();
-          const r = await fetch("https://catboy.best/d/" + setId + "n");
+          const noVideo = window.gamesettings && window.gamesettings.disableVideo;
+          const suffix = noVideo ? "n" : "";
+          console.log("[app] launch beatmap", { setId, beatmapId, version, noVideo, url: "https://catboy.best/d/" + setId + suffix });
+          const r = await fetch("https://catboy.best/d/" + setId + suffix);
+          if (!r.ok) throw new Error("download " + r.status);
           window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version);
         } catch (err) { console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
       });
@@ -46,7 +50,9 @@ const app = createApp({
               .then((r) => r.json())
               .then((frames) => {
                 if (!Array.isArray(frames) || !frames.length) { alert("Replay unavailable for this score."); return; }
-                return fetch("https://catboy.best/d/" + q.get("sid") + "n")
+                const noVideo = window.gamesettings && window.gamesettings.disableVideo;
+                const suffix = noVideo ? "n" : "";
+                return fetch("https://catboy.best/d/" + q.get("sid") + suffix)
                   .then((r) => r.arrayBuffer())
                   .then((ab) => { window.launchReplay(new Blob([ab]), parseInt(q.get("bid") || "0"), q.get("v") || "", frames); });
               })

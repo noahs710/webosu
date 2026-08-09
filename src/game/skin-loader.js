@@ -27,12 +27,21 @@ const OSK_NAME_MAP = {
 const OSK_EXTRA_TEXTURES = [
   "hit0.png", "hit50.png", "hit100.png", "hit300.png", "hit300g.png",
   "hit300k.png", "hit100k.png", "hit50k.png",
-  "cursortrail.png", "cursormiddle.png",
+  "cursortrail.png", "cursormiddle.png", "cursor-smoke.png",
   "sliderendcircle.png", "sliderendcircleoverlay.png",
   "followpoint-0.png", "followpoint-1.png", "followpoint-2.png",
   "followpoint-3.png", "followpoint-4.png", "followpoint-5.png",
   "followpoint-6.png", "followpoint-7.png", "followpoint-8.png", "followpoint-9.png",
   "comboburst.png", "lighting.png", "playfield.png", "star.png",
+  "scorebar-bg.png", "scorebar-colour.png", "scorebar-ki.png", "scorebar-kidanger.png", "scorebar-kidanger2.png",
+  "spinner-approachcircle.png", "spinner-background.png", "spinner-clear.png", "spinner-warning.png", "spinner-glow.png", "spinner-rpm.png",
+  "ring-glow.png", "hitcircleoverlay.png", "approachcircle.png",
+  "sliderscorepoint.png", "sliderfollowcircle.png", "reversearrow.png",
+  // alphabet for score/default prefixes — loaded generically but listed for @2x detection
+  "score-a.png", "score-b.png", "score-c.png", "score-d.png", "score-e.png", "score-f.png", "score-g.png", "score-h.png", "score-i.png", "score-j.png", "score-k.png", "score-l.png", "score-m.png", "score-n.png", "score-o.png", "score-p.png", "score-q.png", "score-r.png", "score-s.png", "score-t.png", "score-u.png", "score-v.png", "score-w.png", "score-x.png", "score-y.png", "score-z.png",
+  "score-comma.png", "score-dot.png", "score-percent.png",
+  "a.png", "b.png", "c.png", "d.png", "e.png", "f.png", "g.png", "h.png", "i.png", "j.png", "k.png", "l.png", "m.png", "n.png", "o.png", "p.png", "q.png", "r.png", "s.png", "t.png", "u.png", "v.png", "w.png", "x.png", "y.png", "z.png",
+  "comma.png", "dot.png", "percent.png",
 ];
 
 // Hitsound canonical names (without extension) → game.sample mapping
@@ -122,8 +131,22 @@ export function parseSkinIni(iniText) {
 function resolveTextureName(osuName) {
   // Check direct mapping first
   if (OSK_NAME_MAP[osuName]) return OSK_NAME_MAP[osuName];
+  // Generic default-* mapping for alphabet/symbols: default-a.png -> a.png, etc
+  if (osuName.startsWith("default-") && osuName.endsWith(".png")) {
+    const base = osuName.slice(8); // strip "default-"
+    // digits and x/dot/percent already handled above, but handle generic letters
+    if (/^[a-z]-/.test(base) || /^[a-z]\.png$/.test(base) || /^[0-9]\.png$/.test(base) || base === "comma.png" || base === "dot.png" || base === "percent.png" || base === "x.png") {
+      // keep x/dot/percent as per map above for consistency, but for letters use a.png
+      if (OSK_NAME_MAP[osuName]) return OSK_NAME_MAP[osuName];
+      return base;
+    }
+    // fallback: store both original and stripped
+    return base;
+  }
   // Check if it's an extra texture (not in default spritesheet)
   if (OSK_EXTRA_TEXTURES.includes(osuName)) return osuName;
+  // Score prefix alphabet etc — keep as is (score-a.png etc)
+  if (osuName.startsWith("score-") && osuName.endsWith(".png")) return osuName;
   // Check if the name matches a default spritesheet key directly
   // (approachcircle.png, cursor.png, followpoint.png, etc.)
   return osuName;

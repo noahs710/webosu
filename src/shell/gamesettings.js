@@ -7,6 +7,7 @@ const defaultsettings = {
   dim: 60, blur: 0, cursorsize: 1.0, showhwmouse: false, snakein: true, snakeout: true,
   autofullscreen: false, sysdpi: true, dpiscale: 1.0,
   disableWheel: false, disableButton: false,
+  disableVideo: false,
   K1name: "Z", K2name: "X", Kpausename: "SPACE", Kpause2name: "ESC", Kskipname: "CTRL",
   K1keycode: 90, K2keycode: 88, Kpausekeycode: 32, Kpause2keycode: 27, Kskipkeycode: 17,
   mastervolume: 35, effectvolume: 100, musicvolume: 50, audiooffset: 0, beatmapHitsound: true,
@@ -70,6 +71,7 @@ gamesettings.loadToGame = function () {
   g.ESCkeycode = this.Kpausekeycode; g.ESC2keycode = this.Kpause2keycode; g.CTRLkeycode = this.Kskipkeycode;
   g.masterVolume = this.mastervolume / 100; g.effectVolume = this.effectvolume / 100; g.musicVolume = this.musicvolume / 100;
   g.beatmapHitsound = this.beatmapHitsound; g.globalOffset = parseFloat(this.audiooffset);
+  g.disableVideo = !!this.disableVideo;
   g.easy = this.easy; g.daycore = this.daycore; g.hardrock = this.hardrock; g.nightcore = this.nightcore;
   g.hidden = this.hidden; g.autoplay = this.autoplay;
   g.nofail = this.nofail; g.suddendeath = this.suddendeath; g.perfect = this.perfect; g.spunout = this.spunout;
