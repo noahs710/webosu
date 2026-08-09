@@ -632,38 +632,54 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       };
 
       this.createBackground = function () {
-         function loadBackground(uri) {
+         async function loadBackground(uri) {
             glog("playback", "loadBackground", uri.slice(0, 60));
-            let bgTexture = PIXI.Texture.from(uri); (async () => {
-               let sprite = new PIXI.Sprite(bgTexture);
-                  if (self.game.backgroundBlurRate > 0.0001) {
-                     let width = bgTexture.width || window.innerWidth;
-                     let height = bgTexture.height || window.innerHeight;
-                     sprite.anchor.set(0.5);
-                     sprite.x = width / 2;
-                     sprite.y = height / 2;
-                     let blurstrength = self.game.backgroundBlurRate * Math.min(width, height);
-                     let t = Math.max(Math.min(width, height), Math.max(10, blurstrength) * 3);
-                     sprite.scale.set(t / (t - 2 * Math.max(10, blurstrength)));
-                     let blurFilter = new PIXI.BlurFilter(blurstrength, 14);
-                     blurFilter.autoFit = false;
-                     sprite.filters = [blurFilter];
-                  }
-                  if (bgTexture && !bgTexture.valid) {
-                     try {
-                        const src = bgTexture.source || bgTexture.baseTexture?.source || bgTexture.baseTexture;
-                        if (src && src.resource && src.resource.load) await src.resource.load();
-                        else if (bgTexture.baseTexture && bgTexture.baseTexture.resource && bgTexture.baseTexture.resource.load) await bgTexture.baseTexture.resource.load();
-                     } catch (_) {}
-                  }
-                  if (!bgTexture || !bgTexture.valid) {
-                     gerror("playback", "bgTexture invalid after load, using default");
-                     bgTexture = PIXI.Texture.WHITE;
-                     sprite.texture = bgTexture;
-                  }
-                  let w = bgTexture.width || 1920, h = bgTexture.height || 1080;
-                  let texture = PIXI.RenderTexture.create({ width: w, height: h });
-                  try { window.app.renderer.render(sprite, texture); } catch (e) { gerror("playback", "background render failed", e); texture = bgTexture; sprite = new PIXI.Sprite(texture); }
+            let bgTexture;
+            try {
+               // Use Assets.load for blob URLs to avoid "[Assets] not found in Cache" warning and ensure valid texture
+               bgTexture = await PIXI.Assets.load(uri);
+               // Assets.load for blob returns a Texture directly
+               if (!bgTexture || !bgTexture.valid) bgTexture = PIXI.Texture.from(uri);
+            } catch (e) {
+               gdebug("playback", "Assets.load failed, fallback to Texture.from", e.message);
+               bgTexture = PIXI.Texture.from(uri);
+            }
+            // Ensure texture is valid before use
+            if (!bgTexture || !bgTexture.valid) {
+               try {
+                  const src = bgTexture?.source;
+                  if (src && src.resource && src.resource.load) await src.resource.load();
+               } catch (_) {}
+            }
+            if (!bgTexture || !bgTexture.valid) {
+               gwarn("playback", "bgTexture invalid, using default");
+               bgTexture = PIXI.Texture.WHITE;
+            }
+            let sprite = new PIXI.Sprite(bgTexture);
+            if (self.game.backgroundBlurRate > 0.0001) {
+               let width = bgTexture.width || window.innerWidth;
+               let height = bgTexture.height || window.innerHeight;
+               sprite.anchor.set(0.5);
+               sprite.x = width / 2;
+               sprite.y = height / 2;
+               let blurstrength = self.game.backgroundBlurRate * Math.min(width, height);
+               let t = Math.max(Math.min(width, height), Math.max(10, blurstrength) * 3);
+               sprite.scale.set(t / (t - 2 * Math.max(10, blurstrength)));
+               let blurFilter = new PIXI.BlurFilter(blurstrength, 14);
+               blurFilter.autoFit = false;
+               sprite.filters = [blurFilter];
+            }
+            // Pixi v8: render with options object, not (sprite, texture) second arg deprecated
+            let w = bgTexture.width || 1920, h = bgTexture.height || 1080;
+            let texture = PIXI.RenderTexture.create({ width: w, height: h });
+            try {
+               // v8 API: render({ container, target })
+               if (window.app.renderer.render.length === 1) {
+                  await window.app.renderer.render({ container: sprite, target: texture });
+               } else {
+                  window.app.renderer.render(sprite, texture);
+               }
+            } catch (e) { gerror("playback", "background render failed", e); texture = bgTexture; sprite = new PIXI.Sprite(texture); }
                   self.background = new PIXI.Sprite(texture);
                   self.background.anchor.set(0.5);
                   self.background.x = window.innerWidth / 2;
@@ -672,8 +688,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                   self.background.alpha = 0;
                   self.game.stage.addChildAt(self.background, 0);
                   glog("playback", "background added");
-               })();
-         }
+          }
          if (self.track.events.length != 0) {
             // Use first non-video background image; skip Video events entirely for performance
             let bgFile = null;
