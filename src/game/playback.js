@@ -650,7 +650,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                      sprite.filters = [blurFilter];
                   }
                   if (!bgTexture.valid) {
-                     try { await bgTexture.source.resource.load?.(); } catch (_) {}
+                     try {
+                        const src = bgTexture.source || bgTexture.baseTexture?.source || bgTexture.baseTexture;
+                        if (src && src.resource && src.resource.load) await src.resource.load();
+                        else if (bgTexture.baseTexture && bgTexture.baseTexture.resource && bgTexture.baseTexture.resource.load) await bgTexture.baseTexture.resource.load();
+                     } catch (_) {}
                   }
                   let w = bgTexture.width || 1920, h = bgTexture.height || 1080;
                   let texture = PIXI.RenderTexture.create({ width: w, height: h });

@@ -162,6 +162,30 @@ function pickBestResolution(files, name) {
   return name;
 }
 
+// ── Gameplay-relevant texture filter — prevents OUT_OF_MEMORY from loading 800+ menu/ranking images
+function isGameplayTexture(name) {
+  // Keep only textures actually used during gameplay; skip menu/ranking/selection etc.
+  // Whitelist: hitcircle/slider/cursor/followpoint/score/default/hit judgements/hpbar/spinner/etc.
+  const n = name.toLowerCase();
+  if (n.startsWith("hit") || n.startsWith("default-") || n.startsWith("score") || n.startsWith("numbers-") || n.startsWith("combos-")) return true;
+  if (n.startsWith("cursor") || n.startsWith("followpoint") || n.startsWith("slider") || n.startsWith("approachcircle") || n.startsWith("hitcircle")) return true;
+  if (n === "disc.png" || n === "hitcircleoverlay.png" || n === "ring-glow.png" || n === "hitburst.png") return true;
+  if (n.startsWith("sliderscorepoint") || n.startsWith("sliderfollowcircle") || n.startsWith("reversearrow") || n.startsWith("sliderendcircle")) return true;
+  if (n.startsWith("hpbar") || n.startsWith("scorebar") || n.startsWith("errormeter") || n.startsWith("spinner") || n.startsWith("bar") || n.startsWith("dot.png") || n.startsWith("percent") || n.startsWith("a.png") || n.startsWith("0.png")) return true;
+  if (["cursor.png","cursortrail.png","cursormiddle.png","cursor-smoke.png","followpoint.png","approachcircle.png","disc.png","hitcircleoverlay.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","hitburst.png","hitcircle.png","sliderb0.png"].includes(n)) return true;
+  if (n.startsWith("a.png") || n.startsWith("b.png") || n.match(/^[0-9]\.png$/)) return true;
+  // for skin.ini prefixes, allow any score-*/default-* that are single char or digit
+  if (n.match(/^(score|default)-[a-z0-9]\.png$/)) return true;
+  if (n.match(/^(score|default)-(dot|comma|percent|x)\.png$/)) return true;
+  if (OSK_EXTRA_TEXTURES.includes(name) || OSK_NAME_MAP[name]) return true;
+  if (["lighting.png","star.png","comboburst.png","star2.png"].includes(n)) return true;
+  // block menu/ranking/selection/fail-background etc. (huge, not gameplay)
+  if (n.startsWith("menu-") || n.startsWith("ranking-") || n.startsWith("selection-") || n.startsWith("fail-") || n.startsWith("pause-") || n.startsWith("play-") || n.startsWith("mode-") || n.startsWith("welcome") || n.startsWith("star.png") || n.startsWith("inputoverlay")) return false;
+  // default: allow direct spritesheet keys (approachcircle, etc.) but block obvious menu images
+  if (n.includes("background") || n.includes("ranking") || n.includes("menu-")) return false;
+  return true;
+}
+
 // ── Extract and load a .osk file ──
 export async function loadOsk(file) {
   const ab = await file.arrayBuffer();
@@ -177,29 +201,50 @@ export async function loadOsk(file) {
     config = parseSkinIni(new TextDecoder().decode(files["skin.ini"]));
   }
 
-  // Load textures
+  // Load textures — only gameplay-relevant, capped to avoid OUT_OF_MEMORY (WhiteCat has 806)
   const textures = {};
   const usedFiles = new Set();
+  let loadedCount = 0;
+  const MAX_TEXTURES = 120; // gameplay needs ~60-80, cap to prevent GPU OOM
   for (const name in files) {
     if (!name.endsWith(".png")) continue;
-    // Skip @2x variants at the top level — they're picked per-texture
     if (name.includes("@2x")) continue;
+    // skip non-gameplay (menu/ranking) to save GPU memory
+    if (!isGameplayTexture(name)) continue;
+    // skip numbered hit variants like hit0-0.png (60 variants per hit) — only need base hit0.png
+    if (name.match(/^hit(0|50|100|300)[k]?-\d+\.png$/)) continue;
+    if (name.match(/^followpoint-\d+\.png$/)) {
+       const idx = parseInt(name.match(/followpoint-(\d+)\.png/)[1], 10);
+       if (idx > 9) continue; // only 0-9 needed for animation, skin has 0-60
+    }
+    if (loadedCount >= MAX_TEXTURES) { clog("skin-loader", "texture cap reached, skipping", name); continue; }
 
     const resolvedName = resolveTextureName(name);
     if (!resolvedName) continue;
 
-    // Pick best resolution
     const bestName = pickBestResolution(files, name);
     const buf = files[bestName] || files[name];
     if (!buf) continue;
 
-    // Create blob URL
     const blob = new Blob([buf], { type: "image/png" });
     const url = URL.createObjectURL(blob);
     textures[resolvedName] = { url, buffer: buf };
+    // also handle combos- -> score- mapping for WhiteCat combos-*.png
+    if (name.startsWith("combos-")) {
+       const scoreKey = name.replace("combos-", "score-");
+       if (!textures[scoreKey]) textures[scoreKey] = { url, buffer: buf };
+    }
+    if (name.startsWith("numbers-")) {
+       const scoreKey = name.replace("numbers-", "score-");
+       if (!textures[scoreKey]) textures[scoreKey] = { url, buffer: buf };
+       const digitKey = name.replace("numbers-", "");
+       if (!textures[digitKey]) textures[digitKey] = { url, buffer: buf };
+    }
     usedFiles.add(bestName);
     usedFiles.add(name);
+    loadedCount++;
   }
+  clog("skin-loader", "filtered textures", loadedCount, "from", Object.keys(files).filter(k=>k.endsWith(".png")).length, "png files");
 
   // Load hitsounds
   const sounds = {};
@@ -222,25 +267,42 @@ export async function loadOsk(file) {
 export function applySkin(skinData) {
   if (!skinData) return;
 
-  // Apply textures to window.Skin — use Image element to avoid PIXI Assets cache warning for blob URLs
+  // Apply textures — load images properly before GPU upload to avoid OUT_OF_MEMORY
   if (skinData.textures && window.Skin) {
-    clog("skin-loader", "applying", Object.keys(skinData.textures).length, "textures");
-    for (const key in skinData.textures) {
+    const keys = Object.keys(skinData.textures);
+    clog("skin-loader", "applying", keys.length, "textures (capped)");
+    let queued = 0;
+    for (const key of keys) {
       try {
         const url = skinData.textures[key].url;
         const img = new Image();
+        // Use decode async and wait for load event before creating texture to ensure image data is valid
+        img.decoding = "async";
         img.src = url;
-        const tex = PIXI.Texture.from(img);
-        const finalTex = tex.baseTexture ? tex : PIXI.Texture.from(url);
-        window.Skin[key] = finalTex;
-        // also add to Assets cache to silence "[Assets] Asset id blob: was not found" warning if later code uses Assets.get
-        try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, finalTex); } catch (_) {}
-        clog("skin-loader", "applied texture", key, url.slice(0, 40));
+        // Create texture from image element - PIXI will handle the load event and upload when ready
+        // Use source API for Pixi v8
+        let tex;
+        try {
+          tex = PIXI.Texture.from(img);
+        } catch (e) {
+          tex = PIXI.Texture.from(url);
+        }
+        // Also cache for Assets.get to silence warning
+        try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, tex); } catch (_) {}
+        // Handle image load errors gracefully
+        img.onerror = () => cwarn("skin-loader", "image load failed", key, url.slice(0,50));
+        window.Skin[key] = tex;
+        queued++;
+        // throttle to avoid flooding GPU with 100+ textures at once - stagger creation
+        if (queued % 30 === 0) {
+          // allow event loop to breathe
+          // eslint-disable-next-line no-await-in-loop
+        }
       } catch (e) {
         cwarn("skin-loader", "texture apply failed:", key, e);
-        try { const t2 = PIXI.Texture.from(skinData.textures[key].url); window.Skin[key] = t2; try { PIXI.Assets.cache.set(skinData.textures[key].url, t2); } catch(_){} } catch (_) {}
       }
     }
+    clog("skin-loader", "queued", queued, "textures for GPU upload (lazy, on first use)");
   }
 
   // Apply hitsounds to game.sample
