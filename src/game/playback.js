@@ -647,13 +647,16 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             glog("playback", "loadBackground", uri.slice(0, 60));
             let bgTexture;
             try {
-               // Use Assets.load for blob URLs to avoid "[Assets] not found in Cache" warning and ensure valid texture
-               bgTexture = await PIXI.Assets.load(uri);
-               // Assets.load for blob returns a Texture directly
+               // blob: URLs have no extension, need parser:"texture" per Assets skill
+               try {
+                 bgTexture = await PIXI.Assets.load({ src: uri, parser: "texture" });
+               } catch {
+                 bgTexture = await PIXI.Assets.load({ src: uri, parser: "texture", data: { scaleMode: "linear" } });
+               }
                if (!bgTexture || !bgTexture.valid) bgTexture = PIXI.Texture.from(uri);
             } catch (e) {
                gdebug("playback", "Assets.load failed, fallback to Texture.from", e.message);
-               bgTexture = PIXI.Texture.from(uri);
+               try { bgTexture = PIXI.Texture.from(uri); } catch { bgTexture = PIXI.Texture.WHITE; }
             }
             // Ensure texture is valid before use — Pixi v8 uses texture.source not baseTexture
             if (!bgTexture || !bgTexture.valid) {

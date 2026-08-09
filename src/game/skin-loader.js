@@ -297,7 +297,10 @@ export async function applySkin(skinData) {
     for (const k in window.Skin) {
       if (!(k in window._defaultSkin)) {
         const old = window.Skin[k];
-        if (old && old !== PIXI.Texture.WHITE && old.destroy) try { old.destroy(false); } catch {}
+        if (old && old !== PIXI.Texture.WHITE && old.destroy) {
+          try { if (PIXI.Assets) try { PIXI.Assets.unload(old); } catch {} } catch {}
+          try { old.destroy(false); } catch {}
+        }
         delete window.Skin[k];
       }
     }
@@ -306,7 +309,10 @@ export async function applySkin(skinData) {
       if (!skinData.textures || !skinData.textures[k]) {
         if (window.Skin[k] !== window._defaultSkin[k]) {
           const old = window.Skin[k];
-          if (old && old !== PIXI.Texture.WHITE && old !== window._defaultSkin[k] && old.destroy) try { old.destroy(false); } catch {}
+          if (old && old !== PIXI.Texture.WHITE && old !== window._defaultSkin[k] && old.destroy) {
+            try { if (PIXI.Assets) try { PIXI.Assets.unload(old); } catch {} } catch {}
+            try { old.destroy(false); } catch {}
+          }
           window.Skin[k] = window._defaultSkin[k];
         }
       }
@@ -358,6 +364,7 @@ export async function applySkin(skinData) {
         const old = window.Skin?.[key];
         const isDefault = window._defaultSkin && window._defaultSkin[key] === old;
         if (old && old !== tex && old !== PIXI.Texture.WHITE && !isDefault && typeof old.destroy === "function") {
+          try { if (PIXI.Assets) { try { PIXI.Assets.unload(old); } catch {} } } catch {}
           try { old.destroy(false); } catch {}
         }
         if (window.Skin) window.Skin[key] = tex;
