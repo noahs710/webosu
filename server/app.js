@@ -370,11 +370,16 @@ function buildApp({ serveStatic = true } = {}) {
       index: "index.html",
       cacheControl: false,
       setHeaders: (res, p) => {
+        const setHeader = (k, v) => {
+          if (typeof res.setHeader === "function") res.setHeader(k, v);
+          else if (typeof res.header === "function") res.header(k, v);
+          else if (res.raw && typeof res.raw.setHeader === "function") res.raw.setHeader(k, v);
+        };
         // content-hashed Vite assets (dist/assets/*-[hash].*) are immutable
         if (staticRoot === DIST && /[\\/]assets[\\/][^\\/]+-[A-Za-z0-9_]{6,}\.[A-Za-z0-9]+$/.test(p))
-          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+          setHeader("Cache-Control", "public, max-age=31536000, immutable");
         else if (/\.(ogg|wav|png|jpg|jpeg|svg|woff2|ttf|cur)$/.test(p))
-          res.setHeader("Cache-Control", "public, max-age=86400");
+          setHeader("Cache-Control", "public, max-age=86400");
       },
     });
   }
