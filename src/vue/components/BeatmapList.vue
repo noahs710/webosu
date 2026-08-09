@@ -1,6 +1,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { ensureGame } from "../game-loader.js";
+import { getCachedBeatmaps, setCachedBeatmaps, clearCachedBeatmaps } from "../../shell/beatmapCache.js";
 
 const props = defineProps({
   src: String,
@@ -26,8 +27,29 @@ function starname(star) {
 }
 function stars(rating) { return (Math.round(rating * 100) / 100).toFixed(2); }
 
-async function load() {
+async function load(force = false) {
   if (!props.src && !props.sids) return;
+  // empty sids array means no favorites/history — show empty without fetching
+  if (props.sids && !props.sids.length) {
+    // check if sids is explicitly an empty array (vs null/undefined)
+    // props.sids being [] should not hit cache, just show empty
+    if (Array.isArray(props.sids) && props.sids.length === 0) {
+      sets.value = []; loading.value = false; return;
+    }
+  }
+  const cacheKey = { src: props.src, sids: props.sids, limit: props.limit };
+  if (!force) {
+    const cached = getCachedBeatmaps(cacheKey);
+    if (cached) {
+      sets.value = cached;
+      loading.value = false;
+      error.value = "";
+      console.log("[BeatmapList] cache hit", cacheKey);
+      return;
+    }
+  } else {
+    clearCachedBeatmaps(cacheKey);
+  }
   error.value = ""; loading.value = true;
   try {
     let data;
@@ -42,7 +64,11 @@ async function load() {
       if (!r.ok) throw new Error("search " + r.status);
       data = await r.json();
     }
-    sets.value = (data || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+    const filtered = (data || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+    sets.value = filtered;
+    // cache filtered result for smoother back-navigation
+    try { setCachedBeatmaps(cacheKey, filtered); } catch {}
+    console.log("[BeatmapList] fetched & cached", cacheKey, filtered.length);
   } catch (e) {
     error.value = String(e);
   } finally {
@@ -50,7 +76,11 @@ async function load() {
   }
 }
 
-watch(() => [props.src, props.sids], load);
+function reload() { load(true); }
+
+watch(() => [props.src, props.sids], () => load(false));
+// expose reload for parent pages / manual reload button
+defineExpose({ reload, load });
 
 function openModal(set, ev) {
   if (ev) { ev.preventDefault(); ev.stopPropagation(); }
@@ -84,9 +114,15 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
 
 <template>
-  <div v-if="error" class="text-red-400 p-4">Failed to load: {{ error }}</div>
+  <div v-if="error" class="text-red-400 p-4">Failed to load: {{ error }} <button @click="reload" class="ml-2 text-lazer-pink hover:underline">Retry</button></div>
   <div v-else-if="!loading && !sets.length && emptyMessage" class="text-lazer-dim p-4">{{ emptyMessage }}</div>
-  <div v-else class="flex flex-wrap gap-3">
+  <div v-else>
+    <div v-if="sets.length" class="flex justify-end mb-2">
+      <button @click="reload" :disabled="loading" class="text-xs text-lazer-dim hover:text-white disabled:opacity-50 flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5">
+        <span :class="{ 'animate-spin inline-block': loading }">↻</span> {{ loading ? 'Loading...' : 'Reload' }}
+      </button>
+    </div>
+    <div class="flex flex-wrap gap-3">
     <article v-for="s in sets" :key="s.id"
       class="beatmap-card beatmapbox group relative cursor-pointer overflow-hidden w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
       style="background: var(--lazer-panel);"
@@ -112,6 +148,7 @@ onUnmounted(() => window.removeEventListener("keydown", onKey));
         </div>
       </div>
     </article>
+    </div>
   </div>
 
   <!-- Difficulty / Map Info Modal -->
