@@ -949,11 +949,20 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             try {
                const col = combos[hit.combo % combos.length] || 0xffffff;
                const pts = hit.curve?.curve || [{x: hit.x, y: hit.y}, {x: hit.x+50, y: hit.y}];
+               const w = this.circleRadius * 2;
+               // shadow / outline: draw slightly wider, darker line first
                body.moveTo(pts[0].x, pts[0].y);
                for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
-               body.stroke({ width: this.circleRadius * 2, color: col, alpha: 0.9, cap: "round", join: "round" });
-               // also draw border via second stroke if needed
-               glog("playback", "fallback Graphics slider drawn", pts.length, "pts");
+               body.stroke({ width: w + 4, color: 0x000000, alpha: 0.35, cap: "round", join: "round" });
+               // border
+               body.moveTo(pts[0].x, pts[0].y);
+               for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
+               body.stroke({ width: w + 2, color: 0xffffff, alpha: 0.95, cap: "round", join: "round" });
+               // inner track
+               body.moveTo(pts[0].x, pts[0].y);
+               for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
+               body.stroke({ width: w, color: col, alpha: 0.9, cap: "round", join: "round" });
+               glog("playback", "fallback Graphics slider drawn with shadow/outline", pts.length, "pts");
             } catch (ge) {
                gerror("playback", "fallback also failed", ge);
                body = new PIXI.Container();
@@ -1717,21 +1726,24 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                if (window.game && window.game.allowSliderBallTint) {
                   try { hit.ball.tint = combos[hit.combo % combos.length]; } catch (e) {}
                }
-               // follow circie immediately emerges and gradually enlarges
+               // follow circle immediately emerges and gradually enlarges — keep faintly visible even when not following (integral to gameplay)
                hit.follow.visible = true;
                if (this.game.down && isfollowing)
                   resizeFollow(hit, time, 1 / this.followZoomInTime); // expand
                else resizeFollow(hit, time, -1 / this.followZoomInTime); // shrink
                let followscale = hit.followSize * 0.45 * this.hitSpriteScale;
                hit.follow.scale.x = hit.follow.scale.y = followscale;
-               hit.follow.alpha = hit.followSize - 1;
+               // was hit.followSize -1 (0 at rest, invisible) -> keep base visibility 0.25
+               hit.follow.alpha = Math.max(0.25, hit.followSize - 0.6) * 0.9;
+               // outline: ensure follow circle has visible border even at rest
+               if (hit.follow.alpha < 0.25) hit.follow.alpha = 0.25;
             }
             let timeAfter = -diff - hit.sliderTimeTotal;
             if (timeAfter > 0) {
                resizeFollow(hit, time, -1 / this.followZoomInTime); // shrink
                let followscale = hit.followSize * 0.45 * this.hitSpriteScale;
                hit.follow.scale.x = hit.follow.scale.y = followscale;
-               hit.follow.alpha = hit.followSize - 1;
+               hit.follow.alpha = Math.max(0, hit.followSize - 1) * 0.6;
                hit.ball.alpha = this.fadeOutEasing(
                   timeAfter / this.ballFadeOutTime
                );

@@ -8,6 +8,18 @@ export default {
     const likedSids = ref([]);
     const historySids = ref([]);
     const randomSrc = ref("");
+    const randomKey = ref(0);
+    function makeRandomSrc() {
+      // Use a more reliable random: random offset + random status, not just a-p filtered query which often empty
+      const offset = Math.floor(Math.random() * 800);
+      // catboy.best random: use empty query with random offset and varied status for diversity
+      return `https://catboy.best/api/v2/search?q=&limit=6&offset=${offset}&status=1&status=3&status=4&mode=0`;
+    }
+    function randomize() {
+      randomSrc.value = makeRandomSrc();
+      randomKey.value++;
+      console.log("[Home] randomize", randomSrc.value);
+    }
     onMounted(async () => {
       if (window.localforage) {
         try {
@@ -19,10 +31,9 @@ export default {
           if (hist && hist.length) historySids.value = [...new Set(hist.map(h => h.sid).filter(Boolean))].slice(0, 6);
         } catch {}
       }
-      const randquery = Math.random().toString(36).replace(/[^a-p]+/g, "").substr(1, 5);
-      randomSrc.value = "https://catboy.best/api/v2/search?q=" + randquery + "&limit=6&offset=20&status=3&status=4&status=1&status=-2&mode=0";
+      randomSrc.value = makeRandomSrc();
     });
-    return { likedSids, historySids, randomSrc };
+    return { likedSids, historySids, randomSrc, randomKey, randomize };
   },
   template: `
     <div class="max-w-[1400px] mx-auto px-4 pt-2">
@@ -35,8 +46,11 @@ export default {
       <BeatmapList :sids="historySids" :limit="6" empty-message="You haven't played any Beatmaps yet!" />
       <h2 class="text-xl font-bold text-white mt-6 mb-2">Favorites</h2>
       <BeatmapList :sids="likedSids" :limit="6" empty-message="You haven't favorited any Beatmaps yet!" />
-      <h2 class="text-xl font-bold text-white mt-6 mb-2">Random beatmaps</h2>
-      <BeatmapList :src="randomSrc" :limit="6" />
+      <div class="flex items-center gap-3 mt-6 mb-2">
+        <h2 class="text-xl font-bold text-white">Random beatmaps</h2>
+        <button @click="randomize" class="text-xs bg-white/5 hover:bg-white/10 border border-white/10 rounded-full px-3 py-1 text-lazer-dim hover:text-white">↻ Randomize</button>
+      </div>
+      <BeatmapList :key="randomKey" :src="randomSrc" :limit="6" empty-message="No random maps found — hit Randomize to try again." />
       <div class="text-lazer-dim text-sm mt-8 mb-4 text-center">
         <span class="mx-2">Beatmap Mirror <a href="https://catboy.best/" class="text-lazer-pink">Mino</a></span>
         <span class="mx-2">Source code: <a href="https://github.com/BlaNKtext/webosu" class="text-lazer-pink">Github</a></span>

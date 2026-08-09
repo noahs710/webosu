@@ -490,12 +490,38 @@
          let h50 = newdiv(hits, "hit-stat meh"); h50.innerHTML = '<span class="hit-num">' + this.judgecnt.meh + '</span><span class="hit-label">50</span>';
          let hMiss = newdiv(hits, "hit-stat miss"); hMiss.innerHTML = '<span class="hit-num">' + this.judgecnt.miss + '</span><span class="hit-label">miss</span>';
 
-         // extra info — UR, PP, stars (rosu-pp) + FC
+         // extra info — Offset (was UR), PP, stars + FC + autocalibrate
          let extra = newdiv(panel, "results-extra");
-         newdiv(extra, "results-ur", "UR: " + errortext(hiterrors));
+         const offsetText = errortext(hiterrors);
+         // change UR to Offset per user request
+         const offsetDiv = newdiv(extra, "results-ur", "Offset: " + offsetText);
          let starsBlock = newdiv(extra, "results-stars", "★ …");
          let ppBlock = newdiv(extra, "results-pp", "PP …");
          if (this.fullcombo) newdiv(extra, "results-fc", "Full Combo");
+         // autocalibrate audio offset based on average hit error (reduce latency misinput)
+         try {
+            if (hiterrors && hiterrors.length >= 5) {
+               let sum = 0; for (let i=0;i<hiterrors.length;i++) sum+=hiterrors[i];
+               const avg = sum / hiterrors.length;
+               if (Math.abs(avg) >= 5 && Math.abs(avg) <= 50) {
+                  const gs = window.gamesettings;
+                  if (gs) {
+                     const cur = parseFloat(gs.audiooffset) || 0;
+                     // nudge offset by 30% of average error to avoid overcorrection, clamp to [-200,200]
+                     const delta = Math.round(-avg * 0.3);
+                     const next = Math.max(-200, Math.min(200, cur + delta));
+                     if (next !== cur) {
+                        gs.audiooffset = next;
+                        gs.save && gs.save();
+                        if (gs.loadToGame) gs.loadToGame();
+                        offsetDiv.title = `Auto-calibrated audio offset ${cur}→${next}ms (avg ${avg.toFixed(1)}ms)`;
+                        offsetDiv.innerText += ` → audio offset ${next}ms`;
+                        console.log(`[score] autocalibrate offset ${cur} -> ${next} (avg ${avg.toFixed(1)}ms)`);
+                     }
+                  }
+               }
+            }
+         } catch (e) { console.warn("[score] autocalibrate failed", e); }
 
          // buttons
          let btns = newdiv(panel, "results-buttons");

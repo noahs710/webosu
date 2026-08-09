@@ -1,5 +1,6 @@
 import { ref, onMounted } from "vue";
 import { api } from "../../shell/api.js";
+import { clearCachedSkin } from "../../game/skin-loader.js";
 export default {
   setup() {
     const skins = ref([]);
@@ -16,14 +17,25 @@ export default {
         status.value = "Shared as #" + r.id + "!"; load();
       } catch (e) { status.value = "Upload failed: " + (e.message || e); }
     }
+    async function resetDefault() {
+      try {
+        await clearCachedSkin();
+        if (window.localforage) await new Promise(r => localforage.removeItem("skinTextures", () => r()));
+        status.value = "Reset to default skin. Reloading...";
+        setTimeout(() => location.reload(), 800);
+      } catch (e) { status.value = "Reset failed: " + (e.message || e); }
+    }
     onMounted(load);
-    return { skins, status, upload, api };
+    return { skins, status, upload, resetDefault, api };
   },
   template: `
     <div class="max-w-[1400px] mx-auto px-4 pt-4">
       <h2 class="text-xl font-bold text-white mb-3">Skins</h2>
       <p class="text-lazer-dim text-sm mb-3">Share your .osk and apply others'. Custom hitsounds and skin textures are applied on your next game.</p>
-      <input type="file" accept=".osk,.zip" @change="upload" class="mb-2" />
+      <div class="flex gap-2 items-center mb-2 flex-wrap">
+        <input type="file" accept=".osk,.zip" @change="upload" />
+        <button @click="resetDefault" class="bg-lazer-panel2 border border-white/10 text-lazer-text rounded-lg px-3 py-1.5 text-sm hover:bg-white/10">Reset to default skin</button>
+      </div>
       <span class="text-sm text-lazer-dim ml-2">{{ status }}</span>
       <div v-if="skins.length" class="grid gap-3 mt-4" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
         <div v-for="s in skins" :key="s.id" class="bg-lazer-panel border border-white/8 rounded-xl p-3">
