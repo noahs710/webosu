@@ -4,6 +4,16 @@ import { log as llog, warn as lwarn, error as lerror } from "./logger.js";
 import { gamesettings } from "../shell/gamesettings.js";
 export async function launchOSU(osu, beatmapid, version) {
    try { gamesettings.loadToGame(); } catch {}
+   // ensure default Skin is loaded before creating hits (avoid WHITE fallback)
+   if (!window.Skin) {
+      let tries = 0;
+      while (!window.Skin && tries < 40) {
+         await new Promise(r => setTimeout(r, 50));
+         tries++;
+      }
+      if (!window.Skin) window.Skin = {};
+      if (!window.Skin["hit300.png"]) lwarn("launchgame", "window.Skin not ready, using WHITE fallback");
+   }
    llog("launchgame", "launchOSU", { beatmapid, version, tracks: osu.tracks?.length, autoplay: window.game?.autoplay });
    // select track
    let trackid = -1;

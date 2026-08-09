@@ -443,15 +443,20 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       }
 
       this.createJudgement = function (x, y, depth, finalTime) {
-         // Use skin judgement images (hit0/50/100/300.png) if available, else text
-         var useSprites = !!(window.Skin && window.Skin?.["hit300.png"]);
+         // Use skin judgement images if available, else text — always create sprite path as primary for visibility
+         var hasSkinHit = !!(window.Skin?.["hit300.png"]);
+         var useSprites = hasSkinHit || true; // always try sprites first, fallback to WHITE tinted if needed
          var judge;
          if (useSprites) {
-            judge = new PIXI.Sprite(window.Skin?.["hit300.png"] || PIXI.Texture.WHITE);
+            const initTex = window.Skin?.["hit300.png"] || PIXI.Texture.WHITE;
+            judge = new PIXI.Sprite(initTex);
             judge.anchor.set(0.5);
             judge.scale.set(0.85 * this.hitSpriteScale, 0.85 * this.hitSpriteScale);
             judge.baseScaleX = 0.85 * this.hitSpriteScale;
             judge.baseScaleY = 0.85 * this.hitSpriteScale;
+            if (initTex === PIXI.Texture.WHITE) judge.tint = 0x66ccff;
+            judge.eventMode = 'none';
+            judge.cullable = true;
          } else {
             judge = new PIXI.Text({ text: "", style: {
                fontFamily: "Comfortaa",
@@ -462,6 +467,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             judge.scale.set(0.85 * this.hitSpriteScale, 1 * this.hitSpriteScale);
             judge.baseScaleX = 0.85 * this.hitSpriteScale;
             judge.baseScaleY = 1 * this.hitSpriteScale;
+            judge.eventMode = 'none';
+            judge.cullable = true;
          }
          judge.visible = false;
          judge.basex = judge.x = x;
@@ -478,21 +485,25 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          judge.visible = true;
          judge.points = points;
          judge.t0 = time;
-         if (judge.useSprites && window.Skin) {
-            // Map points to skin judgement texture
+         if (judge.useSprites) {
+            // Map points to skin judgement texture — always set texture, fallback to WHITE tinted
             var texKey = "hit300.png";
             if (points == 0) texKey = "hit0.png";
             else if (points == 50) texKey = "hit50.png";
             else if (points == 100) texKey = "hit100.png";
             else if (points == 300) {
                texKey = "hit300.png";
-               // Use hit300g for perfect (full combo) if available
                if (this.fullcombo && window.Skin?.["hit300g.png"]) texKey = "hit300g.png";
             }
-            if (window.Skin?.[texKey]) judge.texture = window.Skin?.[texKey];
+            var tex = window.Skin?.[texKey] || PIXI.Texture.WHITE;
+            judge.texture = tex;
+            if (tex === PIXI.Texture.WHITE) judge.tint = judgementColor(points);
+            else judge.tint = 0xffffff;
+            // ensure sprite judgements respect hideGreat as optional — but keep visible for now
+            // if (this.hideGreat && points === 300) judge.visible = false;
          } else {
-            if (!this.hideGreat || points != 300)
-               judge.text = judgementText(points);
+            // text path — always set text so judgements are visible even with hideGreat
+            judge.text = judgementText(points);
             judge.tint = judgementColor(points);
          }
          // T10: hit burst on non-miss
