@@ -91,8 +91,12 @@ import { gamesettings } from "../shell/gamesettings.js";
    game.cursor = null;
 
    // load skin & game cursor — with detailed logging
+   window.Skin = window.Skin || {};
+   window._defaultSkin = null;
    PIXI.Assets.load("/sprites.json").then(async (sheet) => {
          window.Skin = sheet.textures;
+         // backup default for reset on skin switch (prevents exponential scaling/accumulation)
+         try { window._defaultSkin = { ...window.Skin }; } catch {}
          ilog("initgame", "sprites loaded", Object.keys(window.Skin).length + " textures");
          let cachedApplied = false;
          try {

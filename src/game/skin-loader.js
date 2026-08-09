@@ -251,17 +251,18 @@ export async function loadOsk(file) {
 
     const blob = new Blob([buf], { type: "image/png" });
     const url = URL.createObjectURL(blob);
-    textures[resolvedName] = { url, buffer: buf };
+    const is2x = bestName.includes("@2x");
+    textures[resolvedName] = { url, buffer: buf, is2x };
     // also handle combos- -> score- mapping for WhiteCat combos-*.png
     if (name.startsWith("combos-")) {
        const scoreKey = name.replace("combos-", "score-");
-       if (!textures[scoreKey]) textures[scoreKey] = { url, buffer: buf };
+       if (!textures[scoreKey]) textures[scoreKey] = { url, buffer: buf, is2x };
     }
     if (name.startsWith("numbers-")) {
        const scoreKey = name.replace("numbers-", "score-");
-       if (!textures[scoreKey]) textures[scoreKey] = { url, buffer: buf };
+       if (!textures[scoreKey]) textures[scoreKey] = { url, buffer: buf, is2x };
        const digitKey = name.replace("numbers-", "");
-       if (!textures[digitKey]) textures[digitKey] = { url, buffer: buf };
+       if (!textures[digitKey]) textures[digitKey] = { url, buffer: buf, is2x };
     }
     usedFiles.add(bestName);
     usedFiles.add(name);
@@ -290,6 +291,28 @@ export async function loadOsk(file) {
 export async function applySkin(skinData) {
   if (!skinData) return;
 
+  // Reset to default before applying new skin to prevent accumulation and exponential scaling
+  if (window._defaultSkin && window.Skin) {
+    // remove custom keys not in default
+    for (const k in window.Skin) {
+      if (!(k in window._defaultSkin)) {
+        const old = window.Skin[k];
+        if (old && old !== PIXI.Texture.WHITE && old.destroy) try { old.destroy(false); } catch {}
+        delete window.Skin[k];
+      }
+    }
+    // restore defaults for keys not overridden by new skin
+    for (const k in window._defaultSkin) {
+      if (!skinData.textures || !skinData.textures[k]) {
+        if (window.Skin[k] !== window._defaultSkin[k]) {
+          const old = window.Skin[k];
+          if (old && old !== PIXI.Texture.WHITE && old !== window._defaultSkin[k] && old.destroy) try { old.destroy(false); } catch {}
+          window.Skin[k] = window._defaultSkin[k];
+        }
+      }
+    }
+  }
+
   // Apply textures — use Assets.load with parser:"texture" for blob: URLs (no extension, needs parser per Assets skill)
   // Most performant: concurrent with cap, only selected skin via loadCachedSkin, whitelist already 60/40
   if (skinData.textures && window.Skin) {
@@ -317,6 +340,11 @@ export async function applySkin(skinData) {
         if (tex && tex.source) {
           tex.source.autoGenerateMipmaps = false;
           tex.source.scaleMode = 'linear';
+          if (skinData.textures[key].is2x) {
+            try { tex.source.resolution = 2; } catch {}
+          } else {
+            try { if (tex.source.resolution !== 1) tex.source.resolution = 1; } catch {}
+          }
           const doRevoke = () => { try { URL.revokeObjectURL(url); } catch {} };
           if (tex.valid) {
             if (tex.source.once) tex.source.once("update", doRevoke);
@@ -328,7 +356,8 @@ export async function applySkin(skinData) {
           }
         }
         const old = window.Skin?.[key];
-        if (old && old !== tex && old !== PIXI.Texture.WHITE && typeof old.destroy === "function") {
+        const isDefault = window._defaultSkin && window._defaultSkin[key] === old;
+        if (old && old !== tex && old !== PIXI.Texture.WHITE && !isDefault && typeof old.destroy === "function") {
           try { old.destroy(false); } catch {}
         }
         if (window.Skin) window.Skin[key] = tex;
