@@ -82,24 +82,68 @@ watch(() => [props.src, props.sids], () => load(false));
 // expose reload for parent pages / manual reload button
 defineExpose({ reload, load });
 
+let previewAudio = null;
+function stopPreview() {
+  if (previewAudio) {
+    try { previewAudio.pause(); previewAudio.src = ""; } catch {}
+    // softstop for launchgame compatibility
+    if (previewAudio.softstop) try { previewAudio.softstop(); } catch {}
+    previewAudio = null;
+  }
+  // also stop any other preview audios in DOM (legacy)
+  try {
+    const audios = document.getElementsByTagName("audio");
+    for (let i = 0; i < audios.length; i++) if (audios[i].softstop) try { audios[i].softstop(); } catch {}
+  } catch {}
+}
+function playPreview(set) {
+  stopPreview();
+  if (!set || !set.id) return;
+  try {
+    // catboy.best preview is at https://b.ppy.sh/preview/{setId}.mp3 (also catboy mirrors it)
+    // Use Howler if available for better control, otherwise HTMLAudio
+    const url = `https://b.ppy.sh/preview/${set.id}.mp3`;
+    const audio = new Audio(url);
+    audio.volume = 0.45;
+    audio.loop = true;
+    // softstop helper for launchgame to stop preview when game starts
+    audio.softstop = function() {
+      try {
+        const a = this;
+        const fade = setInterval(() => {
+          if (a.volume > 0.05) a.volume -= 0.05;
+          else { clearInterval(fade); a.pause(); }
+        }, 40);
+        setTimeout(() => { try { a.pause(); } catch {} }, 600);
+      } catch {}
+    };
+    audio.addEventListener("error", () => { /* ignore, preview may not exist */ });
+    previewAudio = audio;
+    audio.play().catch(()=>{});
+    if (import.meta.env.DEV) console.log("[BeatmapList] preview play", set.id);
+  } catch (e) { if (import.meta.env.DEV) console.warn("[BeatmapList] preview failed", e); }
+}
 function openModal(set, ev) {
   if (ev) { ev.preventDefault(); ev.stopPropagation(); }
   selectedSet.value = set;
   showModal.value = true;
   document.body.style.overflow = "hidden";
   if (import.meta.env.DEV) console.log("[BeatmapList] open modal", set?.id, set?.title, "diffs", (set?.beatmaps||[]).filter(b=>b.mode==="osu").length);
+  playPreview(set);
 }
 function closeModal() {
   if (!showModal.value) return;
   showModal.value = false;
   selectedSet.value = null;
   document.body.style.overflow = "";
+  stopPreview();
   if (import.meta.env.DEV) console.log("[BeatmapList] close modal");
 }
 function launch(b) {
   const s = selectedSet.value;
   if (!s || !b) return;
   if (import.meta.env.DEV) console.log("[BeatmapList] launch", s.id, b.id, b.version);
+  stopPreview();
   document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
   closeModal();
 }
@@ -110,7 +154,10 @@ onMounted(() => {
   load();
   window.addEventListener("keydown", onKey);
 });
-onUnmounted(() => window.removeEventListener("keydown", onKey));
+onUnmounted(() => {
+  window.removeEventListener("keydown", onKey);
+  stopPreview();
+});
 </script>
 
 <template>
