@@ -598,47 +598,70 @@
             acc: (acc * 100).toFixed(2) + "%",
             time: new Date().getTime(),
          };
-         var isReplay = !!(window.game && window.game.replayMode);
-         if (!isReplay) addPlayHistory(summary);
-         if (!isReplay) uploadScore(summary);
-         if (!isReplay && window.WebosuAPI && WebosuAPI.isLoggedIn()) {
-            try {
-               WebosuAPI.submitScore({
-                  beatmap_id: parseInt(summary.bid, 10) || 0,
-                  beatmap_set_id: parseInt(summary.sid, 10) || 0,
-                  title: summary.title,
-                  artist: summary.artist,
-                  version: summary.version,
-                  mods: summary.mods,
-                  modsNum: modsEnum(window.game),
-                  score: parseInt(summary.score, 10) || 0,
-                  combo: parseInt(summary.combo, 10) || 0,
-                  acc: parseFloat(summary.acc) || 0,
-                  grade: summary.grade,
-                  count300: summary.count300,
-                  count100: summary.count100,
-                  count50: summary.count50,
-                  miss: summary.misses,
-                  replay:
-                     (window.playback && window.playback.replayFrames) || null,
-                  beatmap: (function () {
-                     const t = window.playback && window.playback.track;
-                     if (!t || !t.hitObjects) return null;
-                     return {
-                        od: t.difficulty && t.difficulty.OverallDifficulty,
-                        cs: t.difficulty && t.difficulty.CircleSize,
-                        hitObjects: t.hitObjects.slice(0, 12000).map(function (h) {
-                           return {
-                              time: h.time, x: h.x, y: h.y,
-                              type: h.type, endTime: h.endTime,
-                           };
-                        }),
-                     };
-                  })(),
-               });
-            } catch (e) {
-               console.warn("webosu score submit failed", e);
+         const isFailed = rank === "F" || this.failed;
+         const isReplay = !!(window.game && window.game.replayMode);
+         // helper to actually post (used for non-fails auto, and for fails via button)
+         const doPost = () => {
+            uploadScore(summary);
+            if (window.WebosuAPI && WebosuAPI.isLoggedIn()) {
+               try {
+                  WebosuAPI.submitScore({
+                     beatmap_id: parseInt(summary.bid, 10) || 0,
+                     beatmap_set_id: parseInt(summary.sid, 10) || 0,
+                     title: summary.title,
+                     artist: summary.artist,
+                     version: summary.version,
+                     mods: summary.mods,
+                     modsNum: modsEnum(window.game),
+                     score: parseInt(summary.score, 10) || 0,
+                     combo: parseInt(summary.combo, 10) || 0,
+                     acc: parseFloat(summary.acc) || 0,
+                     grade: summary.grade,
+                     count300: summary.count300,
+                     count100: summary.count100,
+                     count50: summary.count50,
+                     miss: summary.misses,
+                     replay: (window.playback && window.playback.replayFrames) || null,
+                     beatmap: (function () {
+                        const t = window.playback && window.playback.track;
+                        if (!t || !t.hitObjects) return null;
+                        return {
+                           od: t.difficulty && t.difficulty.OverallDifficulty,
+                           cs: t.difficulty && t.difficulty.CircleSize,
+                           hitObjects: t.hitObjects.slice(0, 12000).map(function (h) {
+                              return { time: h.time, x: h.x, y: h.y, type: h.type, endTime: h.endTime };
+                           }),
+                        };
+                     })(),
+                  });
+               } catch (e) { console.warn("webosu score submit failed", e); }
             }
+         };
+         if (!isReplay) addPlayHistory(summary);
+         if (!isReplay && !isFailed) {
+            doPost();
+         } else if (!isReplay && isFailed) {
+            // Fail: show private message + Post anyways button, don't auto-post
+            const failMsg = newdiv(panel, "results-fail-msg");
+            failMsg.style.cssText = "margin-top:10px;padding:10px 14px;background:rgba(225,85,85,0.12);border:1px solid rgba(225,85,85,0.3);border-radius:10px;color:var(--color-lazer-text);font-size:0.85em;text-align:center;max-width:520px;";
+            failMsg.innerText = "Aw man, You failed. This score will be kept private and won't be posted or show on leaderboards... Unless you'd rather humiliate yourself lol";
+            const postBtn = newdiv(panel, "rbtn post-anyways");
+            postBtn.textContent = "Post anyways";
+            postBtn.style.cssText = "margin-top:8px;background:rgba(225,85,85,0.9);color:#fff;border:none;";
+            // insert postBtn into the same button row for consistent layout
+            const btnRow = panel.querySelector(".results-buttons");
+            if (btnRow) btnRow.appendChild(postBtn);
+            else panel.appendChild(postBtn);
+            let posted = false;
+            postBtn.onclick = function () {
+               if (posted) return;
+               posted = true;
+               postBtn.textContent = "Posting...";
+               postBtn.style.opacity = "0.7";
+               postBtn.style.pointerEvents = "none";
+               try { doPost(); } catch (e) { console.warn("post anyways failed", e); }
+               setTimeout(() => { postBtn.textContent = "Posted!"; failMsg.innerText = "Your fail is now public. Respect for owning it."; }, 600);
+            };
          }
          // show history best
          if (window.localforage && summary.bid) {
