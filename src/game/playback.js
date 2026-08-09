@@ -7,6 +7,7 @@ import LoadingMenu from "./overlay/loading.js";
 import BreakOverlay from "./overlay/break.js";
 import ProgressOverlay from "./overlay/progress.js";
 import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
+import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./logger.js";
 
    function clamp01(a) {
       return Math.min(1, Math.max(0, a));
@@ -318,11 +319,14 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
 
       self.game.paused = false;
       this.pause = function () {
+         glog("playback", "pause requested, audioReady", self.audioReady, "paused", self.game.paused);
          if (this.osu.audio.pause()) {
             // pause music success
             this.game.paused = true;
             let menu = document.getElementById("pause-menu");
+            if (!menu) { gerror("playback", "pause-menu element not found"); return; }
             menu.removeAttribute("hidden");
+            glog("playback", "pause menu shown, hidden removed, z-index", getComputedStyle(menu).zIndex, "display", getComputedStyle(menu).display);
             var btn_continue = document.getElementById("pausebtn-continue");
             var btn_retry = document.getElementById("pausebtn-retry");
             var btn_quit = document.getElementById("pausebtn-quit");
@@ -345,9 +349,11 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          }
       };
       this.resume = function () {
+         glog("playback", "resume");
          this.osu.audio.play();
          this.game.paused = false;
-         document.getElementById("pause-menu").setAttribute("hidden", "");
+         const m = document.getElementById("pause-menu");
+         if (m) m.setAttribute("hidden", "");
       };
 
       // adjust volume
@@ -715,6 +721,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          SliderBorder = window.game.skinSliderBorder;
       else if (track.colors.SliderBorder)
          SliderBorder = convertcolor(track.colors.SliderBorder);
+      glog("playback", "combos", combos.length, combos.map(c=>"#"+c.toString(16).padStart(6,"0")), "trackOverride", SliderTrackOverride, "border", SliderBorder, "hits", self.hits.length);
 
       self.game.stage.addChild(this.gamefield);
       self.game.stage.addChild(this.scoreOverlay);
@@ -822,14 +829,30 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          hit.lastrep = 0; // for current-repeat counting
          hit.nexttick = 0; // for tick hit counting
 
-         // create slider body
-         // manually set transform osupixel -> gl coordinate
-
-         var body = (hit.body = new SliderMesh(
-            hit.curve,
-            this.circleRadius,
-            hit.combo % combos.length
-         ));
+         // create slider body — with fallback if SliderMesh fails
+         let body;
+         try {
+            if (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2) throw new Error("invalid curve");
+            body = new SliderMesh(hit.curve, this.circleRadius, hit.combo % combos.length);
+            if (!body || !body.geometry) throw new Error("SliderMesh geometry missing");
+            gdebug("playback", "slider body created", hit.hitIndex, "combo", hit.combo, "pts", hit.curve.curve.length, "len", hit.pixelLength);
+         } catch (e) {
+            gerror("playback", "SliderMesh creation failed, using Graphics fallback", e, hit);
+            body = new PIXI.Graphics();
+            try {
+               const col = combos[hit.combo % combos.length] || 0xffffff;
+               const pts = hit.curve?.curve || [{x: hit.x, y: hit.y}, {x: hit.x+50, y: hit.y}];
+               body.moveTo(pts[0].x, pts[0].y);
+               for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
+               body.stroke({ width: this.circleRadius * 2, color: col, alpha: 0.9, cap: "round", join: "round" });
+               // also draw border via second stroke if needed
+               glog("playback", "fallback Graphics slider drawn", pts.length, "pts");
+            } catch (ge) {
+               gerror("playback", "fallback also failed", ge);
+               body = new PIXI.Container();
+            }
+         }
+         hit.body = body;
          body.alpha = 0;
          body.depth = 4.9999 - 0.0001 * hit.hitIndex;
          hit.objects.push(body);
@@ -1044,21 +1067,29 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          }
       };
 
-      SliderMesh.prototype.initialize(
-         combos,
-         this.circleRadius,
-         {
-            dx: (2 * gfx.width) / window.innerWidth / 512,
-            ox: -1 + (2 * gfx.xoffset) / window.innerWidth,
-            dy: (-2 * gfx.height) / window.innerHeight / 384,
-            oy: 1 - (2 * gfx.yoffset) / window.innerHeight,
-         },
-         SliderTrackOverride,
-         SliderBorder
-      ); // prepare sliders
-      for (let i = 0; i < this.hits.length; i++) {
-         this.populateHit(this.hits[i]); // Prepare sprites and such
+      try {
+         SliderMesh.prototype.initialize(
+            combos,
+            this.circleRadius,
+            {
+               dx: (2 * gfx.width) / window.innerWidth / 512,
+               ox: -1 + (2 * gfx.xoffset) / window.innerWidth,
+               dy: (-2 * gfx.height) / window.innerHeight / 384,
+               oy: 1 - (2 * gfx.yoffset) / window.innerHeight,
+            },
+            SliderTrackOverride,
+            SliderBorder
+         );
+         glog("playback", "SliderMesh initialized");
+      } catch (e) {
+         gerror("playback", "SliderMesh initialize failed — sliders will be invisible", e);
       }
+      let sliderCount = 0;
+      for (let i = 0; i < this.hits.length; i++) {
+         try { this.populateHit(this.hits[i]); } catch (e) { gerror("playback", "populateHit failed", i, e); }
+         if (this.hits[i].type === "slider") sliderCount++;
+      }
+      glog("playback", "hits populated", this.hits.length, "sliders", sliderCount, "circles", this.hits.length - sliderCount);
       if (this.modhidden) {
          for (let i = 0; i < this.hits.length; i++) {
             if (

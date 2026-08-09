@@ -55,10 +55,10 @@ const CURVE_POINTS_SEPERATION = 5;
             var arcAng = Math.abs(startAng - endAng);
             let expectAng = hit.pixelLength / radius;
             if (arcAng > expectAng * 0.97) {
-                // console.log("truncating arc to ", expectAng / arcAng);
                 arcAng = expectAng; // truncate to given len
             } else {
-                console.warn("[curve] P shorter than given", arcAng / expectAng);
+                // P arc shorter than expected — common, debug only
+                // console.debug("[curve] P shorter than given", arcAng / expectAng);
             }
 
             // now use it for our new end angle
@@ -141,7 +141,7 @@ const CURVE_POINTS_SEPERATION = 5;
 
             var des = tb.x * ta.y - tb.y * ta.x;
             if (Math.abs(des) < 0.00001) {
-                console.warn("[curve] encountering straight P slider");
+                // straight line — not a curved P slider, fallback to linear (debug only, very common)
                 return undefined;
             }
             var u = ((b.y - a.y) * ta.x + (a.x - b.x) * ta.y) / des;

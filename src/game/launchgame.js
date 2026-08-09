@@ -1,6 +1,8 @@
 import { FS } from "./zipfs.js";
 import Osu from "./osu.js";
+import { log as llog, warn as lwarn, error as lerror } from "./logger.js";
 export async function launchOSU(osu, beatmapid, version) {
+   llog("launchgame", "launchOSU", { beatmapid, version, tracks: osu.tracks?.length });
    // select track
    let trackid = -1;
    // mode can be 0 or undefined
@@ -13,12 +15,13 @@ export async function launchOSU(osu, beatmapid, version) {
       }
    }
    if (trackid == -1) {
-      console.error("No such track");
+      lerror("launchgame", "No such track", { beatmapid, version, available: osu.tracks?.map(t=>({id: t.metadata.BeatmapID, ver: t.metadata.Version})) });
       return;
    }
+   llog("launchgame", "selected track", trackid, osu.tracks[trackid]?.metadata);
    // prevent launching multiple times
-   if (window.app) return;
-   console.log("Launching PIXI app");
+   if (window.app) { lwarn("launchgame", "app already exists, ignoring launch"); return; }
+   llog("launchgame", "Launching PIXI app", { beatmapid, version, trackid });
    // launch PIXI app
    let app = (window.app = new PIXI.Application());
    await app.init({
@@ -280,24 +283,31 @@ export function launchReplay(osublob, beatmapid, version, frames) {
    launchGame(osublob, beatmapid, version);
 }
 export function launchGame(osublob, beatmapid, version) {
+   llog("launchgame", "launchGame", { beatmapid, version, blobSize: osublob?.size });
    // replay playback: frames were stashed by launchReplay before calling us
    if (window.game) window.game.replayMode = !!window.__replayFrames;
    // unzip osz & parse beatmap
    let fs = new FS();
+   window.lastPlayedOszBlob = osublob;
+   window.lastPlayedBeatmapId = beatmapid;
+   window.lastPlayedVersion = version;
    fs.root.importBlob(
       osublob,
       function () {
+         llog("launchgame", "osz unzipped", fs.root.children?.length, "files");
          let osu = new Osu(fs.root);
          osu.ondecoded = function () {
+            llog("launchgame", "osu decoded", osu.tracks.length, "tracks");
+            osu.tracks.forEach((t,i)=> llog("launchgame", `track ${i}`, t.metadata.Title, t.metadata.Version, t.hitObjects.length, "hits"));
             launchOSU(osu, beatmapid, version);
          };
-         osu.onerror = function () {
-            console.error("osu parse error");
+         osu.onerror = function (msg) {
+            lerror("launchgame", "osu parse error", msg);
          };
-         osu.load();
+         try { osu.load(); } catch (e) { lerror("launchgame", "osu.load threw", e); }
       },
       function (err) {
-         console.error("unzip failed");
+         lerror("launchgame", "unzip failed", err);
       }
    );
 }

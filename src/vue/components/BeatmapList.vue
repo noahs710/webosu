@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted } from "vue";
+import { ref, watch, onMounted, onUnmounted } from "vue";
 import { ensureGame } from "../game-loader.js";
 
 const props = defineProps({
@@ -12,7 +12,8 @@ const props = defineProps({
 const sets = ref([]);
 const loading = ref(false);
 const error = ref("");
-const diffBox = ref(null); // open difficulty box ref
+const selectedSet = ref(null);
+const showModal = ref(false);
 
 function starname(star) {
   if (star == null) return "unknown";
@@ -51,45 +52,35 @@ async function load() {
 
 watch(() => [props.src, props.sids], load);
 
-function showDiff(set, ev) {
-  ev.preventDefault(); ev.stopPropagation();
-  // close existing
-  if (diffBox.value) { diffBox.value.remove(); diffBox.value = null; }
-  if (window._currentDiffList) { window._currentDiffList.remove(); window._currentDiffList = null; }
-
-  const card = ev.currentTarget;
-  const box = document.createElement("div");
-  box.className = "difficulty-box";
-  box.style.left = "0"; box.style.top = "100%";
-  window._currentDiffList = box;
-
-  const diffs = (set.beatmaps || []).filter(b => b.mode === "osu");
-  for (const b of diffs) {
-    const item = document.createElement("div");
-    item.className = "difficulty-item";
-    item.innerHTML =
-      '<div class="bigringbase"></div><div class="bigring ' + starname(b.difficulty_rating) + '"></div>' +
-      '<div class="versionline"><div class="version">' + b.version + '</div>' +
-      '<div class="mapper">' + stars(b.difficulty_rating) + '\u2605</div></div>';
-    item.onclick = (e) => {
-      e.stopPropagation();
-      document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: set.id, beatmapId: b.id, version: b.version, title: set.title, artist: set.artist, stars: b.difficulty_rating } }));
-      box.remove(); window._currentDiffList = null;
-    };
-    box.appendChild(item);
-  }
-  card.appendChild(box);
-  box.onclick = (e) => e.stopPropagation();
-  diffBox.value = box;
-  setTimeout(() => {
-    window.addEventListener("click", function close() {
-      box.remove(); window._currentDiffList = null;
-      window.removeEventListener("click", close);
-    }, { once: true });
-  }, 0);
+function openModal(set, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  selectedSet.value = set;
+  showModal.value = true;
+  document.body.style.overflow = "hidden";
+  console.log("[BeatmapList] open modal", set?.id, set?.title, "diffs", (set?.beatmaps||[]).filter(b=>b.mode==="osu").length);
 }
-
-onMounted(load);
+function closeModal() {
+  if (!showModal.value) return;
+  showModal.value = false;
+  selectedSet.value = null;
+  document.body.style.overflow = "";
+  console.log("[BeatmapList] close modal");
+}
+function launch(b) {
+  const s = selectedSet.value;
+  if (!s || !b) return;
+  console.log("[BeatmapList] launch", s.id, b.id, b.version);
+  document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
+  closeModal();
+}
+function onKey(e) {
+  if (e.key === "Escape" && showModal.value) closeModal();
+}
+onMounted(() => {
+  load();
+  window.addEventListener("keydown", onKey);
+});
+onUnmounted(() => window.removeEventListener("keydown", onKey));
 </script>
 
 <template>
@@ -97,9 +88,9 @@ onMounted(load);
   <div v-else-if="!loading && !sets.length && emptyMessage" class="text-lazer-dim p-4">{{ emptyMessage }}</div>
   <div v-else class="flex flex-wrap gap-3">
     <article v-for="s in sets" :key="s.id"
-      class="beatmap-card beatmapbox group relative cursor-pointer overflow-visible w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
+      class="beatmap-card beatmapbox group relative cursor-pointer overflow-hidden w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
       style="background: var(--lazer-panel);"
-      @click="showDiff(s, $event)">
+      @click="openModal(s, $event)">
       <div class="overflow-hidden rounded-t-xl">
         <img :src="'https://assets.ppy.sh/beatmaps/' + s.id + '/covers/card@2x.jpg'"
              alt="" loading="lazy"
@@ -122,4 +113,38 @@ onMounted(load);
       </div>
     </article>
   </div>
+
+  <!-- Difficulty / Map Info Modal -->
+  <teleport to="body">
+    <div v-if="showModal && selectedSet" class="fixed inset-0 z-[500] flex items-center justify-center p-4" @click.self="closeModal" @keydown.esc="closeModal">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="closeModal"></div>
+      <div class="relative bg-lazer-panel border border-white/10 rounded-2xl shadow-2xl max-w-[560px] w-full max-h-[88vh] flex flex-col overflow-hidden">
+        <div class="relative h-[180px] shrink-0 overflow-hidden">
+          <img :src="'https://assets.ppy.sh/beatmaps/' + selectedSet.id + '/covers/cover@2x.jpg'" alt="" class="w-full h-full object-cover" @error="$event.target.style.display='none'" />
+          <div class="absolute inset-0 bg-gradient-to-t from-lazer-panel via-lazer-panel/40 to-transparent"></div>
+          <button @click="closeModal" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70" aria-label="Close">✕</button>
+          <div class="absolute bottom-0 left-0 right-0 p-4">
+            <div class="text-xl font-bold text-white drop-shadow">{{ selectedSet.title }}</div>
+            <div class="text-sm text-white/80">{{ selectedSet.artist }}</div>
+            <div class="text-xs text-white/60 mt-1">by {{ selectedSet.creator }} • {{ (selectedSet.beatmaps||[]).filter(b=>b.mode==='osu').length }} difficulties</div>
+          </div>
+        </div>
+        <div class="p-4 overflow-y-auto space-y-2">
+          <div class="text-xs uppercase tracking-wide text-lazer-dim mb-2">Select difficulty</div>
+          <div v-for="b in (selectedSet.beatmaps||[]).filter(b=>b.mode==='osu').slice().sort((a,b)=>a.difficulty_rating-b.difficulty_rating)" :key="b.id"
+               class="difficulty-item cursor-pointer hover:border-lazer-pink/40" @click="launch(b)">
+            <div class="bigringbase"></div><div class="bigring" :class="starname(b.difficulty_rating)"></div>
+            <div class="versionline flex-1">
+              <div class="version">{{ b.version }}</div>
+              <div class="mapper">{{ stars(b.difficulty_rating) }}★ • {{ (b.hit_length||0) }}s • AR{{ b.ar ?? '?' }} CS{{ b.cs ?? '?' }} OD{{ b.accuracy ?? b.od ?? '?' }} HP{{ b.drain ?? '?' }}</div>
+            </div>
+            <div class="text-lazer-pink text-sm">▶</div>
+          </div>
+        </div>
+        <div class="p-3 border-t border-white/5 flex justify-end gap-2 shrink-0">
+          <button class="px-4 py-2 rounded-xl bg-lazer-panel2 border border-white/10 text-sm hover:bg-white/5" @click="closeModal">Close (Esc)</button>
+        </div>
+      </div>
+    </div>
+  </teleport>
 </template>

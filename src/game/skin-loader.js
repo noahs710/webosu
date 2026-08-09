@@ -4,6 +4,7 @@
 // Uses blob URLs for efficient texture loading and IndexedDB for caching.
 
 import { unzipSync } from "fflate";
+import { log as clog, warn as cwarn } from "./logger.js";
 
 // ── Name mapping: osu! skin filename → webosu spritesheet key ──
 // Most osu! skin names already match webosu keys; only these need translation.
@@ -198,13 +199,23 @@ export async function loadOsk(file) {
 export function applySkin(skinData) {
   if (!skinData) return;
 
-  // Apply textures to window.Skin
+  // Apply textures to window.Skin — use Image element to avoid PIXI Assets cache warning for blob URLs
   if (skinData.textures && window.Skin) {
+    clog("skin-loader", "applying", Object.keys(skinData.textures).length, "textures");
     for (const key in skinData.textures) {
       try {
-        window.Skin[key] = PIXI.Texture.from(skinData.textures[key].url);
+        const url = skinData.textures[key].url;
+        const img = new Image();
+        img.src = url;
+        const tex = PIXI.Texture.from(img);
+        const finalTex = tex.baseTexture ? tex : PIXI.Texture.from(url);
+        window.Skin[key] = finalTex;
+        // also add to Assets cache to silence "[Assets] Asset id blob: was not found" warning if later code uses Assets.get
+        try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, finalTex); } catch (_) {}
+        clog("skin-loader", "applied texture", key, url.slice(0, 40));
       } catch (e) {
-        console.warn("skin texture apply failed:", key, e);
+        cwarn("skin-loader", "texture apply failed:", key, e);
+        try { const t2 = PIXI.Texture.from(skinData.textures[key].url); window.Skin[key] = t2; try { PIXI.Assets.cache.set(skinData.textures[key].url, t2); } catch(_){} } catch (_) {}
       }
     }
   }

@@ -36,7 +36,8 @@
   body { background: var(--color-lazer-bg); color: var(--color-lazer-text); font-family: var(--font-default); }
 
   .game-area { position: fixed; inset: 0; z-index: 100; }
-  .pause-menu { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .pause-menu { position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .pause-menu[hidden] { display: none !important; }
   body.gaming { overflow: hidden; }
 
   .game-area.showhwmousemedium { cursor: url("/css/cursor.cur") 40 40, crosshair !important; }

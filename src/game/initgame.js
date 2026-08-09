@@ -1,6 +1,7 @@
 import Osu from "./osu.js";
 import { loadCachedSkin, applySkin } from "./skin-loader.js";
 import Playback from "./playback.js";
+import { log as ilog, warn as iwarn, error as ierror } from "./logger.js";
 
    window.Osu = Osu;
    window.Playback = Playback;
@@ -86,19 +87,32 @@ import Playback from "./playback.js";
    game.stage = new PIXI.Container();
    game.cursor = null;
 
-   // load skin & game cursor
-   PIXI.Assets.load("/sprites.json").then((sheet) => {
+   // load skin & game cursor — with detailed logging
+   PIXI.Assets.load("/sprites.json").then(async (sheet) => {
          window.Skin = sheet.textures;
-         // apply any custom skin textures, then signal skin ready
-         loadCachedOskSkin(function () {
+         ilog("initgame", "sprites loaded", Object.keys(window.Skin).length + " textures");
+         let cachedApplied = false;
+         try {
+            const cached = await loadCachedSkin();
+            if (cached) {
+               ilog("initgame", "cached osk skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
+               try { applySkin(cached); cachedApplied = true; ilog("initgame", "cached skin applied"); } catch (e) { iwarn("initgame", "applySkin failed", e); }
+            } else {
+               ilog("initgame", "no cached osk skin");
+            }
+         } catch (e) {
+            iwarn("initgame", "loadCachedSkin failed", e);
+         }
          // fallback to legacy base64 skins in localforage
          applyCustomSkin(function () {
+            ilog("initgame", "legacy skin applied, cachedApplied=" + cachedApplied);
             window.skinReady = true;
-         });
-            (function (e) { if (e) e.classList.add("finished"); })(document.getElementById("skin-progress"));
+            const el = document.getElementById("skin-progress");
+            if (el) el.classList.add("finished");
             document.body.classList.add("skin-ready");
+            ilog("initgame", "skinReady=true body.skin-ready added");
          });
-   }).catch((e) => console.warn("skin load failed:", e));
+   }).catch((e) => ierror("initgame", "sprites load failed — game cannot start without sprites.json", e));
 
    // load sounds
    // load hitsound set

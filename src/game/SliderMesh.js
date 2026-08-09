@@ -1,3 +1,4 @@
+import { log, warn, error } from "./logger.js";
 var Container = PIXI.Container;
    // vertex shader source (GLSL 3.00 for Pixi v8)
    const vertexSrc = `#version 300 es
@@ -26,6 +27,11 @@ var Container = PIXI.Container;
 
    // create line texture for slider from tint color (v8: canvas-based, replacing Texture.fromBuffer)
    function newTexture(colors, SliderTrackOverride, SliderBorder) {
+      if (!colors || colors.length === 0) {
+         warn("SliderMesh", "no combo colors provided, using fallback #ffffff");
+         colors = [0xffffff];
+      }
+      log("SliderMesh", "newTexture", colors.length, "colors, override", SliderTrackOverride, "border", SliderBorder);
       const borderwidth = 0.128;
       const innerPortion = 1 - borderwidth;
       const edgeOpacity = 0.8;
@@ -120,8 +126,14 @@ var Container = PIXI.Container;
          this.blendMode = "normal";
       }
       initialize(colors, radius, transform, SliderTrackOverride, SliderBorder) {
+         log("SliderMesh", "initialize", colors?.length, "colors, radius", radius, "transform", transform);
          this.ncolors = colors.length;
-         this.uSampler2 = newTexture(colors, SliderTrackOverride, SliderBorder);
+         try {
+            this.uSampler2 = newTexture(colors, SliderTrackOverride, SliderBorder);
+         } catch (e) {
+            error("SliderMesh", "newTexture failed", e);
+            this.uSampler2 = PIXI.Texture.WHITE;
+         }
          this.circle = circleGeometry(radius);
          this.uniforms = { uSampler2: this.uSampler2, alpha: 1.0, dx: transform.dx, dy: transform.dy, ox: transform.ox, oy: transform.oy, texturepos: 0 };
          this.program = new PIXI.GlProgram({ vertex: vertexSrc, fragment: fragmentSrc });
@@ -133,7 +145,13 @@ var Container = PIXI.Container;
       }
       render(renderer) {
          var shader = this.shader;
-         if (!shader) return;
+         if (!shader) {
+            warn("SliderMesh", "render called without shader — slider will be invisible");
+            return;
+         }
+         if (!this.uSampler2 || !this.uSampler2.valid) {
+            warn("SliderMesh", "invalid uSampler2 texture", this.uSampler2);
+         }
          shader.alpha = this.worldAlpha;
          if (shader.update) shader.update();
          renderer.batch.flush();
