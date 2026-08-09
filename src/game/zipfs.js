@@ -24,11 +24,17 @@ ZipDir.prototype.getChildByName = function (name) {
    return this._map[name] || null;
 };
 ZipDir.prototype.importBlob = function (blob, ok, err) {
+   if (blob.size > 50 * 1024 * 1024) { if (err) err(new Error("osz too large")); return; }
    blob
       .arrayBuffer()
       .then((ab) => {
+         if (ab.byteLength > 50 * 1024 * 1024) { if (err) err(new Error("osz too large")); return; }
          unzip(new Uint8Array(ab), (e, unzipped) => {
             if (e) { if (err) err(e); return; }
+            if (!unzipped || Object.keys(unzipped).length > 500) { if (err) err(new Error("too many files")); return; }
+            let total = 0;
+            for (const n in unzipped) total += unzipped[n].length;
+            if (total > 200 * 1024 * 1024) { if (err) err(new Error("unzipped too large")); return; }
             for (const name in unzipped) {
                const entry = new Entry(name, unzipped[name]);
                this.children.push(entry);

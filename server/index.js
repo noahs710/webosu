@@ -11,6 +11,14 @@ const app = buildApp();
 const wss = new WebSocketServer({ server: app.server, path: "/ws" });
 const rooms = new Map(); // roomId -> { name, host, clients: Map(ws -> {name, ready}) }
 
+const wsRate = new Map();
+function wsOk(ws, limit, windowMs = 1000) {
+  const now = Date.now();
+  let arr = (wsRate.get(ws) || []).filter(t => now - t < windowMs);
+  arr.push(now);
+  wsRate.set(ws, arr);
+  return arr.length <= limit;
+}
 wss.on("connection", (ws) => {
   let joinedRoom = null;
   let joinedName = null;
@@ -18,9 +26,9 @@ wss.on("connection", (ws) => {
     let m;
     try { m = JSON.parse(msg.toString()); } catch (e) { return; }
     if (m.type === "join") {
-      const roomId = m.room || "lobby";
+      const roomId = String(m.room || "lobby").replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 30);
       joinedRoom = roomId;
-      joinedName = (m.username || "guest").toString().slice(0, 20);
+      joinedName = String(m.username || "guest").replace(/[<>&"]/g, "_").slice(0, 20);
       if (!rooms.has(roomId))
         rooms.set(roomId, { name: roomId, host: joinedName, clients: new Map() });
       const room = rooms.get(roomId);
@@ -28,11 +36,13 @@ wss.on("connection", (ws) => {
       send(ws, { type: "room", room: roomId, host: room.host, users: usersIn(room) });
       broadcast(room, { type: "join", name: joinedName, users: usersIn(room) }, ws);
     } else if (m.type === "cursor" && joinedRoom) {
+      if (!wsOk(ws, 60, 1000)) return;
       const room = rooms.get(joinedRoom);
-      if (room) broadcast(room, { type: "cursor", name: joinedName, x: m.x, y: m.y, t: m.t }, ws);
+      if (room) broadcast(room, { type: "cursor", name: joinedName, x: +m.x || 0, y: +m.y || 0, t: +m.t || Date.now() }, ws);
     } else if (m.type === "chat" && joinedRoom) {
+      if (!wsOk(ws, 5, 2000)) return;
       const room = rooms.get(joinedRoom);
-      if (room) broadcast(room, { type: "chat", name: joinedName, text: String(m.text || "").slice(0, 300), t: Date.now() }, ws);
+      if (room) broadcast(room, { type: "chat", name: joinedName, text: String(m.text || "").replace(/[<>&"]/g, "_").slice(0, 300), t: Date.now() }, ws);
     } else if (m.type === "ready" && joinedRoom) {
       const room = rooms.get(joinedRoom);
       if (room) {
@@ -43,10 +53,11 @@ wss.on("connection", (ws) => {
     } else if (m.type === "start" && joinedRoom) {
       const room = rooms.get(joinedRoom);
       if (room && room.host === joinedName)
-        broadcast(room, { type: "start", beatmap_id: m.beatmap_id });
+        broadcast(room, { type: "start", beatmap_id: parseInt(m.beatmap_id, 10) || 0 });
     }
   });
   ws.on("close", () => {
+    wsRate.delete(ws);
     if (joinedRoom && rooms.has(joinedRoom)) {
       const room = rooms.get(joinedRoom);
       room.clients.delete(ws);

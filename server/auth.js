@@ -2,8 +2,12 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-const SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-const TOKEN_TTL = "30d";
+const SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET required in production");
+  console.warn("[auth] JWT_SECRET not set — using dev fallback, do not use in prod");
+  return "dev-secret-change-me";
+})();
+const TOKEN_TTL = "7d";
 
 function hashPassword(pw) { return bcrypt.hashSync(pw, 10); }
 function verifyPassword(pw, hash) { return bcrypt.compareSync(pw, hash); }

@@ -2,14 +2,10 @@ import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 
-// Gradual rewrite: every top-level HTML page is a build entry. Pages migrate
-// from classic <script src>/require.js to <script type="module"> one at a time;
-// until then Vite dev serves their existing scripts untouched.
-// SPA: single index.html entry (Vue Router handles all routes)
-// bench.html is a separate standalone page
+// SPA: single index.html entry (Vue Router) + bench.html for perf
 const htmlEntries = {
   index: "index.html",
-    bench: "bench.html",
+  bench: "bench.html",
 };
 
 export default defineConfig({

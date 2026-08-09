@@ -240,8 +240,8 @@ function buildApp({ serveStatic = true } = {}) {
       } catch (e) {
         console.warn("[discord] webhook error", e.message);
       }
-    } else {
-      console.log("[discord] no webhook configured, payload:", JSON.stringify(summary).slice(0, 300));
+    } else if (process.env.NODE_ENV !== "production") {
+      console.log("[discord] no webhook configured");
     }
     // also store to local DB if it's a valid webosu score and auth is present (optional)
     // For webhook-compatibility, we don't require auth — just acknowledge.
@@ -301,11 +301,12 @@ function buildApp({ serveStatic = true } = {}) {
     reply.send(D.listSkins(limit, offset));
   });
 
-  app.post("/api/skins", { preHandler: authRequired }, async (req, reply) => {
+  app.post("/api/skins", { preHandler: [authRequired, makeRateLimit(60000, 5)] }, async (req, reply) => {
     if (!Buffer.isBuffer(req.body)) return reply.code(400).send({ error: "expected binary body" });
-    if (req.body.length > 64 * 1024 * 1024) return reply.code(413).send({ error: "too large" });
-    const name = (req.headers["x-skin-name"] || "skin").toString().slice(0, 80);
-    const filename = (req.headers["x-skin-filename"] || "skin.osk").toString().slice(0, 120);
+    if (req.body.length > 20 * 1024 * 1024) return reply.code(413).send({ error: "too large" });
+    const sanitize = (s) => s.toString().replace(/[^a-zA-Z0-9._\- ]/g, "_").replace(/\.+/g, ".").slice(0, 80);
+    const name = sanitize(req.headers["x-skin-name"] || "skin");
+    const filename = sanitize(req.headers["x-skin-filename"] || "skin.osk").replace(/[^a-zA-Z0-9._\-]/g, "_").slice(0, 120);
     const id = D.insertSkin({
       user_id: req.user.id, author: req.user.username, name, filename,
       size: req.body.length, data: req.body,
@@ -317,7 +318,8 @@ function buildApp({ serveStatic = true } = {}) {
     const s = D.getSkin(parseInt(req.params.id, 10));
     if (!s) return reply.code(404).send({ error: "not found" });
     reply.header("Content-Type", "application/octet-stream");
-    reply.header("Content-Disposition", 'attachment; filename="' + (s.filename || "skin.osk") + '"');
+    const safe = (s.filename || "skin.osk").replace(/[^a-zA-Z0-9._\-]/g, "_");
+    reply.header("Content-Disposition", 'attachment; filename="' + safe + '"; filename*=UTF-8\'\'' + encodeURIComponent(safe));
     reply.send(Buffer.from(s.data));
   });
 

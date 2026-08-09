@@ -18,7 +18,7 @@ export default {
     function randomize() {
       randomSrc.value = makeRandomSrc();
       randomKey.value++;
-      console.log("[Home] randomize", randomSrc.value);
+      if (import.meta.env.DEV) console.log("[Home] randomize", randomSrc.value);
     }
     onMounted(async () => {
       if (window.localforage) {

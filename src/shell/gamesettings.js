@@ -24,7 +24,12 @@ gamesettings.restoreCallbacks = [];
 function loadFromLocal() {
   try {
     const str = localStorage.getItem("osugamesettings");
-    if (str) { const s = JSON.parse(str); if (s) Object.assign(gamesettings, s); }
+    if (str) {
+      const s = JSON.parse(str);
+      if (s && typeof s === "object") {
+        for (const k in s) if (k in defaultsettings) gamesettings[k] = s[k];
+      }
+    }
   } catch (e) {}
 }
 let serverSyncTimer = null;

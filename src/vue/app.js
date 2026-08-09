@@ -31,7 +31,7 @@ const app = createApp({
         try {
           await ensureGame();
           const suffix = "n"; // always no-video for speed
-          console.log("[app] launch beatmap", { setId, beatmapId, version, url: "https://catboy.best/d/" + setId + suffix });
+          if (import.meta.env.DEV) console.log("[app] launch beatmap", { setId, beatmapId, version, url: "https://catboy.best/d/" + setId + suffix });
           const r = await fetch("https://catboy.best/d/" + setId + suffix);
           if (!r.ok) throw new Error("download " + r.status);
           window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version);

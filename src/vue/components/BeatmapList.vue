@@ -44,7 +44,7 @@ async function load(force = false) {
       sets.value = cached;
       loading.value = false;
       error.value = "";
-      console.log("[BeatmapList] cache hit", cacheKey);
+      if (import.meta.env.DEV) console.log("[BeatmapList] cache hit", cacheKey);
       return;
     }
   } else {
@@ -68,7 +68,7 @@ async function load(force = false) {
     sets.value = filtered;
     // cache filtered result for smoother back-navigation
     try { setCachedBeatmaps(cacheKey, filtered); } catch {}
-    console.log("[BeatmapList] fetched & cached", cacheKey, filtered.length);
+    if (import.meta.env.DEV) console.log("[BeatmapList] fetched & cached", cacheKey, filtered.length);
   } catch (e) {
     error.value = String(e);
   } finally {
@@ -87,19 +87,19 @@ function openModal(set, ev) {
   selectedSet.value = set;
   showModal.value = true;
   document.body.style.overflow = "hidden";
-  console.log("[BeatmapList] open modal", set?.id, set?.title, "diffs", (set?.beatmaps||[]).filter(b=>b.mode==="osu").length);
+  if (import.meta.env.DEV) console.log("[BeatmapList] open modal", set?.id, set?.title, "diffs", (set?.beatmaps||[]).filter(b=>b.mode==="osu").length);
 }
 function closeModal() {
   if (!showModal.value) return;
   showModal.value = false;
   selectedSet.value = null;
   document.body.style.overflow = "";
-  console.log("[BeatmapList] close modal");
+  if (import.meta.env.DEV) console.log("[BeatmapList] close modal");
 }
 function launch(b) {
   const s = selectedSet.value;
   if (!s || !b) return;
-  console.log("[BeatmapList] launch", s.id, b.id, b.version);
+  if (import.meta.env.DEV) console.log("[BeatmapList] launch", s.id, b.id, b.version);
   document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
   closeModal();
 }
