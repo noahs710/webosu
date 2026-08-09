@@ -2,6 +2,7 @@ import Osu from "./osu.js";
 import { loadCachedSkin, applySkin } from "./skin-loader.js";
 import Playback from "./playback.js";
 import { log as ilog, warn as iwarn, error as ierror } from "./logger.js";
+import { gamesettings } from "../shell/gamesettings.js";
 
    window.Osu = Osu;
    window.Playback = Playback;
@@ -80,7 +81,9 @@ import { log as ilog, warn as iwarn, error as ierror } from "./logger.js";
    };
    window.currentFrameInterval = 16;
    window.game = game;
-   if (window.gamesettings) window.gamesettings.loadToGame();
+   try { gamesettings.loadToGame(); ilog("initgame", "applied gamesettings to game", { autoplay: game.autoplay, hidden: game.hidden }); } catch (e) { iwarn("initgame", "gamesettings loadToGame failed", e); }
+   // keep window.gamesettings in sync for legacy checks
+   window.gamesettings = gamesettings;
    window.skinReady = false;
    window.soundReady = false;
    window.scriptReady = false;

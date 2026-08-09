@@ -1,8 +1,10 @@
 import { FS } from "./zipfs.js";
 import Osu from "./osu.js";
 import { log as llog, warn as lwarn, error as lerror } from "./logger.js";
+import { gamesettings } from "../shell/gamesettings.js";
 export async function launchOSU(osu, beatmapid, version) {
-   llog("launchgame", "launchOSU", { beatmapid, version, tracks: osu.tracks?.length });
+   try { gamesettings.loadToGame(); } catch {}
+   llog("launchgame", "launchOSU", { beatmapid, version, tracks: osu.tracks?.length, autoplay: window.game?.autoplay });
    // select track
    let trackid = -1;
    // mode can be 0 or undefined

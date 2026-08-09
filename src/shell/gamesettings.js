@@ -86,4 +86,6 @@ gamesettings.syncFromServer = syncFromServer;
 
 loadFromLocal();
 window.gamesettings = gamesettings;
+// if game already exists (initgame loaded first), push settings immediately
+try { if (window.game) gamesettings.loadToGame(); } catch {}
 export { gamesettings, defaultsettings, loadFromLocal, saveToLocal, syncFromServer };

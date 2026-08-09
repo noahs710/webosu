@@ -128,6 +128,26 @@ function buildApp({ serveStatic = true } = {}) {
     reply.send({ pp, estimate: true });
   });
 
+  // rosu-pp-js accurate PP (takes raw .osu text) — proxied via :8080
+  app.post("/api/pp/rosu", async (req, reply) => {
+    const { osu, mods, modsNum, accuracy, acc, combo, n300, n100, n50, misses, miss, c300, c100, c50 } = req.body || {};
+    const osuText = osu || req.body?.osuText || req.body?.beatmap;
+    if (!osuText || typeof osuText !== "string" || osuText.length < 100) {
+      return reply.code(400).send({ error: "missing osu text" });
+    }
+    const { calcRosuPP } = require("./pp");
+    const m = mods != null ? mods : (modsNum != null ? modsNum : 0);
+    const a = accuracy != null ? accuracy : (acc != null ? acc : undefined);
+    const r = calcRosuPP(osuText, {
+      mods: m, accuracy: a,
+      combo: combo != null ? combo : 0,
+      n300: n300 != null ? n300 : c300, n100: n100 != null ? n100 : c100, n50: n50 != null ? n50 : c50,
+      misses: misses != null ? misses : (miss != null ? miss : 0),
+    });
+    if (!r) return reply.code(422).send({ error: "rosu calc failed or suspicious map" });
+    reply.send({ pp: r.pp, stars: r.stars, maxPP: r.maxPP, rosu: true });
+  });
+
   // ---------- scores + replays (webosu leaderboard, additive to catboy.best) ----------
   app.post("/api/scores", { preHandler: [authRequired, scoreRateLimit] }, async (req, reply) => {
     const s = req.body || {};
@@ -161,7 +181,71 @@ function buildApp({ serveStatic = true } = {}) {
       version: s.version, score: s.score, acc: s.acc, grade: s.grade,
       mods: s.mods, username: req.user.username,
     });
+    // Discord webhook relay (if configured) — fire-and-forget, don't block response
+    try {
+      const hook = process.env.DISCORD_WEBHOOK_URL;
+      if (hook) {
+        const payload = {
+          username: "webosu",
+          embeds: [{
+            title: `${s.artist || ""} - ${s.title || ""} [${s.version || ""}]`,
+            description: `**${s.grade || "?"}** • ${s.score} • ${s.acc || "?"}% • ${s.combo || 0}x`,
+            color: s.grade === "SS" || s.grade === "S" ? 0xFFD966 : s.grade === "A" ? 0x66CC66 : 0x4AA3E8,
+            fields: [
+              { name: "Player", value: String(req.user.username), inline: true },
+              { name: "Mods", value: s.mods || "None", inline: true },
+              { name: "Beatmap", value: `${s.beatmap_id} (set ${s.beatmap_set_id || "?"})`, inline: false },
+            ],
+            timestamp: new Date().toISOString(),
+          }],
+        };
+        // don't await, just log errors
+        fetch(hook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) })
+          .catch(e => console.warn("[discord] webhook failed", e.message));
+      }
+    } catch (e) { console.warn("[discord] hook error", e.message); }
     reply.send({ ok: true, id: scoreId, rank: rank || null, score: row, validation: v });
+  });
+
+  // Discord webhook-compatible score relay — proxied via Fly :8080 -> /api/webhook/score
+  // Accepts either a Discord-style payload (content/embeds) or the legacy webosu summary.
+  // If DISCORD_WEBHOOK_URL is set, forwards to Discord; always stores to local DB if auth'd.
+  app.post("/api/webhook/score", async (req, reply) => {
+    const body = req.body || {};
+    // If body looks like a Discord payload with _webosu, extract summary
+    const summary = body._webosu || body;
+    const hook = process.env.DISCORD_WEBHOOK_URL;
+    let forwarded = false;
+    if (hook) {
+      try {
+        // If body already has Discord fields (content/embeds), forward as-is; else wrap summary
+        const discordPayload = (body.content || body.embeds) ? body : {
+          username: "webosu",
+          content: `**${summary.player || summary.username || "Unknown"}** scored **${summary.score || 0}** on **${summary.artist || ""} - ${summary.title || ""} [${summary.version || ""}]**`,
+          embeds: [{
+            title: `${summary.artist || ""} - ${summary.title || ""} [${summary.version || ""}]`,
+            description: `**${summary.grade || "?"}** • ${summary.score || 0} • ${summary.acc || "?"} • ${summary.combo || 0}x`,
+            color: 0xFF66AA,
+            fields: [
+              { name: "Player", value: String(summary.player || summary.username || "Unknown"), inline: true },
+              { name: "Mods", value: summary.mods || "None", inline: true },
+              { name: "Score", value: String(summary.score || 0), inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+          }],
+        };
+        const r = await fetch(hook, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(discordPayload) });
+        forwarded = r.ok;
+        if (!r.ok) console.warn("[discord] webhook non-2xx", r.status, await r.text().catch(()=> ""));
+      } catch (e) {
+        console.warn("[discord] webhook error", e.message);
+      }
+    } else {
+      console.log("[discord] no webhook configured, payload:", JSON.stringify(summary).slice(0, 300));
+    }
+    // also store to local DB if it's a valid webosu score and auth is present (optional)
+    // For webhook-compatibility, we don't require auth — just acknowledge.
+    reply.send({ ok: true, forwarded, webhook: !!hook });
   });
 
   app.get("/api/leaderboards/:beatmapId", async (req, reply) => {

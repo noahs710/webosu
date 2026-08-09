@@ -360,43 +360,38 @@
          );
       };
 
+      // Discord webhook via proxied :8080 — replaces legacy catboy.best GET
       function uploadScore(summary) {
-         let args = "";
-         args += "?sid=" + encodeURIComponent(summary.sid);
-         args += "&bid=" + encodeURIComponent(summary.bid);
-         args += "&title=" + encodeURIComponent(summary.title);
-         args +=
-            "&player=" +
-            encodeURIComponent(
-               window.localStorage.getItem("username") || "Unknown"
-            );
-         args += "&version=" + encodeURIComponent(summary.version);
-         args += "&mods=" + encodeURIComponent(summary.mods);
-         args += "&grade=" + encodeURIComponent(summary.grade);
-         args += "&score=" + encodeURIComponent(summary.score);
-         args += "&combo=" + encodeURIComponent(summary.combo);
-         args += "&acc=" + encodeURIComponent(summary.acc);
-         args += "&time=" + encodeURIComponent(summary.time);
-         args += "&greats=" + encodeURIComponent(summary.count300);
-         args += "&goods=" + encodeURIComponent(summary.count100);
-         args += "&bads=" + encodeURIComponent(summary.count50);
-         args += "&misses=" + encodeURIComponent(summary.misses);
-         args += "&modsnum=" + encodeURIComponent(summary.modsNum);
-         args += "&artist=" + encodeURIComponent(summary.artist);
-         fetch("https://api.catboy.best/score" + args, {
-            method: "GET",
-            mode: "cors",
-         })
-            .then(function (resp) {
-               return resp.json();
-            })
-            .then(function (data) {
-               if (data && data.error)
-                  console.error("Score submission failed: " + data.error);
-            })
-            .catch(function (err) {
-               console.error("Score submission failed", err);
-            });
+         // Forward score to our backend which will relay to Discord if webhook is configured.
+         // Uses same-origin /api/webhook/score which Fly proxies to :8080 and then to Discord.
+         const payload = {
+            // Discord-compatible: content + embeds
+            username: "webosu",
+            content: `**${summary.player || "Unknown"}** scored **${summary.score}** on **${summary.artist} - ${summary.title} [${summary.version}]**`,
+            embeds: [{
+               title: `${summary.artist} - ${summary.title} [${summary.version}]`,
+               description: `**${summary.grade}** • ${summary.score} • ${summary.acc} • ${summary.combo}x`,
+               color: summary.grade === "SS" || summary.grade === "S" ? 0xFFD966 : summary.grade === "A" ? 0x66CC66 : 0x4AA3E8,
+               fields: [
+                  { name: "Player", value: String(summary.player || "Unknown"), inline: true },
+                  { name: "Mods", value: summary.mods || "None", inline: true },
+                  { name: "Grade", value: summary.grade, inline: true },
+                  { name: "Great/Good/Meh/Miss", value: `${summary.count300}/${summary.count100}/${summary.count50}/${summary.misses}`, inline: false },
+               ],
+               timestamp: new Date(summary.time).toISOString(),
+            }],
+            // also include raw summary for our backend's /api/scores logic
+            _webosu: summary,
+         };
+         fetch("/api/webhook/score", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+         }).then(r => r.json().catch(()=>({}))).then(d => {
+            if (d && d.error) console.warn("[score] webhook relay:", d.error);
+            else console.log("[score] webhook relay ok");
+         }).catch(e => console.warn("[score] webhook failed", e));
+         // also keep local webosu leaderboard submission (handled below via WebosuAPI.submitScore)
       }
 
       this.showSummary = function (
@@ -495,9 +490,10 @@
          let h50 = newdiv(hits, "hit-stat meh"); h50.innerHTML = '<span class="hit-num">' + this.judgecnt.meh + '</span><span class="hit-label">50</span>';
          let hMiss = newdiv(hits, "hit-stat miss"); hMiss.innerHTML = '<span class="hit-num">' + this.judgecnt.miss + '</span><span class="hit-label">miss</span>';
 
-         // extra info
+         // extra info — UR, PP, stars (rosu-pp) + FC
          let extra = newdiv(panel, "results-extra");
-         newdiv(extra, "results-error", "UNRATE: " + errortext(hiterrors));
+         newdiv(extra, "results-ur", "UR: " + errortext(hiterrors));
+         let starsBlock = newdiv(extra, "results-stars", "★ …");
          let ppBlock = newdiv(extra, "results-pp", "PP …");
          if (this.fullcombo) newdiv(extra, "results-fc", "Full Combo");
 
@@ -525,19 +521,34 @@
             };
          }
 
-         // PP estimate
-         if (window.WebosuAPI && window.lastPlayedStars != null) {
-            WebosuAPI.ppEstimate({
-               stars: window.lastPlayedStars,
-               acc: acc * 100,
-               combo: this.maxcombo,
-               maxCombo: this.maxcombo,
-               modsNum: modsEnum(window.game),
-            }).then(function (r) {
-               ppBlock.innerText = "PP ~" + (r && r.pp != null ? r.pp : "?");
-            }).catch(function () {
-               ppBlock.innerText = "PP ~?";
-            });
+         // PP + stars — backend now uses rosu-pp-js (accurate), frontend just displays
+         // Stars from rosu-pp if we have the beatmap, otherwise from catboy's estimate
+         let starsVal = window.lastPlayedStars;
+         if (starsVal != null) starsBlock.innerText = `★ ${Number(starsVal).toFixed(2)}`;
+         else starsBlock.innerText = "★ ?";
+         if (window.WebosuAPI) {
+            const mods = modsEnum(window.game);
+            // Try to get accurate PP from backend which now uses rosu-pp if _osu available
+            const payload = { stars: starsVal != null ? Number(starsVal) : 0, acc: acc * 100, combo: this.maxcombo, maxCombo: this.maxcombo, modsNum: mods, c300: this.judgecnt.great, c100: this.judgecnt.good, c50: this.judgecnt.meh, miss: this.judgecnt.miss };
+            // If we have the raw .osu, also send it for server-side rosu calculation (more accurate)
+            const rawOsu = window.playback && window.playback.track && window.playback.track.track;
+            if (rawOsu && rawOsu.length < 500000) {
+               // Use new rosu endpoint if available (POST with osu text)
+               fetch("/api/pp/rosu", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ osu: rawOsu, mods, accuracy: acc*100, combo: this.maxcombo, n300: this.judgecnt.great, n100: this.judgecnt.good, n50: this.judgecnt.meh, misses: this.judgecnt.miss }) })
+                 .then(r => r.json()).then(r => {
+                    if (r && r.pp != null) ppBlock.innerText = `PP ${Math.round(r.pp)}`;
+                    if (r && r.stars != null) starsBlock.innerText = `★ ${Number(r.stars).toFixed(2)}`;
+                    else if (window.lastPlayedStars == null) starsBlock.innerText = "★ ?";
+                    if (r && r.pp == null) throw new Error("no pp");
+                 }).catch(() => {
+                    // fallback to legacy estimate
+                    WebosuAPI.ppEstimate(payload).then(r => { ppBlock.innerText = `PP ${r && r.pp != null ? Math.round(r.pp) : "?"}`; }).catch(()=> ppBlock.innerText = "PP ?");
+                 });
+            } else {
+               WebosuAPI.ppEstimate(payload).then(r => { ppBlock.innerText = `PP ${r && r.pp != null ? Math.round(r.pp) : "?"}`; }).catch(()=> ppBlock.innerText = "PP ?");
+            }
+         } else {
+            ppBlock.innerText = "PP ?";
          }
 
          window.setTimeout(function () { grading.classList.remove("transparent"); }, 100);
