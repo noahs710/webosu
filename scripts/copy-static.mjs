@@ -29,7 +29,7 @@ for (const file of ["sw.js", "sprites.json", "manifest.webmanifest", "manifest.j
 
 // 2) normalise shell CSS links in every built page -> three plain /css/ links
 // All pages are Vue SPA — only need font.css (Comfortaa @font-face)
-const SHELL_LINKS = '  <link rel="stylesheet" href="/css/font.css">\n';
+const SHELL_LINKS = ''; // Tailwind CSS (with @font-face) is bundled by Vite — no extra CSS links needed
 
 // 3) generate dist/sw.js with a precache manifest of the actual built files
 //    (hashed /assets/* + copied /css /js /img + pages) so the PWA shell works

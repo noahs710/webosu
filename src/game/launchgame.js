@@ -175,9 +175,7 @@ export async function launchOSU(osu, beatmapid, version) {
       document.body.scrollTop = scrollTop;
       // restore alert function
       window.alert = defaultAlert;
-      // TODO application level clean up
-      // cursor + trail are parented to cursorLayer; destroying the layer
-      // recursively destroys its children.
+      // cursor + trail are parented to cursorLayer; destroying the layer recursively destroys its children.
       if (game.cursorLayer) {
          game.stage.removeChild(game.cursorLayer);
          game.cursorLayer.destroy({ children: true });

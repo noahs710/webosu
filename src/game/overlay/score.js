@@ -242,10 +242,14 @@
       this.setSpriteArrayText = function (arr, str) {
          let width = 0;
          if (str.length > arr.length) console.error("displaying string failed");
+         let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.scorePrefix) || "score";
          for (let i = 0; i < str.length; ++i) {
             let ch = str[i];
             if (ch == "%") ch = "percent";
-            let textname = "score-" + ch + ".png";
+            let cand = prefix === "default" ? ch + ".png" : prefix + "-" + ch + ".png";
+            let textname = (window.Skin && window.Skin[cand]) ? cand : "score-" + ch + ".png";
+            // fallback to digit naming if score- variant missing
+            if (!window.Skin || !window.Skin[textname]) textname = (window.Skin && window.Skin[ch + ".png"]) ? ch + ".png" : "score-" + ch + ".png";
             arr[i].texture = Skin[textname];
             arr[i].knownwidth =
                arr[i].scale.x * (Skin[textname].width + this.charspacing);
@@ -261,9 +265,7 @@
 
       this.setSpriteArrayPos = function (arr, x, y) {
          let curx = x;
-         if (arr.useLength > 0) {
-         } // TODO
-         else throw "wtf!";
+         if (arr.useLength <= 0) throw "wtf!";
          for (let i = 0; i < arr.useLength; ++i) {
             arr[i].x = curx + (arr[i].scale.x * this.charspacing) / 2;
             arr[i].y = y;

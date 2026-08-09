@@ -54,6 +54,7 @@ export function parseSkinIni(iniText) {
     cursorCentre: true,
     sliderStyle: 2,
     sliderBallFrames: 0,
+    allowSliderBallTint: false,
     comboColors: [],
     sliderBorder: null,
     sliderTrackOverride: null,
@@ -91,6 +92,7 @@ export function parseSkinIni(iniText) {
       else if (key === "CursorCentre") config.cursorCentre = val === "1";
       else if (key === "SliderStyle") config.sliderStyle = parseInt(val) || 2;
       else if (key === "SliderBallFrames") config.sliderBallFrames = parseInt(val) || 0;
+      else if (key === "AllowSliderBallTint") config.allowSliderBallTint = val === "1";
     } else if (section === "colours") {
       if (key.startsWith("Combo")) {
         const rgb = val.split(",").map(v => parseInt(v.trim()) || 0);
@@ -248,6 +250,7 @@ export function applySkin(skinData) {
     window.game.skinSliderBorder = c.sliderBorder;
     window.game.skinSliderTrackOverride = c.sliderTrackOverride;
     window.game.skinConfig = c;
+    window.game.allowSliderBallTint = !!c.allowSliderBallTint;
   }
 }
 

@@ -43,6 +43,8 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
       // burst/approach) to avoid per-object create/destroy churn + GC. A pooled
       // sprite is fully reset in newHitSprite so it is identical to a fresh one.
       self._spritePool = new Map();
+      self._hitBursts = [];
+      self._comboFlashes = [];
       self.replayFrames = []; // input log uploaded to the webosu leaderboard
       self.replayPlayback = window.__replayFrames || null; // frames to play back
       window.__replayFrames = null;
@@ -440,6 +442,8 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             judge = new PIXI.Sprite(window.Skin["hit300.png"]);
             judge.anchor.set(0.5);
             judge.scale.set(0.85 * this.hitSpriteScale, 0.85 * this.hitSpriteScale);
+            judge.baseScaleX = 0.85 * this.hitSpriteScale;
+            judge.baseScaleY = 0.85 * this.hitSpriteScale;
          } else {
             judge = new PIXI.Text({ text: "", style: {
                fontFamily: "Comfortaa",
@@ -448,6 +452,8 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             } });
             judge.anchor.set(0.5);
             judge.scale.set(0.85 * this.hitSpriteScale, 1 * this.hitSpriteScale);
+            judge.baseScaleX = 0.85 * this.hitSpriteScale;
+            judge.baseScaleY = 1 * this.hitSpriteScale;
          }
          judge.visible = false;
          judge.basex = judge.x = x;
@@ -460,7 +466,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          return judge;
       };
 
-      this.invokeJudgement = function (judge, points, time) {
+       this.invokeJudgement = function (judge, points, time) {
          judge.visible = true;
          judge.points = points;
          judge.t0 = time;
@@ -481,6 +487,10 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                judge.text = judgementText(points);
             judge.tint = judgementColor(points);
          }
+         // T10: hit burst on non-miss
+         if (points !== 0) {
+            try { this.createHitBurst(judge.basex, judge.basey, time); } catch (e) {}
+         }
          this.updateJudgement(judge, time);
       };
 
@@ -497,6 +507,21 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          if (!judge.visible) return;
 
          let t = time - judge.t0;
+
+         // T9: judgement pop scale curve: 0.8 -> 1.1 at 100ms -> 1.0 at 150ms
+         let popScale;
+         if (t < 100) popScale = 0.8 + 0.3 * (t / 100);
+         else if (t < 150) popScale = 1.1 - 0.1 * ((t - 100) / 50);
+         else popScale = 1.0;
+         let bx = judge.baseScaleX != null ? judge.baseScaleX : 0.85 * this.hitSpriteScale;
+         let by = judge.baseScaleY != null ? judge.baseScaleY : 0.85 * this.hitSpriteScale;
+         if (judge.useSprites) {
+            // sprite uses uniform scale, preserve aspect
+            judge.scale.set(bx * popScale, by * popScale);
+         } else {
+            // text: scale X/Y differ, apply pop uniformly
+            judge.scale.set(bx * popScale, by * popScale);
+         }
 
          if (judge.points == 0) {
             // miss
@@ -516,6 +541,87 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             }
             judge.alpha = t < 100 ? t / 100 : 1 - (t - 100) / 400;
             if (!judge.useSprites) judge.letterSpacing = 70 * (Math.pow(t / 1800 - 1, 5) + 1);
+         }
+      };
+
+      // T10: hit burst sprite (scale 1.0 -> 1.5, alpha 1 -> 0 over 200ms)
+      this.createHitBurst = function (x, y, time) {
+         if (!window.Skin || !window.Skin["hitburst.png"]) return;
+         var s = new PIXI.Sprite(window.Skin["hitburst.png"]);
+         s.anchor.set(0.5);
+         s.x = x; s.y = y;
+         s.scale.set(this.hitSpriteScale);
+         s.alpha = 1;
+         s._burstT0 = time;
+         s.depth = 4.5;
+         // insert by depth
+         let idx = 0;
+         for (let i = 0; i < self.gamefield.children.length; i++) {
+            if ((self.gamefield.children[i].depth || 0) < s.depth) idx = i + 1;
+            else break;
+         }
+         self.gamefield.addChildAt(s, idx);
+         self._hitBursts.push(s);
+      };
+      // T11: combo color flash (scale 1.0 -> 2.0, alpha 0.6 -> 0 over 100ms)
+      this.createComboFlash = function (x, y, color, time) {
+         var g;
+         try {
+            g = new PIXI.Graphics();
+            // Pixi v8: circle + fill
+            if (typeof g.circle === "function") {
+               g.circle(0, 0, self.circleRadius * 0.45);
+               g.fill({ color: color, alpha: 1 });
+            } else {
+               g.beginFill(color);
+               g.drawCircle(0, 0, self.circleRadius * 0.45);
+               g.endFill();
+            }
+         } catch (e) {
+            g = new PIXI.Sprite(window.Skin["hitcircleoverlay.png"]);
+            g.anchor.set(0.5);
+            g.tint = color;
+            g.scale.set(self.hitSpriteScale * 0.45);
+         }
+         g.x = x; g.y = y;
+         g.alpha = 0.6;
+         g.scale.set(1);
+         g._flashT0 = time;
+         g.depth = 4.6;
+         let idx = 0;
+         for (let i = 0; i < self.gamefield.children.length; i++) {
+            if ((self.gamefield.children[i].depth || 0) < g.depth) idx = i + 1;
+            else break;
+         }
+         self.gamefield.addChildAt(g, idx);
+         self._comboFlashes.push(g);
+      };
+      this.updateEffects = function (time) {
+         for (let i = self._hitBursts.length - 1; i >= 0; i--) {
+            let s = self._hitBursts[i];
+            let t = time - s._burstT0;
+            if (t >= 200) {
+               self.gamefield.removeChild(s);
+               s.destroy();
+               self._hitBursts.splice(i, 1);
+            } else {
+               let p = t / 200;
+               s.scale.set(self.hitSpriteScale * (1 + 0.5 * p));
+               s.alpha = 1 - p;
+            }
+         }
+         for (let i = self._comboFlashes.length - 1; i >= 0; i--) {
+            let g = self._comboFlashes[i];
+            let t = time - g._flashT0;
+            if (t >= 100) {
+               self.gamefield.removeChild(g);
+               g.destroy();
+               self._comboFlashes.splice(i, 1);
+            } else {
+               let p = t / 100;
+               g.scale.set(1 + p);
+               g.alpha = 0.6 * (1 - p);
+            }
          }
       };
 
@@ -673,16 +779,26 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             this.createJudgement(hit.x, hit.y, 4, hit.time + this.MehTime)
          );
 
-         // create combo number
+         // create combo number — respect skin.ini HitCirclePrefix/ScorePrefix
+         function hitNumberKey(digit) {
+            let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.hitCirclePrefix) || "score";
+            let cand;
+            if (prefix === "default") cand = digit + ".png";
+            else cand = prefix + "-" + digit + ".png";
+            if (window.Skin && window.Skin[cand]) return cand;
+            // fallback to score- and digit variants
+            if (window.Skin && window.Skin["score-" + digit + ".png"]) return "score-" + digit + ".png";
+            return digit + ".png";
+         }
          hit.numbers = [];
          if (index <= 9) {
             hit.numbers.push(
-               newHitSprite("score-" + index + ".png", basedep, 0.4, 0.5, 0.47)
+               newHitSprite(hitNumberKey(index), basedep, 0.4, 0.5, 0.47)
             );
          } else if (index <= 99) {
             hit.numbers.push(
                newHitSprite(
-                  "score-" + (index % 10) + ".png",
+                  hitNumberKey(index % 10),
                   basedep,
                   0.35,
                   0,
@@ -691,7 +807,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             );
             hit.numbers.push(
                newHitSprite(
-                  "score-" + (index - (index % 10)) / 10 + ".png",
+                  hitNumberKey(Math.floor(index / 10)),
                   basedep,
                   0.35,
                   1,
@@ -773,16 +889,20 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          hit.follow.blendMode = "add";
          hit.followSize = 1; // [1,2] current follow circle size relative to hitcircle
 
-         // Add slider ball (above follow circle)
-         // Check for slider ball animation frames (sliderb0.png through sliderbN-1.png)
-         var ballTex = Skin["sliderb.png"];
-         if (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames > 0) {
-            var frameCount = window.game.skinConfig.sliderBallFrames;
-            var frameIdx = Math.floor((Date.now() / 100) % frameCount);
-            ballTex = Skin["sliderb" + frameIdx + ".png"] || ballTex;
-         }
-         hit.ball = newSprite(ballTex, hit.x, hit.y, 0.5);
-         hit.ball.visible = false;
+          // Add slider ball (above follow circle)
+          // Check for slider ball animation frames (sliderb0.png through sliderbN-1.png)
+          var ballTex = Skin["sliderb.png"];
+          if (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames > 0) {
+             var frameCount = window.game.skinConfig.sliderBallFrames;
+             var frameIdx = Math.floor(((self.realtime || performance.now()) / 100) % frameCount);
+             ballTex = Skin["sliderb" + frameIdx + ".png"] || ballTex;
+          }
+          hit.ball = newSprite(ballTex, hit.x, hit.y, 0.5);
+          hit.ball.visible = false;
+          if (window.game && window.game.allowSliderBallTint) {
+             try { hit.ball.tint = combos[hit.combo % combos.length]; } catch (e) {}
+          }
+          hit._ballFrameCount = (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames) || 0;
 
          // A slider contains a complete hit circle at its start, so we just make use of this
          self.createHitCircle(hit);
@@ -867,9 +987,9 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
          const distance = Math.hypot(container.dx, container.dy);
          for (let d = spacing * 2; d < distance - 1.5 * spacing; d += spacing) {
             let fpTex = Skin["followpoint.png"];
-            // Check for animation frames (followpoint-0.png through followpoint-N.png)
+            // Check for animation frames (followpoint-0.png through followpoint-N.png) — use game time for determinism
             if (Skin["followpoint-0.png"]) {
-               let frameIdx = Math.floor((Date.now() / 100) % 10);
+               let frameIdx = Math.floor(((self.realtime || performance.now()) / 80) % 10);
                fpTex = Skin["followpoint-" + frameIdx + ".png"] || Skin["followpoint-0.png"] || fpTex;
             }
             let p = new PIXI.Sprite(fpTex);
@@ -1049,7 +1169,17 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
       };
 
       this.hitSuccess = function hitSuccess(hit, points, time) {
+         let prevCombo = this.scoreOverlay.combo;
          this.scoreOverlay.hit(points, 300, time);
+         // T11: combo color flash when combo goes 0 -> 1
+         if (prevCombo === 0 && this.scoreOverlay.combo === 1 && points > 0) {
+            try {
+               let col = (typeof combos !== "undefined" && combos.length) ? combos[hit.combo % combos.length] : 0xffffff;
+               let fx = (hit.x != null ? hit.x : hit.basex != null ? hit.basex : 256);
+               let fy = (hit.y != null ? hit.y : hit.basey != null ? hit.basey : 192);
+               self.createComboFlash(fx, fy, col, time);
+            } catch (e) {}
+         }
          if (points > 0) {
             if (hit.type == "spinner")
                self.playHitsound(
@@ -1150,8 +1280,13 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
 
       // this should be called on a follow point connection every frame when it's valid
       this.updateFollowPoints = function (f, time) {
+         // animate followpoint frames if skin provides them (use game time, not wall clock)
+         let hasAnim = !!(window.Skin && window.Skin["followpoint-0.png"]);
+         let animIdx = hasAnim ? Math.floor((time / 80) % 10) : -1;
+         let animTex = hasAnim ? (window.Skin["followpoint-" + animIdx + ".png"] || window.Skin["followpoint-0.png"]) : null;
          for (let i = 0; i < f.children.length; ++i) {
             let o = f.children[i];
+            if (hasAnim && animTex && o.texture !== animTex) o.texture = animTex;
             let startx = f.x1 + (o.fraction - 0.1) * f.dx;
             let starty = f.y1 + (o.fraction - 0.1) * f.dy;
             let endx = f.x1 + o.fraction * f.dx;
@@ -1399,8 +1534,18 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             // slider edge judgement
             // Note: being tolerant if follow circle hasn't shrinked to minimum
             if (atEnd && activated) {
+               let prevEdgeCombo = self.scoreOverlay.combo;
                self.invokeJudgement(hit.judgements[hit.lastrep], 300, time);
                self.scoreOverlay.hit(300, 300, time);
+               if (prevEdgeCombo === 0 && self.scoreOverlay.combo === 1) {
+                  try {
+                     let col = (typeof combos !== "undefined" && combos.length) ? combos[hit.combo % combos.length] : 0xffffff;
+                     let j = hit.judgements[hit.lastrep];
+                     let fx = (j && j.basex != null ? j.basex : hit.x);
+                     let fy = (j && j.basey != null ? j.basey : hit.y);
+                     self.createComboFlash(fx, fy, col, time);
+                  } catch (e) {}
+               }
                self.playHitsound(
                   hit,
                   hit.lastrep,
@@ -1413,6 +1558,14 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                // slider ball immediately emerges
                hit.ball.visible = true;
                hit.ball.alpha = 1;
+               if (hit._ballFrameCount > 0) {
+                  let bIdx = Math.floor((time / 100) % hit._ballFrameCount);
+                  let bTex = Skin["sliderb" + bIdx + ".png"];
+                  if (bTex && hit.ball.texture !== bTex) hit.ball.texture = bTex;
+               }
+               if (window.game && window.game.allowSliderBallTint) {
+                  try { hit.ball.tint = combos[hit.combo % combos.length]; } catch (e) {}
+               }
                // follow circie immediately emerges and gradually enlarges
                hit.follow.visible = true;
                if (this.game.down && isfollowing)
@@ -1438,14 +1591,28 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                hit.ball.scale.x = hit.ball.scale.y = ballscale;
             }
 
-            // reverse arrow
+            // reverse arrow with fade-out (100ms) after final repeat
             if (hit.repeat > 1) {
                let finalrepfromA = hit.repeat - (hit.repeat % 2); // even
                let finalrepfromB = hit.repeat - 1 + (hit.repeat % 2); // odd
-               hit.reverse.visible = hit.currentRepeat < finalrepfromA;
-               if (hit.reverse_b)
-                  hit.reverse_b.visible = hit.currentRepeat < finalrepfromB;
-               // TODO reverse arrow fade out animation
+               let hideA = hit.time + finalrepfromA * hit.sliderTime;
+               let hideB = hit.time + finalrepfromB * hit.sliderTime;
+               if (hit.currentRepeat < finalrepfromA) {
+                  hit.reverse.visible = true; hit.reverse.alpha = 1;
+               } else {
+                  let tA = time - hideA;
+                  if (tA < 100) { hit.reverse.visible = true; hit.reverse.alpha = clamp01(1 - tA / 100); }
+                  else hit.reverse.visible = false;
+               }
+               if (hit.reverse_b) {
+                  if (hit.currentRepeat < finalrepfromB) {
+                     hit.reverse_b.visible = true; hit.reverse_b.alpha = 1;
+                  } else {
+                     let tB = time - hideB;
+                     if (tB < 100) { hit.reverse_b.visible = true; hit.reverse_b.alpha = clamp01(1 - tB / 100); }
+                     else hit.reverse_b.visible = false;
+                  }
+               }
             }
 
             // update snaking out portion
@@ -1655,6 +1822,7 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
             this.breakOverlay.countdown(nextapproachtime, time);
             this.updateBackground(time);
             this.updateHitObjects(time);
+            try { this.updateEffects(time); } catch (e) {}
             this.scoreOverlay.update(time);
             this.game.updatePlayerActions(time);
             this.progressOverlay.update(time);
@@ -1704,6 +1872,14 @@ import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
                for (let i = 0; i < arr.length; i++) arr[i].destroy();
             });
             self._spritePool.clear();
+         }
+         if (self._hitBursts) {
+            for (let i = 0; i < self._hitBursts.length; i++) try { self.gamefield.removeChild(self._hitBursts[i]); self._hitBursts[i].destroy(); } catch (e) {}
+            self._hitBursts.length = 0;
+         }
+         if (self._comboFlashes) {
+            for (let i = 0; i < self._comboFlashes.length; i++) try { self.gamefield.removeChild(self._comboFlashes[i]); self._comboFlashes[i].destroy(); } catch (e) {}
+            self._comboFlashes.length = 0;
          }
          let opt = {
             children: true,

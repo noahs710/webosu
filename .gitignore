@@ -80,6 +80,10 @@ newapi
 **/supabase/.env
 
 .vercel
+# OpenSpec / AI tooling (local)
+.opencode/
+.codex/
+
 # webosu backend local data
 data/
 

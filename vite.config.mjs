@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import tailwindcss from "@tailwindcss/vite";
 
 // Gradual rewrite: every top-level HTML page is a build entry. Pages migrate
 // from classic <script src>/require.js to <script type="module"> one at a time;
@@ -12,7 +13,7 @@ const htmlEntries = {
 };
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [tailwindcss(), vue()],
   resolve: {
     alias: {
       "vue": "vue/dist/vue.esm-bundler.js",

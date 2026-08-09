@@ -97,23 +97,25 @@ onMounted(load);
   <div v-else-if="!loading && !sets.length && emptyMessage" class="text-lazer-dim p-4">{{ emptyMessage }}</div>
   <div v-else class="flex flex-wrap gap-3">
     <article v-for="s in sets" :key="s.id"
-      class="beatmap-card beatmapbox relative cursor-pointer overflow-visible w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
+      class="beatmap-card beatmapbox group relative cursor-pointer overflow-visible w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
       style="background: var(--lazer-panel);"
       @click="showDiff(s, $event)">
-      <img :src="'https://assets.ppy.sh/beatmaps/' + s.id + '/covers/card@2x.jpg'"
-           alt="" loading="lazy"
-           class="w-full h-[140px] object-cover rounded-t-xl"
-           @error="$event.target.style.display='none'" />
+      <div class="overflow-hidden rounded-t-xl">
+        <img :src="'https://assets.ppy.sh/beatmaps/' + s.id + '/covers/card@2x.jpg'"
+             alt="" loading="lazy"
+             class="w-full h-[140px] object-cover rounded-t-xl transition-transform duration-200 ease-out group-hover:scale-105"
+             @error="$event.target.style.display='none'" />
+      </div>
       <div class="p-3">
         <div class="font-bold text-lazer-text truncate">{{ s.title }}</div>
         <div class="text-sm text-lazer-dim truncate mb-1.5">{{ s.artist }}</div>
-        <div class="flex items-center gap-1">
+        <div class="flex items-center gap-[2px]">
           <template v-if="(s.beatmaps || []).filter(b => b.mode === 'osu').length <= 13">
             <div v-for="(b, i) in (s.beatmaps || []).filter(b => b.mode === 'osu')" :key="i"
-                 class="difficulty-ring" :class="starname(b.difficulty_rating)"></div>
+                 class="difficulty-bar" :class="starname(b.difficulty_rating)"></div>
           </template>
           <template v-else>
-            <div class="difficulty-ring" :class="starname((s.beatmaps || []).filter(b => b.mode === 'osu').slice(-1)[0].difficulty_rating)"></div>
+            <div class="difficulty-bar" :class="starname((s.beatmaps || []).filter(b => b.mode === 'osu').slice(-1)[0].difficulty_rating)"></div>
             <span class="text-xs text-lazer-dim ml-0.5">{{ (s.beatmaps || []).filter(b => b.mode === 'osu').length }}</span>
           </template>
         </div>
