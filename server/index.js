@@ -59,7 +59,6 @@ wss.on("connection", (ws) => {
 function send(ws, obj) { try { ws.send(JSON.stringify(obj)); } catch (e) {} }
 function usersIn(room) { return [...room.clients.values()].map((c) => ({ name: c.name, ready: c.ready })); }
 function broadcast(room, obj, exceptWs) {
-  const data = JSON.stringify(obj);
   for (const [c] of room.clients) if (c !== exceptWs) send(c, obj);
 }
 

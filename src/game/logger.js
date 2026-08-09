@@ -19,4 +19,3 @@ export function group(tag, label, fn) {
   console.group(`[${tag}] ${label}`);
   try { fn && fn(); } finally { console.groupEnd(); }
 }
-export const LEVEL = current;

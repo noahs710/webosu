@@ -24,21 +24,8 @@ export function setCachedBeatmaps({ src, sids, limit }, data) {
   cache.set(key, Array.isArray(data) ? [...data] : data);
 }
 
-export function hasCachedBeatmaps(opts) {
-  return getCachedBeatmaps(opts) !== null;
-}
-
 export function clearCachedBeatmaps(opts) {
   if (!opts) { cache.clear(); return; }
   const key = opts.sids && opts.sids.length ? keyForSids(opts.sids, opts.limit) : keyForSrc(opts.src, opts.limit);
   cache.delete(key);
-}
-
-export function clearAllBeatmapCache() {
-  cache.clear();
-}
-
-// For debugging / manual reload UI
-export function cacheStats() {
-  return { size: cache.size, keys: [...cache.keys()] };
 }

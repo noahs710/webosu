@@ -1,7 +1,5 @@
 <script setup>
 import { ref, onMounted } from "vue";
-
-const props = defineProps({ active: String });
 const searchQuery = ref("");
 const user = ref(null);
 const showLogin = ref(false);

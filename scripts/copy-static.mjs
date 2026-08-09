@@ -52,19 +52,4 @@ const swOut = swSource
 writeFileSync(join(DIST, "sw.js"), swOut);
 console.log("copy-static: generated dist/sw.js precaching", SHELL.length, "files");
 
-let touched = 0;
-for (const f of readdirSync(DIST).filter((f) => f.endsWith(".html"))) {
-  const p = join(DIST, f);
-  let s = readFileSync(p, "utf8");
-  const orig = s;
-  // remove Vite-bundled shell stylesheet links (/assets/*.css) and any
-  // source shell css links; leave the Google Fonts <link> (https) untouched.
-  s = s.replace(/<link\s+rel="stylesheet"[^>]*href="(?:\.?\/)?css\/[^"]*\.css"[^>]*>\n?/g, "");
-  // inject the three plain /css/ links right after <head>
-  s = s.replace(/<head>\n?/, (m) => m + "\n" + SHELL_LINKS);
-  if (s !== orig) {
-    writeFileSync(p, s);
-    touched++;
-  }
-}
-console.log("copy-static: copied js/ css/ img/ + sw.js/sprites.json/manifest; normalised shell CSS in", touched, "pages");
+console.log("copy-static: copied js/ css/ img/ + sw.js/sprites.json/manifest");
