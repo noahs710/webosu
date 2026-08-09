@@ -123,16 +123,16 @@
 
       this.HPbar = this.newSpriteArray(3, 0.5);
       // Prefer scorebar-* if skin provides it (osu! skins use scorebar-bg/colour), otherwise hpbar
-      if (Skin["scorebar-bg.png"] && Skin["scorebar-colour.png"]) {
-         this.HPbar[0].texture = Skin["scorebar-bg.png"];
-         this.HPbar[1].texture = Skin["scorebar-bg.png"];
-         this.HPbar[2].texture = Skin["scorebar-colour.png"];
+      if (window.Skin["scorebar-bg.png"] && window.Skin["scorebar-colour.png"]) {
+         this.HPbar[0].texture = window.Skin["scorebar-bg.png"];
+         this.HPbar[1].texture = window.Skin["scorebar-bg.png"];
+         this.HPbar[2].texture = window.Skin["scorebar-colour.png"];
          this.HPbar[0].anchor.x = 0;
          this._useScorebar = true;
       } else {
-         this.HPbar[0].texture = Skin["hpbarleft.png"];
-         this.HPbar[1].texture = Skin["hpbarright.png"];
-         this.HPbar[2].texture = Skin["hpbarmid.png"];
+         this.HPbar[0].texture = window.Skin["hpbarleft.png"];
+         this.HPbar[1].texture = window.Skin["hpbarright.png"];
+         this.HPbar[2].texture = window.Skin["hpbarmid.png"];
          this.HPbar[0].anchor.x = 1;
          this._useScorebar = false;
       }
@@ -263,9 +263,9 @@
             // fallback to digit naming if score- variant missing or not valid
             if (!window.Skin || !window.Skin[textname]?.valid) textname = (window.Skin && window.Skin[ch + ".png"]?.valid) ? ch + ".png" : "score-" + ch + ".png";
             // final guard: if still not valid, try score- fallback; if none valid, skip width
-            const tex = Skin[textname];
-            arr[i].texture = tex && tex.valid ? tex : Skin["score-0.png"] || tex;
-            const texForWidth = (tex && tex.valid) ? tex : (Skin["score-0.png"] && Skin["score-0.png"].valid ? Skin["score-0.png"] : tex);
+            const tex = window.Skin[textname];
+            arr[i].texture = tex && tex.valid ? tex : window.Skin["score-0.png"] || tex;
+            const texForWidth = (tex && tex.valid) ? tex : (window.Skin["score-0.png"] && window.Skin["score-0.png"].valid ? window.Skin["score-0.png"] : tex);
             const w = (texForWidth && texForWidth.valid && texForWidth.width) ? texForWidth.width : 14;
             arr[i].knownwidth =
                arr[i].scale.x * (w + effSpacing);

@@ -784,7 +784,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             anchorx = 0.5,
             anchory = 0.5
          ) {
-            const tex = Skin[spritename];
+            const tex = window.Skin[spritename];
             let arr = self._spritePool.get(tex);
             let sprite = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(tex);
             // reset every property a hit sprite can carry so a pooled sprite is
@@ -936,7 +936,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          hit.objects.push(body);
 
          function newSprite(spritename, x, y, scalemul = 1) {
-            let sprite = new PIXI.Sprite(Skin[spritename]);
+            let sprite = new PIXI.Sprite(window.Skin[spritename]);
             sprite.scale.set(self.hitSpriteScale * scalemul);
             sprite.anchor.set(0.5);
             sprite.x = x;
@@ -970,12 +970,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
 
           // slider end circle (skinnable via sliderendcircle.png)
-          if (Skin["sliderendcircle.png"]) {
+          if (window.Skin["sliderendcircle.png"]) {
              let end = hit.curve.curve[hit.curve.curve.length - 1];
              try {
                 hit.endCircle = newSprite("sliderendcircle.png", end.x, end.y, 0.5);
                 hit.endCircle.tint = combos[hit.combo % combos.length];
-                if (Skin["sliderendcircleoverlay.png"]) {
+                if (window.Skin["sliderendcircleoverlay.png"]) {
                    hit.endOverlay = newSprite("sliderendcircleoverlay.png", end.x, end.y, 0.5);
                 }
              } catch (e) { gdebug("playback", "sliderendcircle failed", e); }
@@ -1005,11 +1005,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
           // Add slider ball (above follow circle)
           // Check for slider ball animation frames (sliderb0.png through sliderbN-1.png)
-          var ballTex = Skin["sliderb.png"];
+          var ballTex = window.Skin["sliderb.png"];
           if (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames > 0) {
              var frameCount = window.game.skinConfig.sliderBallFrames;
              var frameIdx = Math.floor(((self.realtime || performance.now()) / 100) % frameCount);
-             ballTex = Skin["sliderb" + frameIdx + ".png"] || ballTex;
+             ballTex = window.Skin["sliderb" + frameIdx + ".png"] || ballTex;
           }
           hit.ball = newSprite(ballTex, hit.x, hit.y, 0.5);
           hit.ball.visible = false;
@@ -1048,7 +1048,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             1000;
 
          function newsprite(spritename) {
-            var sprite = new PIXI.Sprite(Skin[spritename]);
+            var sprite = new PIXI.Sprite(window.Skin[spritename]);
             sprite.anchor.set(0.5);
             sprite.x = hit.x;
             sprite.y = hit.y;
@@ -1104,11 +1104,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          const rotation = Math.atan2(container.dy, container.dx);
          const distance = Math.hypot(container.dx, container.dy);
          for (let d = spacing * 2; d < distance - 1.5 * spacing; d += spacing) {
-            let fpTex = Skin["followpoint.png"];
+            let fpTex = window.Skin["followpoint.png"];
             // Check for animation frames (followpoint-0.png through followpoint-N.png) — use game time for determinism
-            if (Skin["followpoint-0.png"]) {
+            if (window.Skin["followpoint-0.png"]) {
                let frameIdx = Math.floor(((self.realtime || performance.now()) / 80) % 10);
-               fpTex = Skin["followpoint-" + frameIdx + ".png"] || Skin["followpoint-0.png"] || fpTex;
+               fpTex = window.Skin["followpoint-" + frameIdx + ".png"] || window.Skin["followpoint-0.png"] || fpTex;
             }
             let p = new PIXI.Sprite(fpTex);
             p.scale.set(this.hitSpriteScale * 0.3);
@@ -1149,7 +1149,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          if (!this.predictVisualizer && game.mouse) {
             // create visualizer
             let o = (this.predictVisualizer = new PIXI.Sprite(
-               Skin["sliderb.png"]
+               window.Skin["sliderb.png"]
             ));
             o.anchor.set(0.5);
             o.tint = 0x00ff00;
@@ -1690,7 +1690,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                hit.ball.alpha = 1;
                if (hit._ballFrameCount > 0) {
                   let bIdx = Math.floor((time / 100) % hit._ballFrameCount);
-                  let bTex = Skin["sliderb" + bIdx + ".png"];
+                  let bTex = window.Skin["sliderb" + bIdx + ".png"];
                   if (bTex && hit.ball.texture !== bTex) hit.ball.texture = bTex;
                }
                if (window.game && window.game.allowSliderBallTint) {

@@ -7,15 +7,15 @@ class BreakOverlay extends PIXI.Container {
       this.appearthreshold = 1500;
       this.visible = false;
 
-      this.barmid = new PIXI.Sprite(Skin["bar.png"]);
+      this.barmid = new PIXI.Sprite(window.Skin["bar.png"]);
       this.barmid.anchor.set(0.5, 0.5);
       this.barmid.x = 0;
       this.barmid.y = 0;
-      this.barleft = new PIXI.Sprite(Skin["barend.png"]);
+      this.barleft = new PIXI.Sprite(window.Skin["barend.png"]);
       this.barleft.anchor.set(0.1, 0.5);
       this.barleft.rotation = Math.PI;
       this.barleft.y = 0;
-      this.barright = new PIXI.Sprite(Skin["barend.png"]);
+      this.barright = new PIXI.Sprite(window.Skin["barend.png"]);
       this.barright.anchor.set(0.1, 0.5);
       this.barright.y = 0;
 
