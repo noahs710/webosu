@@ -328,11 +328,11 @@ export async function applySkin(skinData) {
           }
         }
         // destroy old texture without destroying shared source (prevents GPU leak)
-        const old = window.Skin[key];
+        const old = window.Skin?.[key];
         if (old && old !== tex && old !== PIXI.Texture.WHITE && typeof old.destroy === "function") {
           try { old.destroy(false); } catch {}
         }
-        window.Skin[key] = tex;
+        if (window.Skin) window.Skin[key] = tex;
       } catch (e) {
         cwarn("skin-loader", "texture apply failed:", key, e);
       }

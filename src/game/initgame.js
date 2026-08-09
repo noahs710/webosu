@@ -206,7 +206,7 @@ import { gamesettings } from "../shell/gamesettings.js";
          for (var osuName in map) {
             try {
                var key = skinNameMap[osuName] || osuName;
-               if (window.Skin[key]) {
+               if (window.Skin?.[key]) {
                   window.Skin[key] = PIXI.Texture.from(
                      "data:image/png;base64," + map[osuName]
                   );

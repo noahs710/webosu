@@ -14,7 +14,7 @@ class ErrorMeter extends PIXI.Container {
     this.lscale = barheight / 2 / r50; // pixel per millisecond
 
     const newbarpiece = function (height, tint) {
-      const piece = new PIXI.Sprite(window.Skin["errormeterbar.png"]);
+      const piece = new PIXI.Sprite(window.Skin?.["errormeterbar.png"] || PIXI.Texture.WHITE);
       piece.width = 2;
       piece.height = height;
       piece.tint = tint;
@@ -27,7 +27,7 @@ class ErrorMeter extends PIXI.Container {
     this.addChild(newbarpiece((barheight * r100) / r50, color100));
     this.addChild(newbarpiece((barheight * r300) / r50, color300));
 
-    const centerline = new PIXI.Sprite(window.Skin["errormeterbar.png"]);
+    const centerline = new PIXI.Sprite(window.Skin?.["errormeterbar.png"] || PIXI.Texture.WHITE);
     centerline.width = 5;
     centerline.height = 2;
     centerline.anchor.set(0, 0.5);
@@ -36,7 +36,7 @@ class ErrorMeter extends PIXI.Container {
     centerline.y = 0;
     this.addChild(centerline);
 
-    this.avgmarker = new PIXI.Sprite(window.Skin["reversearrow.png"]);
+    this.avgmarker = new PIXI.Sprite(window.Skin?.["reversearrow.png"] || PIXI.Texture.WHITE);
     this.avgmarker.scale.set(0.08);
     this.avgmarker.anchor.set(0.5);
     this.avgmarker.x = -8;
@@ -46,7 +46,7 @@ class ErrorMeter extends PIXI.Container {
     this.ticks = [];
     this.poolsize = 20;
     for (let i = 0; i < this.poolsize; ++i) {
-      const tick = new PIXI.Sprite(window.Skin["errormeterindicator.png"]);
+      const tick = new PIXI.Sprite(window.Skin?.["errormeterindicator.png"] || PIXI.Texture.WHITE);
       tick.scale.set(0.2);
       tick.anchor.set(0, 0.5);
       tick.alpha = 0;

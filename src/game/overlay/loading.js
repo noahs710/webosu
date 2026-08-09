@@ -7,7 +7,7 @@ class LoadingMenu extends PIXI.Container {
       this.alpha = 1;
       this.hidden = false;
 
-      this.bg = new PIXI.Sprite(window.Skin["hpbarright.png"]);
+      this.bg = new PIXI.Sprite(window.Skin?.["hpbarright.png"] || PIXI.Texture.WHITE);
       this.bg.rotation = Math.PI / 2;
       this.bg.anchor.set(0.5);
       this.bg.scale.set(0.6, 500);
@@ -49,7 +49,7 @@ class LoadingMenu extends PIXI.Container {
       this.addChild(this.sourcetext);
       this.addChild(this.mappertext);
 
-      this.loading = new PIXI.Sprite(window.Skin["dot.png"]);
+      this.loading = new PIXI.Sprite(window.Skin?.["dot.png"] || PIXI.Texture.WHITE);
       this.loading.anchor.set(0.5, 0.3);
       this.loading.scale.set(1, 0.6);
       this.addChild(this.loading);
