@@ -34,6 +34,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
    function Playback(game, osu, track) {
       var self = this;
       window.playback = this;
+      self._generation = (self._generation || 0) + 1; // invalidate stale async callbacks on retry
       self.game = game;
       self.osu = osu;
       self.track = track;
@@ -351,9 +352,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       setPlayerActions(self);
 
       self.game.paused = false;
-      this.pause = function () {
-         glog("playback", "pause requested, audioReady", self.audioReady, "paused", self.game.paused);
-         if (this.osu.audio.pause()) {
+       this.pause = function () {
+          glog("playback", "pause requested, audioReady", self.audioReady, "paused", self.game.paused);
+          if (!this.osu || !this.osu.audio) return;
+          if (this.osu.audio.pause()) {
             // pause music success
             this.game.paused = true;
             let menu = document.getElementById("pause-menu");
@@ -397,12 +399,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             if (self.game.masterVolume < 0) {
                self.game.masterVolume = 0;
             }
-            if (self.game.masterVolume > 1) {
-               self.game.masterVolume = 1;
-            }
-            self.osu.audio.gain.gain.value =
-               self.game.musicVolume * self.game.masterVolume;
-            self.volumeMenu.setVolume(self.game.masterVolume * 100);
+             if (self.game.masterVolume > 1) {
+                self.game.masterVolume = 1;
+             }
+             if (self.osu && self.osu.audio && self.osu.audio.gain)
+                self.osu.audio.gain.gain.value = self.game.musicVolume * self.game.masterVolume;
+             self.volumeMenu.setVolume(self.game.masterVolume * 100);
          };
          window.addEventListener("wheel", wheelCallback);
       }
@@ -630,16 +632,16 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                g.drawCircle(0, 0, self.circleRadius * 0.45);
                g.endFill();
             }
-         } catch (e) {
-            g = new PIXI.Sprite(window.Skin?.["hitcircleoverlay.png"] || PIXI.Texture.WHITE);
-            g.anchor.set(0.5);
-            g.tint = color;
-            g.scale.set(self.hitSpriteScale * 0.45);
-         }
-         g.x = x; g.y = y;
-         g.alpha = 0.6;
-         g.scale.set(1);
-         g._flashT0 = time;
+       } catch (e) {
+          g = new PIXI.Sprite(window.Skin?.["hitcircleoverlay.png"] || PIXI.Texture.WHITE);
+          g.anchor.set(0.5);
+          g.tint = color;
+          g.scale.set(self.hitSpriteScale * 0.45);
+       }
+       g.x = x; g.y = y;
+       g.alpha = 0.6;
+       if (!(g instanceof PIXI.Sprite)) g.scale.set(1);
+       g._flashT0 = time;
          g.zIndex = 4.6;
          g.eventMode = 'none';
          g.cullable = false;
@@ -677,6 +679,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
        this.createBackground = function () {
          async function loadBackground(uri) {
+            const gen = self._generation;
             glog("playback", "loadBackground", uri.slice(0, 60));
             let bgTexture = null;
             const isBlob = uri && uri.startsWith("blob:");
@@ -742,7 +745,9 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                try { URL.revokeObjectURL(uri); } catch {}
                try { await PIXI.Assets.unload(uri); } catch {}
             }
-                  // destroy previous background RenderTexture to prevent GPU leak
+            // stale check: if retry/destroy happened during async load, discard result
+            if (gen !== self._generation) return;
+                   // destroy previous background RenderTexture to prevent GPU leak
                   if (self.background) {
                      try {
                         const oldTex = self.background.texture;
@@ -954,8 +959,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.hitCircleOverlap) || 0;
             if (overlap) {
                // tens (index 1) anchor 1, units (index 0) anchor 0 — bring together by overlap
-               hit.numbers[1].x += overlap * 0.3;
-               hit.numbers[0].x -= overlap * 0.3;
+               hit.numbers[0].x += overlap * 0.3;
+               hit.numbers[1].x -= overlap * 0.3;
             }
          }
          // Note: combos > 99 hits are unsupported
@@ -1452,7 +1457,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                  });
                  hit.judgements.forEach(function (o) {
                     self.gamefield.removeChild(o);
-                    if (o._pooledType === "text") self._judgeTextPool.push(o);
+                    if (o._pooledType === "text") { if (self._judgeTextPool.length < self._POOL_MAX) self._judgeTextPool.push(o); else o.destroy(); }
                     else if (o._pooledTex) self._releaseToPool(o);
                     else o.destroy();
                  });
