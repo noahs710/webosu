@@ -219,8 +219,8 @@
       // return value true: success
       this.pause = function pause() {
          if (!self.playing || self._getPosition() <= 0) return false;
-         self.position +=
-            (self.audio.currentTime - self.started) * self.playbackRate;
+         // use _getPosition for latency-accurate position, then subtract posoffset to get raw position
+         self.position = self._getPosition();
          self.source.stop();
          self.playing = false;
          return true;

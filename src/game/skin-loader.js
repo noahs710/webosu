@@ -232,8 +232,10 @@ function revokeAllSkinBlobs() {
 }
 
 export async function unloadActiveSkin() {
+  // don't unload if defaults aren't set yet (can't restore sprite textures)
+  if (!window._defaultSkin) return;
   // restore window.Skin to defaults so no sprite holds a destroyed texture
-  if (window._defaultSkin && window.Skin) {
+  if (window.Skin) {
     for (const k of Object.keys(window.Skin)) {
       if (!(k in window._defaultSkin)) delete window.Skin[k];
       else window.Skin[k] = window._defaultSkin[k];
@@ -297,6 +299,7 @@ export async function applySkin(skinData) {
         try {
           if (PIXI.Assets && PIXI.Assets.cache && PIXI.Assets.cache.has(url)) {
             tex = PIXI.Assets.cache.get(url);
+            _activeSkinKeys.add(url);
           } else {
             try {
               tex = await PIXI.Assets.load({ src: url, parser: "texture", data: { scaleMode: "linear", autoGenerateMipmaps: false } });
@@ -577,7 +580,6 @@ export async function loadCachedSkin() {
         const sounds = {};
         for (const key in results.rawSounds) {
           const buf = results.rawSounds[key];
-          const ext = key.includes("combobreak") ? "wav" : "wav";
           const blob = new Blob([buf], { type: "audio/wav" });
           sounds[key] = { url: URL.createObjectURL(blob), buffer: buf };
         }

@@ -329,11 +329,11 @@
             this.HP4display.set(time, Math.max(0, this.HP));
          }
          let hp = this.HP4display.valueAt(time);
-         if (this._useScorebar) {
-            // scorebar: bg full width, colour width = hp * width
-            this.HPbar[0].x = 0; this.HPbar[0].width = this.field.width; this.HPbar[0].scale.x = this.field.width / this.HPbar[0].texture.width;
-            this.HPbar[1].x = 0; this.HPbar[1].width = this.field.width;
-            this.HPbar[2].x = 0; this.HPbar[2].width = Math.max(0, hp) * this.field.width; this.HPbar[2].scale.x = (Math.max(0, hp) * this.field.width) / this.HPbar[2].texture.width;
+          if (this._useScorebar) {
+             // scorebar: bg full width, colour width = hp * width
+             this.HPbar[0].x = 0; this.HPbar[0].width = this.field.width;
+             this.HPbar[1].x = 0; this.HPbar[1].width = this.field.width;
+             this.HPbar[2].x = 0; this.HPbar[2].width = Math.max(0, hp) * this.field.width;
          } else {
             let HPpos = hp * this.field.width;
             this.HPbar[0].x = HPpos;

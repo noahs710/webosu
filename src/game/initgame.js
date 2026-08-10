@@ -206,23 +206,6 @@ import { gamesettings } from "../shell/gamesettings.js";
       }
    }
 
-   // apply custom skin textures imported from a .osk (stored in localforage)
-   // legacy base64 skin path — kept for migration, no UI writes to this anymore
-   function applyCustomSkin(done) {
-      if (!window.localforage) { done(); return; }
-      localforage.getItem("skinTextures", function (err, map) {
-         if (err || !map || typeof map !== "object") { done(); return; }
-         for (var osuName in map) {
-            try {
-               if (window.Skin?.[osuName]) {
-                  window.Skin[osuName] = PIXI.Texture.from("data:image/png;base64," + map[osuName]);
-               }
-            } catch (e) { if (import.meta.env.DEV) console.warn("custom skin apply failed", osuName, e); }
-         }
-         done();
-      });
-   }
-
    sounds.whenLoaded = function () {
       game.sample[1].hitnormal = sounds["/hitsounds/normal-hitnormal.ogg"];
       game.sample[1].hitwhistle = sounds["/hitsounds/normal-hitwhistle.ogg"];

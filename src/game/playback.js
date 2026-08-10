@@ -603,12 +603,13 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          const tex = window.Skin?.["hitburst.png"] || PIXI.Texture.WHITE;
          let arr = self._spritePool.get(tex);
          let s = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(tex);
-         if (s.texture !== tex) s.texture = tex;
-         s.anchor.set(0.5);
-         s.x = x; s.y = y;
-         s.scale.set(this.hitSpriteScale);
-         s.alpha = 1;
-         s._burstT0 = time;
+          if (s.texture !== tex) s.texture = tex;
+          s.anchor.set(0.5);
+          s.x = x; s.y = y;
+          s.scale.set(this.hitSpriteScale);
+          s.alpha = 1;
+          s.visible = true;
+          s._burstT0 = time;
          s.zIndex = 4.5;
           s.eventMode = 'none';
           s.cullable = false;
@@ -2019,7 +2020,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
           this.volumeMenu.update(timestamp);
           this.loadingMenu.update(timestamp);
 
-          if (time > this.endTime) {
+          if (time !== undefined && time > this.endTime) {
             // game ends
             if (!this.ended) {
                this.ended = true;

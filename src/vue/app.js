@@ -8,6 +8,9 @@ window.__ensureGame = ensureGame;
 
 // Loading overlay for beatmap launch — visible during download + unzip + parse
 function showLoadingOverlay(title, artist) {
+   // remove existing overlay if present (prevents duplicate IDs)
+   const existing = document.getElementById("beatmap-loading-overlay");
+   if (existing) existing.remove();
    const el = document.createElement("div");
    el.id = "beatmap-loading-overlay";
    Object.assign(el.style, {
@@ -89,18 +92,20 @@ const app = createApp({
       const watch = q.get("watch");
       if (watch) {
         ensureGame();
+        const replayOverlay = showLoadingOverlay("Loading replay...", "");
         const checkReady = () => {
           if (window.Osu && window.scriptReady && window.skinReady && window.soundReady && typeof window.launchReplay === "function") {
             fetch("/api/replays/" + watch)
               .then((r) => r.json())
               .then((frames) => {
-                if (!Array.isArray(frames) || !frames.length) { alert("Replay unavailable for this score."); return; }
-                const suffix = "n"; // always no-video
+                if (!Array.isArray(frames) || !frames.length) { replayOverlay.remove(); alert("Replay unavailable for this score."); return; }
+                replayOverlay.setText("Downloading beatmap...");
+                const suffix = "n";
                 return fetch("https://catboy.best/d/" + q.get("sid") + suffix)
                   .then((r) => r.arrayBuffer())
                   .then((ab) => { window.launchReplay(new Blob([ab]), parseInt(q.get("bid") || "0"), q.get("v") || "", frames); });
               })
-              .catch((e) => alert("Could not start replay: " + (e.message || e)));
+              .catch((e) => { replayOverlay.remove(); alert("Could not start replay: " + (e.message || e)); });
           } else setTimeout(checkReady, 200);
         };
         checkReady();

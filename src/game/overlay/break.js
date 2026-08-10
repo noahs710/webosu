@@ -54,10 +54,11 @@ class BreakOverlay extends PIXI.Container {
             this.nextapproachtime = nextapproachtime;
          }
          if (!this.visible) return;
-         if (time >= this.nextapproachtime) {
-            this.visible = false;
-            return;
-         }
+          if (time >= this.nextapproachtime) {
+             this.visible = false;
+             this.number.text = "";
+             return;
+          }
 
          let t = this.nextapproachtime - time;
          let radius = (200 * t) / (this.nextapproachtime - this.starttime);

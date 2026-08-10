@@ -47,7 +47,7 @@ const distFiles = [];
 // keep the precache list reasonable: skip sourcemaps + huge non-shell blobs
 const SHELL = distFiles.filter((f) => !f.endsWith(".map"));
 const swOut = swSource
-  .replace(/const CACHE = "webosu-v1";/, 'const CACHE = "webosu-v' + Date.now() + '";')
+  .replace(/const CACHE = "[^"]*";/, 'const CACHE = "webosu-v' + Date.now() + '";')
   .replace(/const SHELL = \[[^\]]*\];/, "const SHELL = " + JSON.stringify(SHELL, null, 2) + ";");
 writeFileSync(join(DIST, "sw.js"), swOut);
 console.log("copy-static: generated dist/sw.js precaching", SHELL.length, "files");

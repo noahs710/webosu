@@ -49,6 +49,11 @@ for (const key of keys) {
 }
 
 const stripped = zipSync(kept);
-writeFileSync(SRC, stripped);
+// write to dist/ (not source) — copy-static.mjs would copy from skins/ but
+// we write directly to avoid destroying the source .osk
+import { mkdirSync } from "fs";
+const distSkins = join(ROOT, "dist", "skins");
+if (!existsSync(distSkins)) mkdirSync(distSkins, { recursive: true });
+writeFileSync(join(distSkins, "default.osk"), stripped);
 
 console.log(`strip-skin: ${totalFiles} → ${keptCount} files, ${(totalSize/1024/1024).toFixed(1)}MB → ${(stripped.length/1024).toFixed(0)}KB (${(stripped.length/totalSize*100).toFixed(1)}% of original)`);

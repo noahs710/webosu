@@ -50,6 +50,7 @@ class ProgressOverlay extends PIXI.Container {
 
       // parameter t: time(ms) to next approach object; -1 if unavailable
       this.update = function (time) {
+         if (Number.isNaN(time)) return;
          let remStr = timeformat(Math.max(0, (this.endtime - time) / 1000));
          if (this.remaining.text !== remStr) this.remaining.text = remStr;
          let pastStr = timeformat((time - this.starttime) / 1000);
