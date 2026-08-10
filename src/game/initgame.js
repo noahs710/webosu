@@ -91,35 +91,48 @@ import { gamesettings } from "../shell/gamesettings.js";
    game.stage.sortableChildren = true; // v8: zIndex-based layering (cursor on top, HUD below)
    game.cursor = null;
 
-   // load skin & game cursor — with detailed logging
+   // load skin — reowoTuna .osk is the default skin, sprites.json is fallback only
    window.Skin = window.Skin || {};
    window._defaultSkin = null;
-   PIXI.Assets.load("/sprites.json").then(async (sheet) => {
+   async function loadDefaultSkin() {
+      // try cached .osk first (IndexedDB — instant after first load)
+      try {
+         const cached = await loadCachedSkin();
+         if (cached) {
+            ilog("initgame", "cached skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
+            await applySkin(cached);
+            ilog("initgame", "cached skin applied");
+            return true;
+         }
+      } catch (e) { iwarn("initgame", "loadCachedSkin failed", e); }
+      // no cache — fetch the bundled default .osk and cache it
+      try {
+         ilog("initgame", "fetching default .osk from /skins/default.osk");
+         const res = await fetch("/skins/default.osk");
+         if (!res.ok) throw new Error("default.osk " + res.status);
+         const blob = await res.blob();
+         const { loadOsk, saveLocalSkin } = await import("./skin-loader.js");
+         const data = await loadOsk(blob);
+         ilog("initgame", "default .osk loaded", data.config?.name || "unnamed", "textures", Object.keys(data.textures||{}).length);
+         try { await saveLocalSkin(data, "reowoTuna.osk"); } catch (e) { iwarn("initgame", "saveLocalSkin failed", e); }
+         await applySkin(data);
+         ilog("initgame", "default .osk applied");
+         return true;
+      } catch (e) { iwarn("initgame", "default .osk load failed, falling back to sprites.json", e); }
+      // fallback: load sprites.json (legacy default spritesheet)
+      try {
+         const sheet = await PIXI.Assets.load("/sprites.json");
          window.Skin = sheet.textures;
-         // backup default for reset on skin switch (prevents exponential scaling/accumulation)
          try { window._defaultSkin = { ...window.Skin }; } catch {}
-         ilog("initgame", "sprites loaded", Object.keys(window.Skin).length + " textures");
-          let cachedApplied = false;
-          try {
-             const cached = await loadCachedSkin();
-             if (cached) {
-                ilog("initgame", "cached osk skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
-                try { await applySkin(cached); cachedApplied = true; ilog("initgame", "cached skin applied"); } catch (e) { iwarn("initgame", "applySkin failed", e); }
-             } else {
-                ilog("initgame", "no cached osk skin");
-             }
-          } catch (e) {
-             iwarn("initgame", "loadCachedSkin failed", e);
-          }
-           // fallback to legacy base64 skins in localforage
-           await new Promise(resolve => applyCustomSkin(resolve));
-           ilog("initgame", "legacy skin applied, cachedApplied=" + cachedApplied);
-          window.skinReady = true;
-          const el = document.getElementById("skin-progress");
-          if (el) el.classList.add("finished");
-          document.body.classList.add("skin-ready");
-          ilog("initgame", "skinReady=true body.skin-ready added");
-    }).catch((e) => ierror("initgame", "sprites load failed — game cannot start without sprites.json", e));
+         ilog("initgame", "sprites.json fallback loaded", Object.keys(window.Skin).length, "textures");
+         return true;
+      } catch (e) { ierror("initgame", "sprites.json also failed — game cannot start", e); return false; }
+   }
+   loadDefaultSkin().then((ok) => {
+      window.skinReady = true;
+      document.body.classList.add("skin-ready");
+      ilog("initgame", "skinReady=true");
+   });
 
    // load sounds
    // load hitsound set
@@ -192,32 +205,17 @@ import { gamesettings } from "../shell/gamesettings.js";
    }
 
    // apply custom skin textures imported from a .osk (stored in localforage)
+   // legacy base64 skin path — kept for migration, no UI writes to this anymore
    function applyCustomSkin(done) {
-      // map osu! skin filenames that differ from the webosu spritesheet keys
-      var skinNameMap = {
-         "hitcircle.png": "disc.png",
-         "sliderb0.png": "sliderb.png",
-      };
-      if (!window.localforage) {
-         done();
-         return;
-      }
+      if (!window.localforage) { done(); return; }
       localforage.getItem("skinTextures", function (err, map) {
-         if (err || !map || typeof map !== "object") {
-            done();
-            return;
-         }
+         if (err || !map || typeof map !== "object") { done(); return; }
          for (var osuName in map) {
             try {
-               var key = skinNameMap[osuName] || osuName;
-               if (window.Skin?.[key]) {
-                  window.Skin[key] = PIXI.Texture.from(
-                     "data:image/png;base64," + map[osuName]
-                  );
+               if (window.Skin?.[osuName]) {
+                  window.Skin[osuName] = PIXI.Texture.from("data:image/png;base64," + map[osuName]);
                }
-            } catch (e) {
-               if (import.meta.env.DEV) console.warn("custom skin apply failed", osuName, e);
-            }
+            } catch (e) { if (import.meta.env.DEV) console.warn("custom skin apply failed", osuName, e); }
          }
          done();
       });
@@ -240,12 +238,10 @@ import { gamesettings } from "../shell/gamesettings.js";
       game.sample[3].hitclap = sounds["/hitsounds/drum-hitclap.ogg"];
       game.sample[3].slidertick = sounds["/hitsounds/drum-slidertick.ogg"];
       game.sampleComboBreak = sounds["/hitsounds/combobreak.ogg"];
-      window.soundReady = true;
-      (function (e) { if (e) e.classList.add("finished"); })(document.getElementById("sound-progress"));
-      document.body.classList.add("sound-ready");
-      applyCustomHitsounds();
-   };
-   sounds.load(sample);
+       window.soundReady = true;
+       applyCustomHitsounds();
+    };
+    sounds.load(sample);
 
    // resume the hitsound AudioContext on the first user gesture (autoplay policy)
    function resumeHitsoundContext() {
@@ -256,10 +252,8 @@ import { gamesettings } from "../shell/gamesettings.js";
     window.addEventListener("pointerdown", resumeHitsoundContext, { once: true });
     window.addEventListener("keydown", resumeHitsoundContext, { once: true });
 
-   // load script done
-   window.scriptReady = true;
-   (function (e) { if (e) e.classList.add("finished"); })(document.getElementById("script-progress"));
-   document.body.classList.add("script-ready");
+    // load script done
+    window.scriptReady = true;
 
    // load play history
    if (window.localforage) {

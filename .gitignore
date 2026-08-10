@@ -96,3 +96,6 @@ dist-probe/
 scripts/*.png
 
 tmp/
+
+# Large default skin — download via scripts/fetch-default-skin.mjs instead of committing 40MB
+skins/default.osk

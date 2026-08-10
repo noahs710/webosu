@@ -6,6 +6,39 @@ import { ensureGame } from "./game-loader.js";
 import "../shell/api.js"; // side effect: sets window.WebosuAPI for game score submission
 window.__ensureGame = ensureGame;
 
+// Loading overlay for beatmap launch — visible during download + unzip + parse
+function showLoadingOverlay(title, artist) {
+   const el = document.createElement("div");
+   el.id = "beatmap-loading-overlay";
+   Object.assign(el.style, {
+      position: "fixed", inset: "0", zIndex: "9999",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      background: "rgba(12,12,20,0.92)", backdropFilter: "blur(8px)",
+      color: "#ececf4", fontFamily: "Comfortaa, sans-serif",
+      transition: "opacity 0.2s",
+   });
+   el.innerHTML = `
+      <div style="margin-bottom:24px;text-align:center">
+         <div style="font-size:1.3em;font-weight:bold;margin-bottom:4px;max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${title || "Loading..."}</div>
+         <div style="font-size:0.9em;opacity:0.6;max-width:600px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${artist || ""}</div>
+      </div>
+      <div id="beatmap-loading-spinner" style="width:40px;height:40px;border:3px solid rgba(255,255,255,0.15);border-top-color:#ff66aa;border-radius:50%;animation:bl-spin 0.8s linear infinite"></div>
+      <div id="beatmap-loading-text" style="margin-top:16px;font-size:0.85em;opacity:0.7">Starting...</div>
+   `;
+   // inject keyframe animation if not already present
+   if (!document.getElementById("bl-spin-keyframes")) {
+      const style = document.createElement("style");
+      style.id = "bl-spin-keyframes";
+      style.textContent = "@keyframes bl-spin{to{transform:rotate(360deg)}}";
+      document.head.appendChild(style);
+   }
+   document.body.appendChild(el);
+   return {
+      setText(t) { const e = document.getElementById("beatmap-loading-text"); if (e) e.textContent = t; },
+      remove() { el.style.opacity = "0"; setTimeout(() => el.remove(), 200); },
+   };
+}
+
 // Game area + pause menu must be in light DOM (game code accesses by ID)
 const gameAreaHTML = `
   <div class="game-area" id="game-area" hidden></div>
@@ -27,15 +60,27 @@ const app = createApp({
 
       // global beatmap-launch handler — always no-video for 0 download impact (video scrapped)
       document.addEventListener("beatmap-launch", async (e) => {
-        const { setId, beatmapId, version } = e.detail;
-        try {
-          await ensureGame();
-          const suffix = "n"; // always no-video for speed
-          if (import.meta.env.DEV) console.log("[app] launch beatmap", { setId, beatmapId, version, url: "https://catboy.best/d/" + setId + suffix });
-          const r = await fetch("https://catboy.best/d/" + setId + suffix);
-          if (!r.ok) throw new Error("download " + r.status);
-          window.launchGame(new Blob([await r.arrayBuffer()]), beatmapId, version);
-        } catch (err) { if (import.meta.env.DEV) console.warn("launch failed:", err); alert("Could not start: " + (err.message || err)); }
+         const { setId, beatmapId, version, title, artist } = e.detail;
+         // show loading overlay immediately so the user sees progress
+         const overlay = showLoadingOverlay(title, artist);
+         try {
+            await ensureGame();
+            overlay.setText("Downloading beatmap...");
+            const suffix = "n"; // always no-video for speed
+            if (import.meta.env.DEV) console.log("[app] launch beatmap", { setId, beatmapId, version, url: "https://catboy.best/d/" + setId + suffix });
+            const r = await fetch("https://catboy.best/d/" + setId + suffix);
+            if (!r.ok) throw new Error("download " + r.status);
+            const ab = await r.arrayBuffer();
+            overlay.setText("Unzipping & parsing...");
+            // let the overlay paint before the sync unzip/parse
+            await new Promise(requestAnimationFrame);
+            window.launchGame(new Blob([ab]), beatmapId, version);
+            overlay.remove();
+         } catch (err) {
+            overlay.remove();
+            if (import.meta.env.DEV) console.warn("launch failed:", err);
+            alert("Could not start: " + (err.message || err));
+         }
       });
 
       // replay watch: ?watch=<replayId>&bid=<beatmapId>&sid=<setId>&v=<version>

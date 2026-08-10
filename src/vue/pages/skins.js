@@ -51,16 +51,19 @@ export default {
       e.target.value = "";
     }
     async function applyLocal(id) {
-      localStatus.value = "Applying...";
-      try {
-        const data = await loadLocalSkin(id);
-        if (data) {
-          // apply immediately if Skin already loaded, otherwise it will apply on next game via cache
-          try { const { applySkin } = await import("../../game/skin-loader.js"); if (window.Skin) applySkin(data); } catch {}
-          localStatus.value = "Applied! Next game will use this skin.";
-          activeId.value = id;
-        } else localStatus.value = "Apply failed";
-      } catch (e) { localStatus.value = "Apply failed: " + (e.message || e); }
+       localStatus.value = "Applying...";
+       try {
+          const data = await loadLocalSkin(id);
+          if (data) {
+             // apply immediately if Skin already loaded, otherwise it will apply on next game via cache
+             try {
+                const { applySkin } = await import("../../game/skin-loader.js");
+                if (window.Skin) { await applySkin(data); localStatus.value = "Applied! Skin is now active."; }
+                else localStatus.value = "Will apply on next game start.";
+             } catch (e) { localStatus.value = "Apply warning: " + (e.message || e); }
+             activeId.value = id;
+          } else localStatus.value = "Apply failed — skin data not found";
+       } catch (e) { localStatus.value = "Apply failed: " + (e.message || e); }
     }
     async function removeLocal(id) {
       if (!confirm("Delete this local skin?")) return;
@@ -69,15 +72,13 @@ export default {
       await loadLocal();
     }
     async function resetDefault() {
-      try {
-        await clearCachedSkin();
-        // also clear vault active pointer but keep vault entries? user said reset to default — clear active
-        try { localStorage.removeItem("webosu_active_skin"); } catch {}
-        if (window.localforage) await new Promise(r => localforage.removeItem("skinTextures", () => r()));
-        status.value = "Reset to default skin. Reloading...";
-        localStatus.value = "Reset to default skin.";
-        setTimeout(() => location.reload(), 800);
-      } catch (e) { status.value = "Reset failed: " + (e.message || e); }
+       try {
+          await clearCachedSkin();
+          try { localStorage.removeItem("webosu_active_skin"); } catch {}
+          if (window.localforage) await new Promise(r => localforage.removeItem("skinTextures", () => r()));
+          localStatus.value = "Reset to default skin (reowoTuna). Reloading...";
+          setTimeout(() => location.reload(), 800);
+       } catch (e) { localStatus.value = "Reset failed: " + (e.message || e); }
     }
     onMounted(() => { load(); loadLocal(); });
     return { skins, localSkins, activeId, status, localStatus, upload, importLocal, applyLocal, removeLocal, resetDefault, api };
@@ -85,7 +86,7 @@ export default {
   template: `
     <div class="max-w-[1400px] mx-auto px-4 pt-4">
       <h2 class="text-xl font-bold text-white mb-3">Skins</h2>
-      <p class="text-lazer-dim text-sm mb-3">Skins are stored locally in IndexedDB for best performance — only the <b>selected</b> skin is loaded on game start.</p>
+      <p class="text-lazer-dim text-sm mb-3">Default skin: <b>reowoTuna</b> — loaded automatically on first visit and cached for instant startup. Import .osk files to switch skins.</p>
 
       <!-- Local vault -->
       <div class="bg-lazer-panel border border-white/8 rounded-xl p-4 mb-4">
@@ -97,7 +98,7 @@ export default {
           <label class="bg-lazer-pink text-white rounded-lg px-3 py-1.5 text-sm cursor-pointer hover:brightness-110">Import .osk
             <input type="file" accept=".osk,.zip" @change="importLocal" class="hidden" />
           </label>
-          <button @click="resetDefault" class="bg-lazer-panel2 border border-white/10 text-lazer-text rounded-lg px-3 py-1.5 text-sm hover:bg-white/10">Reset to default skin</button>
+          <button @click="resetDefault" class="bg-lazer-panel2 border border-white/10 text-lazer-text rounded-lg px-3 py-1.5 text-sm hover:bg-white/10">Reset to default (reowoTuna)</button>
         </div>
         <div class="text-sm mb-2" :class="localStatus.includes('failed') ? 'text-red-400' : 'text-lazer-dim'">{{ localStatus }}</div>
         <div v-if="localSkins.length" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">

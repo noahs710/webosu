@@ -380,7 +380,7 @@ function buildApp({ serveStatic = true } = {}) {
         // content-hashed Vite assets (dist/assets/*-[hash].*) are immutable
         if (staticRoot === DIST && /[\\/]assets[\\/][^\\/]+-[A-Za-z0-9_]{6,}\.[A-Za-z0-9]+$/.test(p))
           setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        else if (/\.(ogg|wav|png|jpg|jpeg|svg|woff2|ttf|cur)$/.test(p))
+        else if (/\.(ogg|wav|png|jpg|jpeg|svg|woff2|ttf|cur|osk)$/.test(p))
           setHeader("Cache-Control", "public, max-age=86400");
       },
     });

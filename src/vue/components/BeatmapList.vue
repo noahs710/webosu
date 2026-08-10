@@ -159,8 +159,8 @@ function launch(b) {
   if (!s || !b) return;
   if (import.meta.env.DEV) console.log("[BeatmapList] launch", s.id, b.id, b.version);
   stopPreview();
-  document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
-  closeModal();
+   document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
+   closeModal();
 }
 function onKey(e) {
   if (e.key === "Escape" && showModal.value) closeModal();
