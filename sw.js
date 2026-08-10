@@ -1,6 +1,6 @@
 /* webosu service worker: installable PWA + offline shell. Does NOT cache the
    /api backend or catboy.best requests. */
-const CACHE = "webosu-v1";
+const CACHE = "webosu-v2";
 const SHELL = [
   "/", "/index.html",
   "/manifest.webmanifest",

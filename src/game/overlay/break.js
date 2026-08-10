@@ -73,10 +73,7 @@ class BreakOverlay extends PIXI.Container {
             )
          );
       };
-   
+    
   }
-  destroy(options) {
-      PIXI.Container.prototype.destroy.call(this, options);
-     }
 }
 export default BreakOverlay;

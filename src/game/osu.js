@@ -208,8 +208,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                   break;
             }
          }
-         // Make some corrections
-         this.general.PreviewTime /= 10;
+          // PreviewTime is in milliseconds — no division needed (was /= 10, a bug)
          if (this.general.PreviewTime > this.hitObjects[0].time) {
             this.general.PreviewTime = 0;
          }
@@ -459,9 +458,8 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                   );
                hit.curve = new LinearBezier(hit, hit.sliderType === "L");
             }
-            if (hit.curve.length < 2)
-               // (not sure here)
-               console.error("[curve] slider curve calculation failed");
+            if (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2)
+               console.error("[curve] slider curve calculation failed for", track.metadata.Title, hit.time);
          }
       }
    }

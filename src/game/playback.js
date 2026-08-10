@@ -574,6 +574,18 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
       };
 
+      // binary search for depth-sorted insertion into gamefield (O(log n) vs O(n) linear scan)
+      this._depthIndex = function (depth) {
+         let children = self.gamefield.children;
+         let l = 0, r = children.length;
+         while (l + 1 < r) {
+            let m = Math.floor((l + r) / 2) - 1;
+            if ((children[m].depth || 0) < depth) l = m + 1;
+            else r = m + 1;
+         }
+         return l;
+      };
+
       // T10: hit burst sprite (scale 1.0 -> 1.5, alpha 1 -> 0 over 200ms)
       this.createHitBurst = function (x, y, time) {
          if (!window.Skin || !window.Skin?.["hitburst.png"]) return;
@@ -584,13 +596,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          s.alpha = 1;
          s._burstT0 = time;
          s.depth = 4.5;
-         // insert by depth
-         let idx = 0;
-         for (let i = 0; i < self.gamefield.children.length; i++) {
-            if ((self.gamefield.children[i].depth || 0) < s.depth) idx = i + 1;
-            else break;
-         }
-         self.gamefield.addChildAt(s, idx);
+         self.gamefield.addChildAt(s, this._depthIndex(s.depth));
          self._hitBursts.push(s);
       };
       // T11: combo color flash (scale 1.0 -> 2.0, alpha 0.6 -> 0 over 100ms)
@@ -618,12 +624,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          g.scale.set(1);
          g._flashT0 = time;
          g.depth = 4.6;
-         let idx = 0;
-         for (let i = 0; i < self.gamefield.children.length; i++) {
-            if ((self.gamefield.children[i].depth || 0) < g.depth) idx = i + 1;
-            else break;
-         }
-         self.gamefield.addChildAt(g, idx);
+         self.gamefield.addChildAt(g, this._depthIndex(g.depth));
          self._comboFlashes.push(g);
       };
       this.updateEffects = function (time) {
@@ -1179,28 +1180,9 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                break;
             case "spinner":
                self.createSpinner(hit);
-               break;
-         }
-      };
-
-      this.updateCursorPredictVisualizer = function () {
-         if (!this.predictVisualizer && game.mouse) {
-            // create visualizer
-            let o = (this.predictVisualizer = new PIXI.Sprite(
-               window.Skin?.["sliderb.png"]
-            ));
-            o.anchor.set(0.5);
-            o.tint = 0x00ff00;
-            this.gamefield.addChild(o);
-         }
-         if (this.predictVisualizer) {
-            let res = game.mouse(performance.now()); // prediction result
-            this.predictVisualizer.x = res.x;
-            this.predictVisualizer.y = res.y;
-            this.predictVisualizer.scale.set(res.r / 120);
-            this.predictVisualizer.bringToFront();
-         }
-      };
+                break;
+          }
+       };
 
       try {
          SliderMesh.prototype.initialize(
@@ -1278,11 +1260,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          let volume =
             (self.game.masterVolume *
                self.game.effectVolume *
-               (hit.hitSample.volume || timing.volume)) /
-            100;
-         let defaultSet = timing.sampleSet || self.game.sampleSet;
-         self.game.sample[defaultSet].slidertick.volume = volume;
-         self.game.sample[defaultSet].slidertick.play();
+                (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
+             100;
+          let defaultSet = timing.sampleSet || self.game.sampleSet;
+          self.game.sample[defaultSet].slidertick.volume = volume;
+          self.game.sample[defaultSet].slidertick.play();
       };
       this.playHitsound = function playHitsound(hit, id, time) {
          while (
@@ -1296,14 +1278,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          )
             this.curtimingid--;
          let timing = this.track.timingPoints[this.curtimingid];
-         let volume =
-            (self.game.masterVolume *
-               self.game.effectVolume *
-               (hit.hitSample.volume || timing.volume)) /
-            100;
-         let defaultSet = timing.sampleSet || self.game.sampleSet;
+          let volume =
+             (self.game.masterVolume *
+                self.game.effectVolume *
+                (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
+             100;
+          let defaultSet = timing.sampleSet || self.game.sampleSet;
 
-         function playHit(bitmask, normalSet, additionSet) {
+          function playHit(bitmask, normalSet, additionSet) {
             // The normal sound is always played
             self.game.sample[normalSet].hitnormal.volume = volume;
             self.game.sample[normalSet].hitnormal.play();
@@ -1412,36 +1394,39 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                futuremost = hit.time;
             }
          }
-         for (var i = 0; i < self.upcomingHits.length; i++) {
-            var hit = self.upcomingHits[i];
-            var diff = hit.time - time;
-            var despawn = -this.objectDespawnTime;
-            if (hit.type === "slider") {
-               despawn -= hit.sliderTimeTotal;
-            }
-            if (hit.type === "spinner") {
-               despawn -= hit.endTime - hit.time;
-            }
-            if (diff < despawn) {
-               self.upcomingHits.splice(i, 1);
-               i--;
-               hit.objects.forEach(function (o) {
-                  self.gamefield.removeChild(o);
-                  if (o._pooledTex) {
-                     let a = self._spritePool.get(o._pooledTex);
-                     if (!a) { a = []; self._spritePool.set(o._pooledTex, a); }
-                     a.push(o);
-                  } else {
-                     o.destroy();
-                  }
-               });
-               hit.judgements.forEach(function (o) {
-                  self.gamefield.removeChild(o);
-                  o.destroy();
-               });
-               hit.destroyed = true;
-            }
-         }
+          for (var i = 0; i < self.upcomingHits.length; i++) {
+             var hit = self.upcomingHits[i];
+             var diff = hit.time - time;
+             var despawn = -this.objectDespawnTime;
+             if (hit.type === "slider") {
+                despawn -= hit.sliderTimeTotal;
+             }
+             if (hit.type === "spinner") {
+                despawn -= hit.endTime - hit.time;
+             }
+             if (diff < despawn) {
+                // swap-remove: O(1) instead of splice O(n) shifting
+                var lastIdx = self.upcomingHits.length - 1;
+                if (i !== lastIdx) self.upcomingHits[i] = self.upcomingHits[lastIdx];
+                self.upcomingHits.pop();
+                i--; // recheck the swapped-in element
+                hit.objects.forEach(function (o) {
+                   self.gamefield.removeChild(o);
+                   if (o._pooledTex) {
+                      let a = self._spritePool.get(o._pooledTex);
+                      if (!a) { a = []; self._spritePool.set(o._pooledTex, a); }
+                      a.push(o);
+                   } else {
+                      o.destroy();
+                   }
+                });
+                hit.judgements.forEach(function (o) {
+                   self.gamefield.removeChild(o);
+                   o.destroy();
+                });
+                hit.destroyed = true;
+             }
+          }
       };
 
       // this should be called on a follow point connection every frame when it's valid
@@ -1800,34 +1785,34 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             }
          }
 
-         // calculate ticks fade in/out
-         for (let i = 0; i < hit.ticks.length; ++i) {
-            if (time < hit.ticks[i].appeartime) {
-               // fade in
-               let dt = hit.ticks[i].appeartime - time;
-               hit.ticks[i].alpha *= clamp01(1 - dt / 500);
-               hit.ticks[i].scale.set(
-                  0.5 *
-                     this.hitSpriteScale *
-                     (0.5 + 0.5 * clamp01((1 - dt / 500) * (1 + dt / 500)))
-               );
-            } else {
-               hit.ticks[i].scale.set(0.5 * this.hitSpriteScale);
-            }
-            if (time >= hit.ticks[i].time) {
-               let dt = time - hit.ticks[i].time;
-               if (hit.ticks[i].result) {
-                  // hit
-                  hit.ticks[i].alpha *= clamp01(-Math.pow(dt / 150 - 1, 5));
-                  hit.ticks[i].scale.set(
-                     0.5 *
-                        this.hitSpriteScale *
-                        (1 + 0.5 * (dt / 150) * (2 - dt / 150))
-                  );
-               } else {
-                  // missed
-                  hit.ticks[i].alpha *= clamp01(1 - dt / 150);
-                  hit.ticks[i].tint = colorLerp(
+          // calculate ticks fade in/out — absolute alpha (frame-rate independent)
+          for (let i = 0; i < hit.ticks.length; ++i) {
+             if (time < hit.ticks[i].appeartime) {
+                // fade in
+                let dt = hit.ticks[i].appeartime - time;
+                hit.ticks[i].alpha = clamp01(1 - dt / 500);
+                hit.ticks[i].scale.set(
+                   0.5 *
+                      this.hitSpriteScale *
+                      (0.5 + 0.5 * clamp01((1 - dt / 500) * (1 + dt / 500)))
+                );
+             } else {
+                hit.ticks[i].scale.set(0.5 * this.hitSpriteScale);
+             }
+             if (time >= hit.ticks[i].time) {
+                let dt = time - hit.ticks[i].time;
+                if (hit.ticks[i].result) {
+                   // hit
+                   hit.ticks[i].alpha = clamp01(-Math.pow(dt / 150 - 1, 5));
+                   hit.ticks[i].scale.set(
+                      0.5 *
+                         this.hitSpriteScale *
+                         (1 + 0.5 * (dt / 150) * (2 - dt / 150))
+                   );
+                } else {
+                   // missed
+                   hit.ticks[i].alpha = clamp01(1 - dt / 150);
+                   hit.ticks[i].tint = colorLerp(
                      0xffffff,
                      0xff0000,
                      clamp01(dt / 75)
@@ -2001,11 +1986,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          } else {
             this.updateBackground(-100000);
          }
-         this.volumeMenu.update(timestamp);
-         this.loadingMenu.update(timestamp);
-         // this.updateCursorPredictVisualizer();
+          this.volumeMenu.update(timestamp);
+          this.loadingMenu.update(timestamp);
 
-         if (time > this.endTime) {
+          if (time > this.endTime) {
             // game ends
             if (!this.ended) {
                this.ended = true;

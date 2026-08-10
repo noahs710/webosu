@@ -251,6 +251,9 @@
 
       this._measureLogged = false;
       this.setSpriteArrayText = function (arr, str) {
+         // dirty-check: skip all texture/width work if string unchanged since last frame
+         if (arr._lastStr === str) { arr.width = arr._lastWidth; return; }
+         arr._lastStr = str;
          let width = 0;
          if (str.length > arr.length) console.error("displaying string failed");
          let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.scorePrefix) || "score";
@@ -263,11 +266,6 @@
             if (t.source?.width) return t.source.width / (t.source.resolution || 1);
             return t.width || null;
          };
-         // spike: log per-digit metrics once per prefix/overlap (DEV only)
-         let _measureRows = null;
-         if (import.meta.env.DEV && !this._measureLogged && str.length) {
-            _measureRows = [];
-         }
          for (let i = 0; i < str.length; ++i) {
             let ch = str[i];
             if (ch == "%") ch = "percent";
@@ -276,7 +274,6 @@
             if (!window.Skin || !window.Skin[textname]) textname = (window.Skin && window.Skin[ch + ".png"]) ? ch + ".png" : "score-" + ch + ".png";
             const tex = window.Skin?.[textname] || PIXI.Texture.WHITE;
             arr[i].texture = tex;
-            // use orig.width / resolution for @2x correctness, fallback width only for layout, texture stays as digit
             let w = getOrigWidth(tex);
             if (!w || !tex.valid) {
                const fallback = window.Skin?.["score-0.png"];
@@ -288,17 +285,12 @@
                arr[i].scale.x * (w + effSpacing);
             arr[i].visible = true;
             width += arr[i].knownwidth;
-            if (_measureRows) _measureRows.push({ ch, textname, w: tex.width, orig: tex.orig?.width, srcW: tex.source?.width, res: tex.source?.resolution, valid: tex.valid, effSpacing, known: arr[i].knownwidth });
-         }
-         if (_measureRows) {
-            if (import.meta.env.DEV) console.log(`[skinned-text-measure] prefix=${prefix} overlap=${overlap} dpr=${window.devicePixelRatio} str=${str}`, _measureRows);
-            if (import.meta.env.DEV) console.table(_measureRows);
-            this._measureLogged = true;
          }
          for (let i = str.length; i < arr.length; ++i) {
             arr[i].visible = false;
          }
          arr.width = width;
+         arr._lastWidth = width;
          arr.useLength = str.length;
       };
 
@@ -713,10 +705,7 @@
             });
          }
       };
-   
+    
   }
-  destroy(options) {
-      PIXI.Container.prototype.destroy.call(this, options);
-     }
 }
 export default ScoreOverlay;

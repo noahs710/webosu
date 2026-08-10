@@ -50,10 +50,7 @@ class VolumeMenu extends PIXI.Container {
             this.alpha = 1 - Math.pow(dt / this.fadetime, 5);
          }
       };
-   
+    
   }
-  destroy(options) {
-      PIXI.Container.prototype.destroy.call(this, options);
-     }
 }
 export default VolumeMenu;

@@ -98,28 +98,27 @@ import { gamesettings } from "../shell/gamesettings.js";
          // backup default for reset on skin switch (prevents exponential scaling/accumulation)
          try { window._defaultSkin = { ...window.Skin }; } catch {}
          ilog("initgame", "sprites loaded", Object.keys(window.Skin).length + " textures");
-         let cachedApplied = false;
-         try {
-            const cached = await loadCachedSkin();
-            if (cached) {
-               ilog("initgame", "cached osk skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
-               try { applySkin(cached); cachedApplied = true; ilog("initgame", "cached skin applied"); } catch (e) { iwarn("initgame", "applySkin failed", e); }
-            } else {
-               ilog("initgame", "no cached osk skin");
-            }
-         } catch (e) {
-            iwarn("initgame", "loadCachedSkin failed", e);
-         }
-         // fallback to legacy base64 skins in localforage
-         applyCustomSkin(function () {
-            ilog("initgame", "legacy skin applied, cachedApplied=" + cachedApplied);
-            window.skinReady = true;
-            const el = document.getElementById("skin-progress");
-            if (el) el.classList.add("finished");
-            document.body.classList.add("skin-ready");
-            ilog("initgame", "skinReady=true body.skin-ready added");
-         });
-   }).catch((e) => ierror("initgame", "sprites load failed — game cannot start without sprites.json", e));
+          let cachedApplied = false;
+          try {
+             const cached = await loadCachedSkin();
+             if (cached) {
+                ilog("initgame", "cached osk skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
+                try { await applySkin(cached); cachedApplied = true; ilog("initgame", "cached skin applied"); } catch (e) { iwarn("initgame", "applySkin failed", e); }
+             } else {
+                ilog("initgame", "no cached osk skin");
+             }
+          } catch (e) {
+             iwarn("initgame", "loadCachedSkin failed", e);
+          }
+           // fallback to legacy base64 skins in localforage
+           await new Promise(resolve => applyCustomSkin(resolve));
+           ilog("initgame", "legacy skin applied, cachedApplied=" + cachedApplied);
+          window.skinReady = true;
+          const el = document.getElementById("skin-progress");
+          if (el) el.classList.add("finished");
+          document.body.classList.add("skin-ready");
+          ilog("initgame", "skinReady=true body.skin-ready added");
+    }).catch((e) => ierror("initgame", "sprites load failed — game cannot start without sprites.json", e));
 
    // load sounds
    // load hitsound set
@@ -253,16 +252,8 @@ import { gamesettings } from "../shell/gamesettings.js";
          window.actx.resume();
       }
    }
-   window.addEventListener("pointerdown", resumeHitsoundContext, { once: true });
-   window.addEventListener("keydown", resumeHitsoundContext, { once: true });
-
-   PIXI.Sprite.prototype.bringToFront = function () {
-      if (this.parent) {
-         var parent = this.parent;
-         parent.removeChild(this);
-         parent.addChild(this);
-      }
-   };
+    window.addEventListener("pointerdown", resumeHitsoundContext, { once: true });
+    window.addEventListener("keydown", resumeHitsoundContext, { once: true });
 
    // load script done
    window.scriptReady = true;

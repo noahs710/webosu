@@ -97,10 +97,7 @@ class LoadingMenu extends PIXI.Container {
             this.alpha = 1 - dt / this.fadetime;
          }
       };
-   
+    
   }
-  destroy(options) {
-      PIXI.Container.prototype.destroy.call(this, options);
-     }
 }
 export default LoadingMenu;

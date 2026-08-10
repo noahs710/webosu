@@ -26,28 +26,25 @@ const OSK_NAME_MAP = {
 // These are loaded as new PIXI textures and added to window.Skin dynamically.
 // Keep this list minimal for gameplay — alphabet is handled generically on demand, not prelisted.
 const OSK_EXTRA_TEXTURES = [
-  "hit0.png", "hit50.png", "hit100.png", "hit300.png", "hit300g.png",
-  "hit300k.png", "hit100k.png", "hit50k.png",
-  "cursortrail.png", "cursormiddle.png", "cursor-smoke.png",
-  "sliderendcircle.png", "sliderendcircleoverlay.png",
-  "followpoint-0.png", "followpoint-1.png", "followpoint-2.png",
-  "followpoint-3.png", "followpoint-4.png", "followpoint-5.png",
-  "followpoint-6.png", "followpoint-7.png", "followpoint-8.png", "followpoint-9.png",
-  "comboburst.png", "lighting.png", "playfield.png", "star.png", "star2.png",
-  "scorebar-bg.png", "scorebar-colour.png", "scorebar-ki.png", "scorebar-kidanger.png", "scorebar-kidanger2.png",
-  "spinner-approachcircle.png", "spinner-background.png", "spinner-clear.png", "spinner-warning.png", "spinner-glow.png", "spinner-rpm.png",
-  "ring-glow.png", "hitcircleoverlay.png", "approachcircle.png",
-  "sliderscorepoint.png", "sliderfollowcircle.png", "reversearrow.png",
+   "hit0.png", "hit50.png", "hit100.png", "hit300.png", "hit300g.png",
+   "cursortrail.png", "cursormiddle.png",
+   "sliderendcircle.png", "sliderendcircleoverlay.png",
+   "followpoint-0.png", "followpoint-1.png", "followpoint-2.png",
+   "followpoint-3.png", "followpoint-4.png", "followpoint-5.png",
+   "followpoint-6.png", "followpoint-7.png", "followpoint-8.png", "followpoint-9.png",
+   "scorebar-bg.png", "scorebar-colour.png",
+   "ring-glow.png", "hitcircleoverlay.png", "approachcircle.png",
+   "sliderscorepoint.png", "sliderfollowcircle.png", "reversearrow.png",
 ];
 
 // Hitsound canonical names (without extension) → game.sample mapping
 const HITSOUND_NAMES = [
   "normal-hitnormal", "normal-hitwhistle", "normal-hitfinish", "normal-hitclap",
-  "normal-slidertick", "normal-sliderslide", "normal-sliderwhistle",
+  "normal-slidertick",
   "soft-hitnormal", "soft-hitwhistle", "soft-hitfinish", "soft-hitclap",
-  "soft-slidertick", "soft-sliderslide", "soft-sliderwhistle",
+  "soft-slidertick",
   "drum-hitnormal", "drum-hitwhistle", "drum-hitfinish", "drum-hitclap",
-  "drum-slidertick", "drum-sliderslide", "drum-sliderwhistle",
+  "drum-slidertick",
   "combobreak",
 ];
 
@@ -179,7 +176,7 @@ function isGameplayTexture(name) {
      if (n.match(/^sliderb\d*\.png$/)) return true;
      return true;
   }
-  if (["disc.png","hitcircleoverlay.png","ring-glow.png","hitburst.png","followpoint.png","approachcircle.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","sliderendcircle.png","sliderendcircleoverlay.png","cursortrail.png","cursormiddle.png","cursor.png","cursor-smoke.png","dot.png","percent.png","score-x.png","score-dot.png","score-percent.png","0.png","1.png","2.png","3.png","4.png","5.png","6.png","7.png","8.png","9.png","hit0.png","hit50.png","hit100.png","hit300.png","hit300g.png","scorebar-bg.png","scorebar-colour.png","errormeterbar.png","errormeterindicator.png","spinnerbase.png","spinnerprogress.png","spinnertop.png","bar.png","barend.png","comboburst.png","lighting.png","star.png","star2.png","playfield.png"].includes(n)) return true;
+  if (["disc.png","hitcircleoverlay.png","ring-glow.png","hitburst.png","followpoint.png","approachcircle.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","sliderendcircle.png","sliderendcircleoverlay.png","cursortrail.png","cursormiddle.png","cursor.png","dot.png","percent.png","score-x.png","score-dot.png","score-percent.png","0.png","1.png","2.png","3.png","4.png","5.png","6.png","7.png","8.png","9.png","hit0.png","hit50.png","hit100.png","hit300.png","hit300g.png","scorebar-bg.png","scorebar-colour.png","errormeterbar.png","errormeterindicator.png","spinnerbase.png","spinnerprogress.png","spinnertop.png","bar.png","barend.png"].includes(n)) return true;
   if (OSK_EXTRA_TEXTURES.includes(name) || OSK_NAME_MAP[name]) return true;
   // numbers/combos prefixes for WhiteCat — only digits, not letters (letters not needed for gameplay numbers)
   if (n.match(/^(numbers|combos)-[0-9]\.png$/)) return true;
@@ -388,10 +385,10 @@ export async function applySkin(skinData) {
         window.game.sample[mapping[0]][mapping[1]] = snd;
       }
     }
-    // combobreak is special
-    if (skinData.sounds["combobreak"] && window.game.sample) {
+    // combobreak is special — game uses sampleComboBreak, not sample.combo
+    if (skinData.sounds["combobreak"]) {
       const snd = new Howl({ src: [skinData.sounds["combobreak"].url], preload: true });
-      if (window.game.sample.combo) window.game.sample.combo = snd;
+      window.game.sampleComboBreak = snd;
     }
   }
 

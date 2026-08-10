@@ -58,7 +58,6 @@ class ErrorMeter extends PIXI.Container {
     this.poolptr = 0;
     this.avgerror = 0;
   }
-  destroy(options) { super.destroy(options); }
   update(time) {
     for (let i = 0; i < this.poolsize; ++i) {
       this.ticks[i].alpha = Math.exp(-(time - this.ticks[i].t0) / 1000);

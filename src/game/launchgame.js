@@ -43,7 +43,7 @@ export async function launchOSU(osu, beatmapid, version) {
       background: 0x111111,
       backgroundAlpha: 1,
       autoDensity: true,
-      antialias: false,
+       antialias: true,
       powerPreference: "high-performance",
       preference: "webgl",
       // per pixijs-performance skill — GC tuning (ms), not deprecated textureGC.*
@@ -242,16 +242,16 @@ export async function launchOSU(osu, beatmapid, version) {
          if (window.game && window.game.skinCursorRotate) {
             game.cursor.rotation += 0.02;
          }
-         // CursorExpand: pulse scale on click
-         if (window.game && window.game.skinCursorExpand) {
-            var targetScale = (game.mouseDown ? 1.3 : 1.0) * 0.3 * effectiveCursorSize;
-            game.cursor.scale.x += (targetScale - game.cursor.scale.x) * 0.3;
-            game.cursor.scale.y = game.cursor.scale.x;
-            if (game.cursorMiddle) {
-               var midScale = 0.15 * effectiveCursorSize * (game.mouseDown ? 1.3 : 1.0);
-               game.cursorMiddle.scale.set(midScale);
-            }
-         }
+          // CursorExpand: pulse scale on click (game.down, not game.mouseDown which is never set)
+          if (window.game && window.game.skinCursorExpand) {
+             var targetScale = (game.down ? 1.3 : 1.0) * 0.3 * effectiveCursorSize;
+             game.cursor.scale.x += (targetScale - game.cursor.scale.x) * 0.3;
+             game.cursor.scale.y = game.cursor.scale.x;
+             if (game.cursorMiddle) {
+                var midScale = 0.15 * effectiveCursorSize * (game.down ? 1.3 : 1.0);
+                game.cursorMiddle.scale.set(midScale);
+             }
+          }
          // cursor trail: write the newest position, fade the rest by age
          if (game.cursorTrail) {
             let N = game.cursorTrail.length;

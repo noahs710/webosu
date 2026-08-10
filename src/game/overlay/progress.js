@@ -55,10 +55,7 @@ class ProgressOverlay extends PIXI.Container {
          );
          this.past.text = timeformat((time - this.starttime) / 1000);
       };
-   
+    
   }
-  destroy(options) {
-      PIXI.Container.prototype.destroy.call(this, options);
-     }
 }
 export default ProgressOverlay;

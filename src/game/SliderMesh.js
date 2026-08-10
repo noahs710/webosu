@@ -1,16 +1,7 @@
 // ponytail: SliderMesh was 200 LOC shader — Graphics polyline with dirty-flag, 2 strokes (border+fill), no GL leaks, bug free
 import { log, warn } from "./logger.js";
 
-   function newTexture(colors, SliderTrackOverride, SliderBorder) {
-      if (!colors || colors.length === 0) colors = [0xffffff];
-      log("SliderMesh", "newTexture", colors.length);
-      return PIXI.Texture.WHITE;
-   }
-
    const DIVIDES = 16;
-
-   function curveGeometry(curve0, radius) { return curve0; }
-   function circleGeometry(radius) { return { radius }; }
 
    class SliderMesh extends PIXI.Container {
       constructor(curve, radius, tintid) {
