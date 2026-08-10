@@ -214,11 +214,12 @@ import { log, warn } from "./logger.js";
        // Pixi v8 Mesh uses MeshGeometry with positions/uvs/indices — this SliderMesh is NOT a Mesh
        // but a Container+Graphics (ponytail). Do not expose fake geometry; callers should not check it.
        destroy(options) {
-         this.onRender = null;
-         super.destroy(options);
-         if (this._rope) try { this._rope.destroy(options); } catch {}
-         if (this._borderRope) try { this._borderRope.destroy(options); } catch {}
-         if (this._g) try { this._g.destroy(options); } catch {}
-      }
+          this.onRender = null;
+          // destroy children before super.destroy to avoid double-destroy (super.destroy recurses children)
+          if (this._rope) try { this._rope.destroy(options); this._rope = null; } catch {}
+          if (this._borderRope) try { this._borderRope.destroy(options); this._borderRope = null; } catch {}
+          if (this._g) try { this._g.destroy(options); this._g = null; } catch {}
+          super.destroy(options);
+       }
    }
    export default SliderMesh;

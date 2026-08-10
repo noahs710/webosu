@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
+import { api } from "../../shell/api.js";
 const searchQuery = ref("");
 const user = ref(null);
 const showLogin = ref(false);
@@ -9,10 +10,8 @@ const err = ref("");
 
 async function checkLogin() {
   try {
-    const token = localStorage.getItem("token");
-    if (!token) return;
-    const r = await fetch("/api/auth/me", { headers: { Authorization: "Bearer " + token } });
-    if (r.ok) { user.value = await r.json(); localStorage.setItem("username", user.value.username); }
+    if (!api.isLoggedIn()) return;
+    user.value = await api.me();
   } catch {}
 }
 function openLogin() { showLogin.value = true; err.value = ""; }
@@ -20,38 +19,18 @@ function close() { showLogin.value = false; }
 async function doLogin() {
   err.value = "";
   try {
-    const r = await fetch("/api/auth/login", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: username.value, password: password.value }),
-    });
-    const data = await r.json();
-    if (!r.ok) { err.value = data.error || "Login failed"; return; }
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("username", data.user.username);
-    user.value = data.user;
+    user.value = await api.login(username.value, password.value);
     showLogin.value = false;
-  } catch (e) { err.value = "Network error"; }
+  } catch (e) { err.value = "Login failed"; }
 }
 async function doRegister() {
   err.value = "";
   try {
-    const r = await fetch("/api/auth/register", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: username.value, password: password.value }),
-    });
-    const data = await r.json();
-    if (!r.ok) { err.value = data.error || "Registration failed"; return; }
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("username", data.user.username);
-    user.value = data.user;
+    user.value = await api.register(username.value, password.value);
     showLogin.value = false;
-  } catch (e) { err.value = "Network error"; }
+  } catch (e) { err.value = "Registration failed"; }
 }
-function logout() {
-  localStorage.removeItem("token");
-  localStorage.removeItem("username");
-  user.value = null;
-}
+function logout() { api.logout(); user.value = null; }
 onMounted(checkLogin);
 </script>
 

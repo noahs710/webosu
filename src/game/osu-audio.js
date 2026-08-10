@@ -143,9 +143,10 @@
       let t = preprocAudio(filename, buffer);
       if (t.startoffset) this.posoffset = t.startoffset;
       if (t.newbuffer) buffer = t.newbuffer;
-      this.posoffset += game.globalOffset || 0;
+      this.posoffset += (window.game?.globalOffset) || 0;
 
-      function decode(node) {
+      function decode(node, retries) {
+         retries = retries || 0;
          self.audio.decodeAudioData(
             node.buf,
             function (decoded) {
@@ -155,12 +156,11 @@
                }
             },
             function (err) {
-               console.error("Audio decode failed");
-               alert(
-                  "Audio decode failed. Please report by filing an issue on Github"
-               );
-               if (syncStream(node)) {
-                  decode(node);
+               console.error("Audio decode failed (retry " + retries + ")");
+               if (retries < 3 && syncStream(node)) {
+                  decode(node, retries + 1);
+               } else if (typeof callback !== "undefined") {
+                  callback(self);
                }
             }
          );
@@ -237,6 +237,7 @@
             self.source.connect(self.gain);
             self.source.start(0, self.position);
             self.started = self.audio.currentTime;
+            self.playing = true;
             return true;
          } else {
             return false;

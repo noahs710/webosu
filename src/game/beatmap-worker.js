@@ -99,7 +99,7 @@ function Track(track) {
                   hitSound: +parts[4] || 0,
                   combo: combo, index: index,
                };
-               if (typeFlag & HIT_TYPE_NEWCOMBO) { combo = 0; forceNewCombo = true; }
+                if (typeFlag & HIT_TYPE_NEWCOMBO) { combo = 0; forceNewCombo = true; combo += (typeFlag >> 4) & 7; }
                if (hit.type === "slider") {
                   hit.sliderType = parts[5];
                   hit.keyframes = [];
@@ -131,6 +131,15 @@ function Track(track) {
       }
        if (self.difficulty.ApproachRate === undefined) {
           self.difficulty.ApproachRate = self.difficulty.OverallDifficulty !== undefined ? self.difficulty.OverallDifficulty : 5;
+       }
+       // default HPDrainRate and CircleSize from OverallDifficulty (osu.js does this)
+       if (self.difficulty.HPDrainRate === undefined && self.difficulty.OverallDifficulty !== undefined)
+          self.difficulty.HPDrainRate = self.difficulty.OverallDifficulty;
+       if (self.difficulty.CircleSize === undefined) self.difficulty.CircleSize = 5;
+       if (self.difficulty.HPDrainRate === undefined) self.difficulty.HPDrainRate = 5;
+       // default combo colors if [Colours] section is empty
+       if (self.colors.length === 0) {
+          self.colors = [[255,128,64], [128,255,128], [64,192,255], [255,128,192], [192,128,255], [255,200,64], [128,255,192], [255,192,128]];
        }
        if (!self.general.StackLeniency) self.general.StackLeniency = 0.7;
        if (!self.general.Mode) self.general.Mode = 0;

@@ -124,6 +124,9 @@ module.exports = {
     return db.prepare("SELECT id, username, country, bio, created_at FROM users WHERE id = ?").get(id);
   },
   setProfileField(userId, field, value) {
+    // whitelist field to prevent SQL injection
+    const allowed = ["settings", "favorites"];
+    if (!allowed.includes(field)) throw new Error("invalid profile field");
     db.prepare(
       `INSERT INTO profiles (user_id, ${field}, updated_at) VALUES (?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET ${field}=excluded.${field}, updated_at=excluded.updated_at`

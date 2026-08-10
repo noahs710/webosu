@@ -17,14 +17,15 @@ export async function launchOSU(osu, beatmapid, version) {
    // select track
    let trackid = -1;
    // mode can be 0 or undefined
-   for (let i = 0; i < osu.tracks.length; i++) {
-      if (
-         osu.tracks[i].metadata.BeatmapID == beatmapid ||
-         (!osu.tracks[i].mode && osu.tracks[i].metadata.Version == version)
-      ) {
-         trackid = i;
-      }
-   }
+    for (let i = 0; i < osu.tracks.length; i++) {
+       if (
+          osu.tracks[i].metadata.BeatmapID == beatmapid ||
+          (osu.tracks[i].general.Mode == 0 && osu.tracks[i].metadata.Version == version)
+       ) {
+          trackid = i;
+          break;
+       }
+    }
    if (trackid == -1) {
       lerror("launchgame", "No such track", { beatmapid, version, available: osu.tracks?.map(t=>({id: t.metadata.BeatmapID, ver: t.metadata.Version})) });
       return;
@@ -56,8 +57,8 @@ export async function launchOSU(osu, beatmapid, version) {
        gcMaxUnusedTime: 60_000,
        gcFrequency: 30_000,
     });
-   // ponytail: uncapped ticker for lowest render latency; cullable already handled per-object
-   try { app.ticker.maxFPS = 0; app.ticker.minFPS = 0; } catch {}
+   // stop the ticker — we render manually via requestAnimationFrame to avoid double-rendering
+   try { app.ticker.stop(); } catch {}
    
    
 
@@ -67,13 +68,14 @@ export async function launchOSU(osu, beatmapid, version) {
    let defaultAlert = window.alert;
    window.alert = function (msg) {
       if (import.meta.env.DEV) console.log("IN-GAME ALERT " + msg);
-   };
-   // get ready for gaming
-   document.addEventListener("contextmenu", function (e) {
-      e.preventDefault();
-      return false;
-   });
-   document.body.classList.add("gaming");
+    };
+    // get ready for gaming
+    const contextMenuHandler = function (e) {
+       e.preventDefault();
+       return false;
+    };
+    document.addEventListener("contextmenu", contextMenuHandler);
+    document.body.classList.add("gaming");
    // update game settings
    if (window.gamesettings) {
       window.gamesettings.refresh();
@@ -191,8 +193,9 @@ export async function launchOSU(osu, beatmapid, version) {
 
    var gameLoop;
    // set quit callback
-   window.quitGame = function () {
-      window.removeEventListener("keydown", perfKey);
+    window.quitGame = function () {
+       window.removeEventListener("keydown", perfKey);
+       document.removeEventListener("contextmenu", contextMenuHandler);
       if (perfHUD && perfHUD.parentNode) perfHUD.parentNode.removeChild(perfHUD);
       pGameArea.setAttribute("hidden", "");
       pMainPage.removeAttribute("hidden");

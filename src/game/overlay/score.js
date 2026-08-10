@@ -211,20 +211,21 @@
          if (result == 0) {
             this.fullcombo = false;
             // combo creak
-            if (oldCombo > 20) {
-               // play combo break sound
-               window.game.sampleComboBreak.volume =
-                  window.game.masterVolume * window.game.effectVolume;
-               window.game.sampleComboBreak.play();
-            }
-         }
+             if (oldCombo > 20) {
+                if (window.game.sampleComboBreak) {
+                   window.game.sampleComboBreak.volume =
+                      window.game.masterVolume * window.game.effectVolume;
+                   window.game.sampleComboBreak.play();
+                }
+             }
+          }
          this.maxcombo = Math.max(this.maxcombo, this.combo);
          if (this.HP >= 0) this.HP += this.HPincreasefor(result);
          this.HP = Math.min(1, this.HP);
 
          this.score4display.set(time, this.score);
          this.combo4display.set(time, this.combo);
-         this.accuracy4display.set(time, this.judgeTotal / this.maxJudgeTotal);
+          this.accuracy4display.set(time, this.maxJudgeTotal > 0 ? this.judgeTotal / this.maxJudgeTotal : 1);
          this.HP4display.set(time, Math.max(0, this.HP));
 
          // fail conditions (lazer-style mods); only count hit-object (maxresult 300) results
@@ -475,7 +476,7 @@
             if (text) div.innerText = text;
             return div;
          }
-         let acc = this.judgeTotal / this.maxJudgeTotal;
+          let acc = this.maxJudgeTotal > 0 ? this.judgeTotal / this.maxJudgeTotal : 1;
          let rank = this.HP < 0 ? "F" : grade(acc);
          let grading = document.createElement("div");
          grading.className = "grading transparent";

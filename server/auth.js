@@ -3,9 +3,9 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const SECRET = process.env.JWT_SECRET || (() => {
-  if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET required in production");
-  console.warn("[auth] JWT_SECRET not set — using dev fallback, do not use in prod");
-  return "dev-secret-change-me";
+   if (process.env.NODE_ENV === "production") throw new Error("JWT_SECRET required in production");
+   console.warn("[auth] JWT_SECRET not set — using dev fallback, do not use in prod");
+   return "dev-secret-change-me-" + process.pid;
 })();
 const TOKEN_TTL = "7d";
 

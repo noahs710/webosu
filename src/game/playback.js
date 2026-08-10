@@ -86,9 +86,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
       self.approachScale = 3;
       self.audioReady = false;
+      if (self.hits.length === 0) { gerror("playback", "empty beatmap — no hit objects"); self.endTime = 0; this.wait = 0; self.skipTime = 0; }
+      else {
       self.endTime = self.hits[self.hits.length - 1].endTime + 1500;
       this.wait = Math.max(0, 1500 - this.hits[0].time);
       self.skipTime = this.hits[0].time / 1000 - 3;
+      }
       self.skipped = false;
 
       self.osu.onready = function () {
@@ -222,8 +225,8 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       };
 
       var blurCallback = function (e) {
-         if (self.audioReady) self.pause();
-      };
+          if (self.audioReady && !self.ended && !self.game.paused) self.pause();
+       };
       window.addEventListener("blur", blurCallback);
 
       // deal with difficulties
@@ -1320,7 +1323,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                self.game.effectVolume *
                 (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
              100;
-          let defaultSet = timing.sampleSet || self.game.sampleSet;
+          let defaultSet = timing.sampleSet != null ? timing.sampleSet : self.game.sampleSet;
           self.game.sample[defaultSet].slidertick.volume = volume;
           self.game.sample[defaultSet].slidertick.play();
       };
@@ -1341,7 +1344,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                 self.game.effectVolume *
                 (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
              100;
-          let defaultSet = timing.sampleSet || self.game.sampleSet;
+          let defaultSet = timing.sampleSet != null ? timing.sampleSet : self.game.sampleSet;
 
           function playHit(bitmask, normalSet, additionSet) {
             // The normal sound is always played

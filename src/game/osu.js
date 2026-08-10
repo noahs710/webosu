@@ -20,7 +20,7 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
       this.hitObjects = [];
       this.decode = (function decode() {
          // Decodes a .osu file
-         var lines = self.track.replace("\r", "").split("\n");
+         var lines = self.track.replace(/\r/g, "").split("\n");
          if (lines[0] != "osu file format v14") {
             if (import.meta.env.DEV) console.warn("[osu] unexpected format header:", lines[0]);
          }

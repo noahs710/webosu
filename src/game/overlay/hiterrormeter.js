@@ -11,7 +11,7 @@ class ErrorMeter extends PIXI.Container {
     const color300 = 0x66ccff;
     const color100 = 0x88b300;
     const color50 = 0xffcc22;
-    this.lscale = barheight / 2 / r50; // pixel per millisecond
+    this.lscale = r50 > 0 ? barheight / 2 / r50 : 1;
 
     const newbarpiece = function (height, tint) {
       const piece = new PIXI.Sprite(window.Skin?.["errormeterbar.png"] || PIXI.Texture.WHITE);

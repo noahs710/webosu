@@ -4,7 +4,7 @@
       var click = {
          x: playback.game.mouseX,
          y: playback.game.mouseY,
-         time: playback.osu.audio.getPosition() * 1000,
+         time: (playback.osu && playback.osu.audio) ? playback.osu.audio.getPosition() * 1000 : 0,
       };
       // note-lock: prefer the earliest in-range hit (lazer lets you hit the
       // earliest overlapping object, not whichever is first in the array)
