@@ -355,6 +355,7 @@ function buildApp({ serveStatic = true } = {}) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     });
     res.write(": connected\n\n");
     feed.add(res);

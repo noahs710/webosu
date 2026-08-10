@@ -63,16 +63,16 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
                      self.difficulty[parts[0]] = +value;
                   }
                   break;
-               case "[TimingPoints]":
-                  var parts = line.split(",");
-                  var t = {
-                     offset: +parts[0],
-                     millisecondsPerBeat: +parts[1],
-                     meter: +parts[2],
-                     sampleSet: +parts[3],
-                     sampleIndex: +parts[4],
-                     volume: +parts[5],
-                     uninherited: +parts[6],
+                case "[TimingPoints]":
+                   var parts = line.split(",");
+                   var t = {
+                      offset: +parts[0],
+                      millisecondsPerBeat: +parts[1],
+                      meter: +parts[2] || 4,
+                      sampleSet: +parts[3] || 0,
+                      sampleIndex: +parts[4] || 0,
+                      volume: +parts[5] || 100,
+                      uninherited: parts[6] !== undefined ? parts[6].trim() === "1" : true,
                      kaiMode: +parts[7],
                   };
                   // fallback to default set if sampleset is illegal

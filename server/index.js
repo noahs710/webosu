@@ -28,7 +28,7 @@ wss.on("connection", (ws) => {
     if (m.type === "join") {
       const roomId = String(m.room || "lobby").toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 30);
       joinedRoom = roomId;
-      joinedName = String(m.username || "guest").replace(/[<>&"]/g, "_").slice(0, 20);
+      joinedName = String(m.username || "guest").replace(/[<>&"']/g, "_").slice(0, 20);
       if (!rooms.has(roomId))
         rooms.set(roomId, { name: roomId, host: joinedName, clients: new Map() });
       const room = rooms.get(roomId);

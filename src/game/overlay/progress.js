@@ -10,16 +10,14 @@ class ProgressOverlay extends PIXI.Container {
       this.remaining = new PIXI.Text({ text: "", style: {
          fontFamily: "Comfortaa",
          fontSize: 25,
-         tint: 0xddffff,
-         fill: "#ffffff",
+         fill: "#ddffff",
       } });
       this.remaining.anchor.set(1);
       this.addChild(this.remaining);
       this.past = new PIXI.Text({ text: "", style: {
          fontFamily: "Comfortaa",
          fontSize: 25,
-         tint: 0xddffff,
-         fill: "#ffffff",
+         fill: "#ddffff",
       } });
       this.past.anchor.set(0, 1);
       this.addChild(this.past);

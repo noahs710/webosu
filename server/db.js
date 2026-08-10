@@ -173,15 +173,15 @@ module.exports = {
         SELECT sc.id, sc.replay_id, sc.beatmap_id, sc.beatmap_set_id, sc.version, sc.score, sc.acc, sc.max_combo, sc.grade, sc.mods, sc.miss, u.username
         FROM scores sc JOIN users u ON u.id = sc.user_id
         WHERE sc.beatmap_id = ? AND sc.mods_num = ? AND sc.approved = 1
-        GROUP BY sc.user_id HAVING MAX(sc.score)
-        ORDER BY sc.score DESC LIMIT ?`).all(beatmapId, modsNum, limit);
+          AND sc.score = (SELECT MAX(score) FROM scores WHERE user_id = sc.user_id AND beatmap_id = ? AND mods_num = ? AND approved = 1)
+        ORDER BY sc.score DESC LIMIT ?`).all(beatmapId, modsNum, beatmapId, modsNum, limit);
     }
     return db.prepare(`
       SELECT sc.id, sc.replay_id, sc.beatmap_id, sc.beatmap_set_id, sc.version, sc.score, sc.acc, sc.max_combo, sc.grade, sc.mods, sc.miss, u.username
       FROM scores sc JOIN users u ON u.id = sc.user_id
       WHERE sc.beatmap_id = ? AND sc.approved = 1
-      GROUP BY sc.user_id HAVING MAX(sc.score)
-      ORDER BY sc.score DESC LIMIT ?`).all(beatmapId, limit);
+        AND sc.score = (SELECT MAX(score) FROM scores WHERE user_id = sc.user_id AND beatmap_id = ? AND approved = 1)
+      ORDER BY sc.score DESC LIMIT ?`).all(beatmapId, beatmapId, limit);
   },
   userBest(userId, beatmapId) {
     return db.prepare(
@@ -191,8 +191,8 @@ module.exports = {
   userStats(userId) {
     const row = db.prepare(`
       SELECT COUNT(*) plays, MAX(score) max_score, MAX(max_combo) max_combo,
-             SUM(count300) c300, SUM(count100) c100, SUM(count50) c50, SUM(miss) miss,
-             AVG(acc) avg_acc
+             COALESCE(SUM(count300), 0) c300, COALESCE(SUM(count100), 0) c100, COALESCE(SUM(count50), 0) c50, COALESCE(SUM(miss), 0) miss,
+             COALESCE(AVG(acc), 0) avg_acc
       FROM scores WHERE user_id = ?`).get(userId);
     return row;
   },

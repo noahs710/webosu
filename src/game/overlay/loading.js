@@ -72,7 +72,7 @@ class LoadingMenu extends PIXI.Container {
       };
       this.resize(windowfield);
 
-      this.hide = function (volume) {
+      this.hide = function () {
          this.hidden = true;
       };
 

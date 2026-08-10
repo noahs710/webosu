@@ -2,7 +2,7 @@ import EqualDistanceMultiCurve from "./EqualDistanceMultiCurve.js";
 import Bezier2 from "./Bezier2.js";
 
         // Adapted from LinearBezier.java from github://itdelatrisu/opsu
-        function LinearBeizer(hit, line) {
+        function LinearBezier(hit, line) {
             EqualDistanceMultiCurve.call(this, hit);
 
             var beziers = [];
@@ -43,5 +43,5 @@ import Bezier2 from "./Bezier2.js";
             }
             this.init(beziers);
         }
-        Object.assign(LinearBeizer.prototype, EqualDistanceMultiCurve.prototype);
-        export default LinearBeizer;
+        Object.assign(LinearBezier.prototype, EqualDistanceMultiCurve.prototype);
+        export default LinearBezier;

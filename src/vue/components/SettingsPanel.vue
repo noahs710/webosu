@@ -21,8 +21,12 @@ function captureKey(ev, key) {
   ev.preventDefault();
   const handler = (e) => {
     e.preventDefault();
-    const name = e.key.length === 1 ? e.key.toUpperCase() : e.key.toUpperCase();
-    gamesettings[key] = name; gamesettings.loadToGame(); saveToLocal();
+    const name = e.key.toUpperCase();
+    gamesettings[key] = name;
+    // also update the corresponding keycode field (e.g. K1name → K1keycode)
+    const keycodeKey = key.replace("name", "keycode");
+    if (keycodeKey !== key && keycodeKey in gamesettings) gamesettings[keycodeKey] = e.keyCode;
+    gamesettings.loadToGame(); saveToLocal();
     gs.value = { ...gamesettings };
     window.removeEventListener("keydown", handler, true);
   };

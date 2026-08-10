@@ -170,7 +170,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          this.hits[this.hits.length - 1].endTime
       );
 
-      window.onresize = function () {
+      var resizeCallback = function () {
          window.app.renderer.resize(window.innerWidth, window.innerHeight);
          self.calcSize();
          if (import.meta.env.DEV) {
@@ -221,8 +221,9 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             ox: -1 + (2 * gfx.xoffset) / window.innerWidth,
             dy: (-2 * gfx.height) / window.innerHeight / 384,
             oy: 1 - (2 * gfx.yoffset) / window.innerHeight,
-         });
+          });
       };
+      window.addEventListener("resize", resizeCallback);
 
       var blurCallback = function (e) {
           if (self.audioReady && !self.ended && !self.game.paused) self.pause();
@@ -789,8 +790,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             glog("playback", "background file", bgFile);
             if (bgFile) {
                const entry = osu.zip.getChildByName(bgFile);
-               if (entry) {
-                  entry.getBlob("image/jpeg", function (blob) {
+                if (entry) {
+                  const ext = (bgFile.split(".").pop() || "").toLowerCase();
+                  const mime = ext === "png" ? "image/png" : ext === "bmp" ? "image/bmp" : "image/jpeg";
+                  entry.getBlob(mime, function (blob) {
                      const uri = URL.createObjectURL(blob);
                      loadBackground(uri);
                   });
@@ -1657,7 +1660,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          if (-diff >= 0 && -diff <= hit.fadeOutDuration + hit.sliderTimeTotal) {
             // after hit.time & before slider disappears
             // t: position relative to slider duration
-            let t = -diff / hit.sliderTime;
+            let t = hit.sliderTime > 0 ? -diff / hit.sliderTime : 0;
             hit.currentRepeat = Math.min(Math.ceil(t), hit.repeat);
             // check for slider edge hit
             let atEnd = false;
@@ -1937,7 +1940,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                (self.spinnerZoomInTime + self.spinnerAppearTime);
             if (t <= 1) hit.top.rotation = -t * t * 10;
          }
-         let progress = hit.rotationProgress / hit.rotationRequired;
+          let progress = hit.rotationRequired > 0 ? hit.rotationProgress / hit.rotationRequired : 0;
          if (time > hit.time) {
             hit.base.rotation = hit.rotation / 2;
             hit.top.rotation = hit.rotation / 2;
@@ -2004,7 +2007,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                this.replayFrames.push({
                   t: time, x: this.game.mouseX, y: this.game.mouseY, d: this.game.down,
                });
-               if (this.replayFrames.length > 201000) this.replayFrames.splice(0, this.replayFrames.length - 200000);
+               if (this.replayFrames.length > 201000) this.replayFrames = this.replayFrames.slice(-200000);
             }
             let nextapproachtime =
                waitinghitid < this.hits.length &&
@@ -2102,7 +2105,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             self.background = null;
          }
          // clean up event listeners
-         window.onresize = null;
+         window.removeEventListener("resize", resizeCallback);
          window.removeEventListener("blur", blurCallback);
          window.removeEventListener("wheel", wheelCallback);
          window.removeEventListener("keydown", pauseKeyCallback);

@@ -38,7 +38,7 @@ function pushToServer() {
   if (serverSyncTimer) clearTimeout(serverSyncTimer);
   serverSyncTimer = setTimeout(() => {
     try {
-      const s = {}; for (const k in gamesettings) if (typeof gamesettings[k] !== "function") s[k] = gamesettings[k];
+      const s = {}; for (const k in defaultsettings) s[k] = gamesettings[k];
       const fav = window.liked_sid_set ? Array.from(window.liked_sid_set) : [];
       api.saveMyProfile({ settings: s, favorites: fav }).catch(() => {});
     } catch (e) {}

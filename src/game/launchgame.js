@@ -242,19 +242,20 @@ export async function launchOSU(osu, beatmapid, version) {
          // Handle cursor
          game.cursor.x = (game.mouseX / 512) * gfx.width + gfx.xoffset;
          game.cursor.y = (game.mouseY / 384) * gfx.height + gfx.yoffset;
-         if (game.cursorMiddle) {
-            game.cursorMiddle.x = game.cursor.x;
-            game.cursorMiddle.y = game.cursor.y;
-            if (window.game && window.game.skinCursorRotate) game.cursorMiddle.rotation += 0.02;
-         }
-         // CursorRotate: spin cursor if skin.ini says so
-         if (window.game && window.game.skinCursorRotate) {
-            game.cursor.rotation += 0.02;
-         }
-          // CursorExpand: pulse scale on click (game.down, not game.mouseDown which is never set)
-          if (window.game && window.game.skinCursorExpand) {
-             var targetScale = (game.down ? 1.3 : 1.0) * 0.3 * effectiveCursorSize;
-             game.cursor.scale.x += (targetScale - game.cursor.scale.x) * 0.3;
+          if (game.cursorMiddle) {
+             game.cursorMiddle.x = game.cursor.x;
+             game.cursorMiddle.y = game.cursor.y;
+             if (window.game && window.game.skinCursorRotate) game.cursorMiddle.rotation += 0.02 * (window.currentFrameInterval || 16.67) / 16.67;
+          }
+          // CursorRotate: spin cursor if skin.ini says so
+          if (window.game && window.game.skinCursorRotate) {
+             game.cursor.rotation += 0.02 * (window.currentFrameInterval || 16.67) / 16.67;
+          }
+           // CursorExpand: pulse scale on click (game.down, not game.mouseDown which is never set)
+           if (window.game && window.game.skinCursorExpand) {
+              var targetScale = (game.down ? 1.3 : 1.0) * 0.3 * effectiveCursorSize;
+              var lerpFactor = 1 - Math.exp(-(window.currentFrameInterval || 16.67) / 16.67 * 0.3);
+              game.cursor.scale.x += (targetScale - game.cursor.scale.x) * lerpFactor;
              game.cursor.scale.y = game.cursor.scale.x;
              if (game.cursorMiddle) {
                 var midScale = 0.15 * effectiveCursorSize * (game.down ? 1.3 : 1.0);
@@ -418,8 +419,15 @@ export function launchGame(osublob, beatmapid, version) {
                         var entry = zipShim.getChildByName(file);
                      }
                   } catch { entry = null; }
-                  if (entry) entry.getBlob("image/jpeg", (blob) => { img.src = URL.createObjectURL(blob); });
-                  else img.src = "img/defaultbg.jpg";
+                   if (entry) {
+                     const ext = (file.split(".").pop() || "").toLowerCase();
+                     const mime = ext === "png" ? "image/png" : ext === "bmp" ? "image/bmp" : "image/jpeg";
+                     entry.getBlob(mime, (blob) => {
+                        const url = URL.createObjectURL(blob);
+                        img.src = url;
+                        img.addEventListener("load", () => { try { URL.revokeObjectURL(url); } catch {} }, { once: true });
+                     });
+                  } else img.src = "img/defaultbg.jpg";
                },
                requestStar: function() {
                   try {

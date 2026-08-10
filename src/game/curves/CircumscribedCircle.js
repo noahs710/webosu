@@ -22,7 +22,7 @@ const CURVE_POINTS_SEPERATION = 5;
             var nora = nor(vecsub(mid, start));
             var norb = nor(vecsub(mid, end));
             var circleCenter = intersect(mida, nora, midb, norb);
-            if (!circleCenter) return [];
+            if (!circleCenter) return { curve: [], pointAt: function() { return { x: 0, y: 0 }; }, totalDistance: 0 };
 
             // find the angles relative to the circle center
             var startAngPoint = vecsub(start, circleCenter);
@@ -47,7 +47,7 @@ const CURVE_POINTS_SEPERATION = 5;
                 else if (Math.abs(startAng - (endAng - TWO_PI)) < TWO_PI && isIn(startAng, midAng, endAng - (TWO_PI)))
                     endAng -= TWO_PI;
                 else
-                    throw "Cannot find angles between midAng.";
+                    throw new Error("Cannot find angles between midAng.");
             }
 
             // find an angle with an arc length of pixelLength along this circle

@@ -217,9 +217,9 @@
       };
 
       // return value true: success
-      this.pause = function pause() {
-         if (!self.playing || self._getPosition() <= 0) return false;
-         // use _getPosition for latency-accurate position, then subtract posoffset to get raw position
+       this.pause = function pause() {
+          if (!self.playing) return false;
+          // use _getPosition for latency-accurate position
          self.position = self._getPosition();
          self.source.stop();
          self.playing = false;
