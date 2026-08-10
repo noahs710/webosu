@@ -94,31 +94,33 @@ import { gamesettings } from "../shell/gamesettings.js";
    // load skin — reowoTuna .osk is the default skin, sprites.json is fallback only
    window.Skin = window.Skin || {};
    window._defaultSkin = null;
-   async function loadDefaultSkin() {
-      // try cached .osk first (IndexedDB — instant after first load)
-      try {
-         const cached = await loadCachedSkin();
-         if (cached) {
-            ilog("initgame", "cached skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
-            await applySkin(cached);
-            ilog("initgame", "cached skin applied");
-            return true;
-         }
-      } catch (e) { iwarn("initgame", "loadCachedSkin failed", e); }
-      // no cache — fetch the bundled default .osk and cache it
-      try {
-         ilog("initgame", "fetching default .osk from /skins/default.osk");
-         const res = await fetch("/skins/default.osk");
-         if (!res.ok) throw new Error("default.osk " + res.status);
-         const blob = await res.blob();
-         const { loadOsk, saveLocalSkin } = await import("./skin-loader.js");
-         const data = await loadOsk(blob);
-         ilog("initgame", "default .osk loaded", data.config?.name || "unnamed", "textures", Object.keys(data.textures||{}).length);
-         try { await saveLocalSkin(data, "reowoTuna.osk"); } catch (e) { iwarn("initgame", "saveLocalSkin failed", e); }
-         await applySkin(data);
-         ilog("initgame", "default .osk applied");
-         return true;
-      } catch (e) { iwarn("initgame", "default .osk load failed, falling back to sprites.json", e); }
+    async function loadDefaultSkin() {
+       // try cached .osk first (IndexedDB — instant after first load)
+       try {
+          const cached = await loadCachedSkin();
+          if (cached) {
+             ilog("initgame", "cached skin found", cached.config?.name || "unnamed", "textures", Object.keys(cached.textures||{}).length);
+             await applySkin(cached);
+             try { window._defaultSkin = { ...window.Skin }; } catch {}
+             ilog("initgame", "cached skin applied");
+             return true;
+          }
+       } catch (e) { iwarn("initgame", "loadCachedSkin failed", e); }
+       // no cache — fetch the bundled default .osk and cache it
+       try {
+          ilog("initgame", "fetching default .osk from /skins/default.osk");
+          const res = await fetch("/skins/default.osk");
+          if (!res.ok) throw new Error("default.osk " + res.status);
+          const blob = await res.blob();
+          const { loadOsk, saveLocalSkin } = await import("./skin-loader.js");
+          const data = await loadOsk(blob);
+          ilog("initgame", "default .osk loaded", data.config?.name || "unnamed", "textures", Object.keys(data.textures||{}).length);
+          try { await saveLocalSkin(data, "reowoTuna.osk"); } catch (e) { iwarn("initgame", "saveLocalSkin failed", e); }
+          await applySkin(data);
+          try { window._defaultSkin = { ...window.Skin }; } catch {}
+          ilog("initgame", "default .osk applied");
+          return true;
+       } catch (e) { iwarn("initgame", "default .osk load failed, falling back to sprites.json", e); }
       // fallback: load sprites.json (legacy default spritesheet)
       try {
          const sheet = await PIXI.Assets.load("/sprites.json");

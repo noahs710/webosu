@@ -1,5 +1,3 @@
-import { FS } from "./zipfs.js";
-import Osu from "./osu.js";
 import OsuAudio from "./osu-audio.js";
 import { log as llog, warn as lwarn, error as lerror } from "./logger.js";
 import { gamesettings } from "../shell/gamesettings.js";
@@ -339,33 +337,44 @@ export function launchGame(osublob, beatmapid, version) {
          }
       } else if (msg.type === "result") {
          llog("launchgame", "worker parsed", msg.tracks.length, "tracks");
-         // rehydrate curves + re-link timing
-         for (const track of msg.tracks) {
-            for (const hit of track.hitObjects) {
-               if (hit.curve && hit.curve.curve) {
-                  const curve = hit.curve.curve;
-                  const ncurve = hit.curve.ncurve || curve.length - 1;
-                  hit.curve.pointAt = (t) => {
-                     const indexF = t * ncurve;
-                     const idx = Math.floor(indexF);
-                     if (idx >= ncurve) return { x: curve[ncurve].x, y: curve[ncurve].y };
-                     const p1 = curve[idx], p2 = curve[idx + 1];
-                     const lt = indexF - idx;
-                     return { x: p1.x + (p2.x - p1.x) * lt, y: p1.y + (p2.y - p1.y) * lt };
-                  };
-                  hit.curve.pointAtInto = (t, out) => {
-                     const indexF = t * ncurve;
-                     const idx = Math.floor(indexF);
-                     if (idx >= ncurve) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
-                     else {
-                        const p1 = curve[idx], p2 = curve[idx + 1];
-                        const lt = indexF - idx;
-                        out.x = p1.x + (p2.x - p1.x) * lt;
-                        out.y = p1.y + (p2.y - p1.y) * lt;
-                     }
-                     return out;
-                  };
-               }
+          // rehydrate curves + re-link timing
+          for (const track of msg.tracks) {
+             for (const hit of track.hitObjects) {
+                if (hit.curve && hit.curve.curve && hit.curve.curve.length >= 2) {
+                   const curve = hit.curve.curve;
+                   const ncurve = hit.curve.ncurve || curve.length - 1;
+                   hit.curve.pointAt = (t) => {
+                      const indexF = t * ncurve;
+                      const idx = Math.floor(indexF);
+                      if (idx >= ncurve) return { x: curve[ncurve].x, y: curve[ncurve].y };
+                      if (idx < 0) return { x: curve[0].x, y: curve[0].y };
+                      const p1 = curve[idx], p2 = curve[idx + 1];
+                      if (!p1 || !p2) return { x: curve[ncurve].x, y: curve[ncurve].y };
+                      const lt = indexF - idx;
+                      return { x: p1.x + (p2.x - p1.x) * lt, y: p1.y + (p2.y - p1.y) * lt };
+                   };
+                   hit.curve.pointAtInto = (t, out) => {
+                      const indexF = t * ncurve;
+                      const idx = Math.floor(indexF);
+                      if (idx >= ncurve) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
+                      else if (idx < 0) { out.x = curve[0].x; out.y = curve[0].y; }
+                      else {
+                         const p1 = curve[idx], p2 = curve[idx + 1];
+                         if (!p1 || !p2) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
+                         else {
+                            const lt = indexF - idx;
+                            out.x = p1.x + (p2.x - p1.x) * lt;
+                            out.y = p1.y + (p2.y - p1.y) * lt;
+                         }
+                      }
+                      return out;
+                   };
+                } else if (hit.curve) {
+                   // degenerate curve (fewer than 2 points) — return start position
+                   const start = { x: hit.x, y: hit.y };
+                   hit.curve.pointAt = () => start;
+                   hit.curve.pointAtInto = (t, out) => { out.x = start.x; out.y = start.y; return out; };
+                }
                if (hit.timingIndex != null) {
                   hit.timing = track.timingPoints[hit.timingIndex];
                }

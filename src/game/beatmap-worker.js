@@ -102,18 +102,7 @@ function Track(track) {
                }
                break;
             case "[Events]":
-               parts = line.split(",");
-               if (parts.length >= 3) {
-                  if (parts[0] === "0" || parts[0] === "2" || parts[0] === "3" ||
-                      parts[0] === "Background" || parts[0] === "Video") {
-                     var type = parts[0] === "0" ? "Background" :
-                                parts[0] === "2" ? "Break" :
-                                parts[0] === "3" ? "Sprite" : parts[0];
-                     self.events.push([type, parts[1], parts.slice(2).join(",")]);
-                  } else {
-                     self.events.push([parts[0], parts[1], parts.slice(2).join(",")]);
-                  }
-               }
+               self.events.push(line.split(","));
                break;
             case "[TimingPoints]":
                parts = line.split(",");
@@ -127,13 +116,6 @@ function Track(track) {
                      volume: +parts[5] || 100,
                      uninherited: parts.length > 6 ? parts[6].trim() === "1" : true,
                   };
-                  if (tp.uninherited) {
-                     tp.trueMillisecondsPerBeat = tp.millisecondsPerBeat;
-                  } else {
-                     var base = self.timingPoints.find(function(t) { return t.uninherited && t.offset <= tp.offset; });
-                     if (!base) base = self.timingPoints.find(function(t) { return t.uninherited; });
-                     tp.trueMillisecondsPerBeat = base ? base.millisecondsPerBeat : tp.millisecondsPerBeat;
-                  }
                   tp.kaiMode = tp.meter % 2 !== 0;
                   self.timingPoints.push(tp);
                }
@@ -179,14 +161,40 @@ function Track(track) {
                break;
          }
       }
-      if (self.difficulty.ApproachRate === undefined) {
-         self.difficulty.ApproachRate = self.difficulty.OverallDifficulty !== undefined ? self.difficulty.OverallDifficulty : 5;
-      }
-      if (!self.general.StackLeniency) self.general.StackLeniency = 0.7;
-      if (!self.general.Mode) self.general.Mode = 0;
-      preallocateTiming(self);
-      calculateCurve(self);
-      stackHitObjects(self);
+       if (self.difficulty.ApproachRate === undefined) {
+          self.difficulty.ApproachRate = self.difficulty.OverallDifficulty !== undefined ? self.difficulty.OverallDifficulty : 5;
+       }
+       if (!self.general.StackLeniency) self.general.StackLeniency = 0.7;
+       if (!self.general.Mode) self.general.Mode = 0;
+       // convert inherited timing points (same as original osu.js:240-259)
+       var last = self.timingPoints[0];
+       for (var i = 0; i < self.timingPoints.length; i++) {
+          var point = self.timingPoints[i];
+          if (point.uninherited === false || point.uninherited === 0) {
+             point.uninherited = 1;
+             point.millisecondsPerBeat = Math.min(point.millisecondsPerBeat, -10);
+             point.millisecondsPerBeat = Math.max(point.millisecondsPerBeat, -1000);
+             point.millisecondsPerBeat *= -0.01 * last.millisecondsPerBeat;
+             point.trueMillisecondsPerBeat = last.trueMillisecondsPerBeat;
+          } else {
+             last = point;
+             point.trueMillisecondsPerBeat = point.millisecondsPerBeat;
+          }
+       }
+       preallocateTiming(self);
+       // calculate end time of each hit object (same as original osu.js:262-274)
+       for (let i = 0; i < self.hitObjects.length; i++) {
+          let hit = self.hitObjects[i];
+          if (hit.type == "circle") hit.endTime = hit.time;
+          if (hit.type == "slider") {
+             hit.sliderTime = (hit.timing.millisecondsPerBeat * (hit.pixelLength / self.difficulty.SliderMultiplier)) / 100;
+             hit.sliderTimeTotal = hit.sliderTime * hit.repeat;
+             hit.endTime = hit.time + hit.sliderTimeTotal;
+          }
+       }
+       self.length = Math.round(self.hitObjects[self.hitObjects.length - 1].endTime / 1000 + 1.5);
+       calculateCurve(self);
+       stackHitObjects(self);
    };
 }
 
@@ -203,7 +211,8 @@ function preallocateTiming(track) {
              track.timingPoints[currentTimingIndex + 1].offset <= track.hitObjects[i].time) {
          currentTimingIndex += 1;
       }
-      track.hitObjects[i].timingIndex = currentTimingIndex;
+       track.hitObjects[i].timingIndex = currentTimingIndex;
+       track.hitObjects[i].timing = track.timingPoints[currentTimingIndex];
    }
 }
 
@@ -245,7 +254,7 @@ function stackHitObjects(track) {
    function getintv(A, B) {
       let endTime = A.time;
       if (A.type == "slider") {
-         endTime += (A.repeat * track.timingPoints[A.timingIndex].millisecondsPerBeat * (A.pixelLength / track.difficulty.SliderMultiplier)) / 100;
+         endTime += (A.repeat * A.timing.millisecondsPerBeat * (A.pixelLength / track.difficulty.SliderMultiplier)) / 100;
       }
       return B.time - endTime;
    }
@@ -258,22 +267,56 @@ function stackHitObjects(track) {
       return Math.hypot(x - B.x, y - B.y);
    }
 
-   for (let i = 0; i < track.hitObjects.length; i++) {
-      let hitA = track.hitObjects[i];
-      if (hitA.type == "spinner") continue;
-      for (let j = i + 1; j < track.hitObjects.length; j++) {
-         let hitB = track.hitObjects[j];
-         if (hitB.type == "spinner") break;
-         let intv = getintv(hitA, hitB);
-         if (intv > stackThreshold) break;
-         if (intv >= 0) {
-            let dist = getdist(hitA, hitB);
-            if (dist < stackDistance) {
-               let offset = hitA.stackOffset || 0;
-               hitB.stackOffset = offset - stackDistance;
-               hitB.y = hitB.y + hitB.stackOffset;
-               hitA = hitB;
-            }
+   // chain-based stacking (matches original osu.js:501-588)
+   let chains = [];
+   let stacked = new Array(track.hitObjects.length).fill(false);
+   for (let i = 0; i < track.hitObjects.length; ++i) {
+      if (stacked[i]) continue;
+      let hitI = track.hitObjects[i];
+      if (hitI.type == "spinner") continue;
+      stacked[i] = true;
+      let newchain = [hitI];
+      for (let j = i + 1; j < track.hitObjects.length; ++j) {
+         let hitJ = track.hitObjects[j];
+         if (hitJ.type == "spinner") break;
+         if (getintv(newchain[newchain.length - 1], hitJ) > stackThreshold) break;
+         if (getdist(newchain[newchain.length - 1], hitJ) <= stackDistance) {
+            if (stacked[j]) break;
+            stacked[j] = true;
+            newchain.push(hitJ);
+         }
+      }
+      if (newchain.length > 1) chains.push(newchain);
+   }
+   const stackScale = (1.0 - (0.7 * (track.difficulty.CircleSize - 5)) / 5) / 2;
+   const scaleX = stackScale * 6.4;
+   const scaleY = stackScale * 6.4;
+   function movehit(hit, dep) {
+      hit.x += scaleX * dep;
+      hit.y += scaleY * dep;
+      if (hit.type == "slider") {
+         for (let j = 0; j < hit.keyframes.length; ++j) {
+            hit.keyframes[j].x += scaleX * dep;
+            hit.keyframes[j].y += scaleY * dep;
+         }
+         for (let j = 0; j < hit.curve.curve.length; ++j) {
+            hit.curve.curve[j].x += scaleX * dep;
+            hit.curve.curve[j].y += scaleY * dep;
+         }
+      }
+   }
+   for (let i = 0; i < chains.length; ++i) {
+      if (chains[i][0].type == "slider") {
+         for (let j = 0, dep = 0; j < chains[i].length; ++j) {
+            movehit(chains[i][j], dep);
+            if (chains[i][j].type != "slider" || chains[i][j].repeat % 2 == 0) dep++;
+         }
+      } else {
+         for (let j = 0, dep = 0; j < chains[i].length; ++j) {
+            let cur = chains[i].length - 1 - j;
+            if (j > 0 && chains[i][cur].type == "slider" && chains[i][cur].repeat % 2 == 1) dep--;
+            movehit(chains[i][cur], -dep);
+            dep++;
          }
       }
    }

@@ -2051,13 +2051,17 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                hit.destroyed = true;
             }
          });
-         // drain the sprite pool (game ending; no reuse)
-         if (self._spritePool) {
-            self._spritePool.forEach(function (arr) {
-               for (let i = 0; i < arr.length; i++) arr[i].destroy();
-            });
-            self._spritePool.clear();
-         }
+          // drain the sprite pool (game ending; no reuse)
+          if (self._spritePool) {
+             self._spritePool.forEach(function (arr) {
+                for (let i = 0; i < arr.length; i++) arr[i].destroy();
+             });
+             self._spritePool.clear();
+          }
+          if (self._judgeTextPool) {
+             for (let i = 0; i < self._judgeTextPool.length; i++) self._judgeTextPool[i].destroy();
+             self._judgeTextPool.length = 0;
+          }
          if (self._hitBursts) {
             for (let i = 0; i < self._hitBursts.length; i++) try { self.gamefield.removeChild(self._hitBursts[i]); self._hitBursts[i].destroy(); } catch (e) {}
             self._hitBursts.length = 0;
