@@ -1326,10 +1326,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                self.game.effectVolume *
                 (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
              100;
-          let defaultSet = timing.sampleSet != null ? timing.sampleSet : self.game.sampleSet;
-          self.game.sample[defaultSet].slidertick.volume = volume;
-          self.game.sample[defaultSet].slidertick.play();
-      };
+          let defaultSet = timing.sampleSet > 0 ? timing.sampleSet : self.game.sampleSet;
+          try {
+             self.game.sample[defaultSet].slidertick.volume = volume;
+             self.game.sample[defaultSet].slidertick.play();
+          } catch (e) {}
+       };
       this.playHitsound = function playHitsound(hit, id, time) {
          while (
             this.curtimingid + 1 < this.track.timingPoints.length &&
@@ -1347,7 +1349,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                 self.game.effectVolume *
                 (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
              100;
-          let defaultSet = timing.sampleSet != null ? timing.sampleSet : self.game.sampleSet;
+          let defaultSet = timing.sampleSet > 0 ? timing.sampleSet : self.game.sampleSet;
 
           function playHit(bitmask, normalSet, additionSet) {
             // The normal sound is always played
@@ -1372,10 +1374,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             let additionSet = hit.hitSample.additionSet || normalSet;
             playHit(toplay, normalSet, additionSet);
          }
-         if (hit.type == "slider") {
-            let toplay = hit.edgeHitsounds[id];
-            let normalSet = hit.edgeSets[id].normalSet || defaultSet;
-            let additionSet = hit.edgeSets[id].additionSet || normalSet;
+          if (hit.type == "slider") {
+             let toplay = hit.edgeHitsounds[id] || 0;
+             let edgeSet = hit.edgeSets[id] || { normalSet: 0, additionSet: 0 };
+             let normalSet = edgeSet.normalSet || defaultSet;
+             let additionSet = edgeSet.additionSet || normalSet;
             playHit(toplay, normalSet, additionSet);
          }
       };
@@ -1392,10 +1395,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                self.createComboFlash(fx, fy, col, time);
             } catch (e) {}
          }
-         if (points > 0) {
-            if (hit.type == "spinner")
-               self.playHitsound(
-                  hit,
+          if (points > 0) {
+            try {
+             if (hit.type == "spinner")
+                self.playHitsound(
+                   hit,
                   0,
                   hit.endTime
                ); // hit happen at end of spinner
@@ -1403,11 +1407,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                self.playHitsound(hit, 0, hit.time);
                self.errorMeter.hit(time - hit.time, time);
             }
-            if (hit.type == "slider") {
-               // special rule: only missing slider end will not result in a miss
-               hit.judgements[hit.judgements.length - 1].defaultScore = 50;
-            }
-         }
+             if (hit.type == "slider") {
+                // special rule: only missing slider end will not result in a miss
+                hit.judgements[hit.judgements.length - 1].defaultScore = 50;
+             }
+            } catch (e) { if (import.meta.env.DEV) console.warn("playHitsound failed", e); }
+          }
          hit.score = points;
          hit.clickTime = time;
          self.invokeJudgement(hit.judgements[0], points, time);
@@ -1741,11 +1746,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                      self.createComboFlash(fx, fy, col, time);
                   } catch (e) {}
                }
-               self.playHitsound(
-                  hit,
-                  hit.lastrep,
-                  hit.time + hit.lastrep * hit.sliderTime
-               );
+                try { self.playHitsound(
+                   hit,
+                   hit.lastrep,
+                   hit.time + hit.lastrep * hit.sliderTime
+                ); } catch (e) {}
             }
 
             // sliderball & follow circle Animation
