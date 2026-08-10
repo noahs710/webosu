@@ -2,6 +2,8 @@ app = "webosu"
 primary_region = "iad"
 
 [build]
+  [build.args]
+    DEFAULT_SKIN_URL = "https://github.com/noahs710/webosu/releases/download/skins/default.osk"
 
 [http_service]
   internal_port = 8080

@@ -1,6 +1,6 @@
 import { ref, onMounted } from "vue";
 import { api } from "../../shell/api.js";
-import { clearCachedSkin, listLocalSkins, saveLocalSkin, loadLocalSkin, deleteLocalSkin, getActiveSkinId } from "../../game/skin-loader.js";
+import { clearCachedSkin, listLocalSkins, saveLocalSkin, loadLocalSkin, deleteLocalSkin, getActiveSkinId, getCachedSkinMeta, unloadActiveSkin, applySkin } from "../../game/skin-loader.js";
 import { loadOsk } from "../../game/skin-loader.js";
 export default {
   setup() {
@@ -14,13 +14,12 @@ export default {
       try {
         localSkins.value = await listLocalSkins();
         activeId.value = await getActiveSkinId();
-        // also check single active cache (legacy) — if no vault but has cached skin, show it
+        // also check single active cache (legacy) — use getCachedSkinMeta to avoid creating blob URLs
         if (!localSkins.value.length) {
           try {
-            const { loadCachedSkin } = await import("../../game/skin-loader.js");
-            const cached = await loadCachedSkin();
-            if (cached && cached.config) {
-              localSkins.value = [{ id: "active", name: cached.config.name || "Active skin", author: cached.config.author || "", texCount: Object.keys(cached.textures||{}).length, sndCount: Object.keys(cached.sounds||{}).length, updated: Date.now(), _isActiveCache: true }];
+            const meta = await getCachedSkinMeta();
+            if (meta) {
+              localSkins.value = [{ id: "active", name: meta.name || "Active skin", author: meta.author || "", texCount: 0, sndCount: 0, updated: Date.now(), _isActiveCache: true }];
               activeId.value = "active";
             }
           } catch {}
@@ -55,10 +54,15 @@ export default {
        try {
           const data = await loadLocalSkin(id);
           if (data) {
-             // apply immediately if Skin already loaded, otherwise it will apply on next game via cache
+             // mid-game guard: can't safely swap textures while gameplay sprites hold old refs
+             if (window.playback && !window.playback.ended) {
+                localStatus.value = "Skin cached — will apply on next game (can't swap mid-play).";
+                activeId.value = id;
+                return;
+             }
+             // safe to apply immediately (no game running) — unload old skin first
              try {
-                const { applySkin } = await import("../../game/skin-loader.js");
-                if (window.Skin) { await applySkin(data); localStatus.value = "Applied! Skin is now active."; }
+                if (window.Skin) { await unloadActiveSkin(); await applySkin(data); localStatus.value = "Applied! Skin is now active."; }
                 else localStatus.value = "Will apply on next game start.";
              } catch (e) { localStatus.value = "Apply warning: " + (e.message || e); }
              activeId.value = id;

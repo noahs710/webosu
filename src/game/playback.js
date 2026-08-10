@@ -46,6 +46,16 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       self._spritePool = new Map();
       self._hitBursts = [];
       self._comboFlashes = [];
+      self._judgeTextPool = [];
+      self._POOL_MAX = 48;
+      // release a sprite back to the texture-keyed pool (capped to prevent unbounded growth)
+      self._releaseToPool = function (sprite) {
+         if (!sprite._pooledTex) { sprite.destroy(); return; }
+         let arr = self._spritePool.get(sprite._pooledTex);
+         if (!arr) { arr = []; self._spritePool.set(sprite._pooledTex, arr); }
+         if (arr.length < self._POOL_MAX) { sprite.visible = false; arr.push(sprite); }
+         else sprite.destroy();
+      };
       // reusable point objects to avoid per-frame allocation in slider update
       self._tmpPt1 = { x: 0, y: 0 };
       self._tmpPt2 = { x: 0, y: 0 };
@@ -463,12 +473,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
       }
 
-      this.createJudgement = function (x, y, depth, finalTime) {
+       this.createJudgement = function (x, y, finalTime) {
          var useSprites = !!(window.Skin?.["hit300.png"]);
          var judge;
          if (useSprites) {
             const initTex = window.Skin?.["hit300.png"] || PIXI.Texture.WHITE;
-            judge = new PIXI.Sprite(initTex);
+            let arr = self._spritePool.get(initTex);
+            judge = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(initTex);
+            if (judge.texture !== initTex || !judge.texture?.valid) judge.texture = initTex;
             judge.anchor.set(0.5);
             judge.scale.set(0.85 * this.hitSpriteScale, 0.85 * this.hitSpriteScale);
             judge.baseScaleX = 0.85 * this.hitSpriteScale;
@@ -476,8 +488,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             if (initTex === PIXI.Texture.WHITE) judge.tint = 0x66ccff;
             judge.eventMode = 'none';
             judge.cullable = false;
+            judge._pooledTex = initTex;
+            judge._pooledType = "sprite";
          } else {
-            judge = new PIXI.Text({ text: "", style: {
+            judge = self._judgeTextPool.length ? self._judgeTextPool.pop() : new PIXI.Text({ text: "", style: {
                fontFamily: "Comfortaa",
                fontSize: 20,
                fill: "#ffffff",
@@ -488,11 +502,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             judge.baseScaleY = 1 * this.hitSpriteScale;
             judge.eventMode = 'none';
             judge.cullable = false;
+            judge._pooledType = "text";
          }
          judge.visible = false;
          judge.basex = judge.x = x;
          judge.basey = judge.y = y;
-         judge.depth = depth;
+         judge.zIndex = 4;
          judge.points = -1;
          judge.finalTime = finalTime;
          judge.defaultScore = 0;
@@ -582,34 +597,25 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
       };
 
-      // depth-sorted rendering via Pixi v8 sortableChildren+zIndex (eliminates O(n) addChildAt shifts)
-      this._depthIndex = function (depth) {
-         // kept for hit bursts / combo flashes — still uses addChildAt for effects layer
-         let children = self.gamefield.children;
-         let l = 0, r = children.length;
-         while (l + 1 < r) {
-            let m = Math.floor((l + r) / 2) - 1;
-            if ((children[m].zIndex || 0) < depth) l = m + 1;
-            else r = m + 1;
-         }
-         return l;
-      };
-
-      // T10: hit burst sprite (scale 1.0 -> 1.5, alpha 1 -> 0 over 200ms)
+      // T10: hit burst sprite (scale 1.0 -> 1.5, alpha 1 -> 0 over 200ms) — pooled
       this.createHitBurst = function (x, y, time) {
          if (!window.Skin || !window.Skin?.["hitburst.png"]) return;
-         var s = new PIXI.Sprite(window.Skin?.["hitburst.png"] || PIXI.Texture.WHITE);
+         const tex = window.Skin?.["hitburst.png"] || PIXI.Texture.WHITE;
+         let arr = self._spritePool.get(tex);
+         let s = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(tex);
+         if (s.texture !== tex) s.texture = tex;
          s.anchor.set(0.5);
          s.x = x; s.y = y;
          s.scale.set(this.hitSpriteScale);
          s.alpha = 1;
          s._burstT0 = time;
          s.zIndex = 4.5;
-         s.eventMode = 'none';
-         s.cullable = false;
-         self.gamefield.addChild(s);
-         self._hitBursts.push(s);
-      };
+          s.eventMode = 'none';
+          s.cullable = false;
+          s._pooledTex = tex;
+          self.gamefield.addChild(s);
+          self._hitBursts.push(s);
+       };
       // T11: combo color flash (scale 1.0 -> 2.0, alpha 0.6 -> 0 over 100ms)
       this.createComboFlash = function (x, y, color, time) {
          var g;
@@ -645,7 +651,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             let t = time - s._burstT0;
             if (t >= 200) {
                self.gamefield.removeChild(s);
-               s.destroy();
+               self._releaseToPool(s);
                self._hitBursts.splice(i, 1);
             } else {
                let p = t / 200;
@@ -853,6 +859,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             const tex = window.Skin?.[spritename] || PIXI.Texture.WHITE;
             let arr = self._spritePool.get(tex);
             let sprite = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(tex);
+            if (sprite.texture !== tex || !sprite.texture?.valid) sprite.texture = tex;
             // reset every property a hit sprite can carry so a pooled sprite is
             // indistinguishable from a fresh one (safe by construction)
             sprite.initialscale = self.hitSpriteScale * scalemul;
@@ -861,14 +868,15 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.anchor.y = anchory;
             sprite.x = hit.x;
             sprite.y = hit.y;
-            sprite.depth = depth;
+            sprite.rotation = 0;
+            sprite.zIndex = depth;
             sprite.alpha = 0;
-            sprite.visible = true;      // a pooled sprite may have been hidden on fade-out
-            sprite.tint = 0xffffff;     // base/glow/approach re-tint below; overlay stays white
-            sprite.blendMode = "normal"; // glow re-set to "add" below
+            sprite.visible = true;
+            sprite.tint = 0xffffff;
+            sprite.blendMode = "normal";
             sprite.eventMode = 'none';
             sprite.cullable = false;
-            sprite._pooledTex = tex;    // mark for return-to-pool on despawn
+            sprite._pooledTex = tex;
             hit.objects.push(sprite);
             return sprite;
          }
@@ -899,7 +907,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
 
          hit.judgements.push(
-            this.createJudgement(hit.x, hit.y, 4, hit.time + this.MehTime)
+            this.createJudgement(hit.x, hit.y, hit.time + this.MehTime)
          );
 
          // create combo number — respect skin.ini HitCirclePrefix/ScorePrefix, gated to valid
@@ -998,22 +1006,30 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
          hit.body = body;
          body.alpha = 0;
-         body.depth = 4.9999 - 0.0001 * hit.hitIndex;
+         body.zIndex = 4.9999 - 0.0001 * hit.hitIndex;
          hit.objects.push(body);
 
-         function newSprite(spritename, x, y, scalemul = 1) {
-            let sprite = new PIXI.Sprite(window.Skin?.[spritename] || PIXI.Texture.WHITE);
-            sprite.scale.set(self.hitSpriteScale * scalemul);
-            sprite.anchor.set(0.5);
-            sprite.x = x;
-            sprite.y = y;
-            sprite.depth = 4.9999 - 0.0001 * hit.hitIndex;
-            sprite.alpha = 0;
-            sprite.eventMode = 'none';
-            sprite.cullable = false;
-            hit.objects.push(sprite);
-            return sprite;
-         }
+          function newSprite(spritename, x, y, scalemul = 1) {
+             const tex = window.Skin?.[spritename] || PIXI.Texture.WHITE;
+             let arr = self._spritePool.get(tex);
+             let sprite = (arr && arr.length) ? arr.pop() : new PIXI.Sprite(tex);
+             if (sprite.texture !== tex || !sprite.texture?.valid) sprite.texture = tex;
+             sprite.scale.set(self.hitSpriteScale * scalemul);
+             sprite.anchor.set(0.5);
+             sprite.x = x;
+             sprite.y = y;
+             sprite.rotation = 0;
+             sprite.zIndex = 4.9999 - 0.0001 * hit.hitIndex;
+             sprite.alpha = 0;
+             sprite.visible = true;
+             sprite.tint = 0xffffff;
+             sprite.blendMode = "normal";
+             sprite.eventMode = 'none';
+             sprite.cullable = false;
+             sprite._pooledTex = tex;
+             hit.objects.push(sprite);
+             return sprite;
+          }
 
          // add slider ticks
          hit.ticks = [];
@@ -1093,7 +1109,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             let x = i % 2 == 1 ? endPoint.x : hit.x;
             let y = i % 2 == 1 ? endPoint.y : hit.y;
             hit.judgements.push(
-               this.createJudgement(x, y, 4, hit.time + i * hit.sliderTime)
+               this.createJudgement(x, y, hit.time + i * hit.sliderTime)
             );
          }
       };
@@ -1118,7 +1134,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             sprite.anchor.set(0.5);
             sprite.x = hit.x;
             sprite.y = hit.y;
-            sprite.depth = 4.9999 - 0.0001 * (hit.hitIndex || 1);
+            sprite.zIndex = 4.9999 - 0.0001 * (hit.hitIndex || 1);
             sprite.alpha = 0;
             sprite.eventMode = 'none';
             sprite.cullable = false;
@@ -1134,7 +1150,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
 
          hit.judgements.push(
-            this.createJudgement(hit.x, hit.y, 4, hit.endTime + 233)
+             this.createJudgement(hit.x, hit.y, hit.endTime + 233)
          );
       };
 
@@ -1152,7 +1168,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             }
          }
          var container = new PIXI.Container();
-         container.depth = 3;
+          container.zIndex = 3;
          container.eventMode = 'none';
          container.cullable = false;
          container.x1 = x1;
@@ -1400,16 +1416,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             waitinghitid++;
 
           // Cache hit objects in the next 3 seconds — v8: addChild + zIndex, no addChildAt shifts
-          while (current < self.hits.length && futuremost < time + 3000) {
-             var hit = self.hits[current++];
-             for (let i = hit.judgements.length - 1; i >= 0; i--) {
-                hit.judgements[i].zIndex = hit.judgements[i].depth || 0.0001;
-                self.gamefield.addChild(hit.judgements[i]);
-             }
-             for (let i = hit.objects.length - 1; i >= 0; i--) {
-                hit.objects[i].zIndex = hit.objects[i].depth || 0.0001;
-                self.gamefield.addChild(hit.objects[i]);
-             }
+           while (current < self.hits.length && futuremost < time + 3000) {
+              var hit = self.hits[current++];
+              for (let i = hit.judgements.length - 1; i >= 0; i--) {
+                 self.gamefield.addChild(hit.judgements[i]);
+              }
+              for (let i = hit.objects.length - 1; i >= 0; i--) {
+                 self.gamefield.addChild(hit.objects[i]);
+              }
              self.upcomingHits.push(hit);
              if (hit.time > futuremost) {
                 futuremost = hit.time;
@@ -1431,20 +1445,16 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                 if (i !== lastIdx) self.upcomingHits[i] = self.upcomingHits[lastIdx];
                 self.upcomingHits.pop();
                 i--; // recheck the swapped-in element
-                hit.objects.forEach(function (o) {
-                   self.gamefield.removeChild(o);
-                   if (o._pooledTex) {
-                      let a = self._spritePool.get(o._pooledTex);
-                      if (!a) { a = []; self._spritePool.set(o._pooledTex, a); }
-                      a.push(o);
-                   } else {
-                      o.destroy();
-                   }
-                });
-                hit.judgements.forEach(function (o) {
-                   self.gamefield.removeChild(o);
-                   o.destroy();
-                });
+                 hit.objects.forEach(function (o) {
+                    self.gamefield.removeChild(o);
+                    self._releaseToPool(o);
+                 });
+                 hit.judgements.forEach(function (o) {
+                    self.gamefield.removeChild(o);
+                    if (o._pooledType === "text") self._judgeTextPool.push(o);
+                    else if (o._pooledTex) self._releaseToPool(o);
+                    else o.destroy();
+                 });
                 hit.destroyed = true;
              }
           }
@@ -2085,8 +2095,17 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          window.removeEventListener("keydown", pauseKeyCallback);
          window.removeEventListener("keyup", resumeKeyCallback);
          window.removeEventListener("keydown", skipKeyCallback);
-         self.game.cleanupPlayerActions();
-         self.render = function () {};
+          self.game.cleanupPlayerActions();
+          // flush deferred skin texture unload (safe now — all gameplay sprites destroyed)
+          if (window._pendingUnload) {
+             for (const item of window._pendingUnload) {
+                try { if (item.url && PIXI.Assets.cache.has(item.url)) PIXI.Assets.unload(item.url); } catch {}
+                try { if (item.url) URL.revokeObjectURL(item.url); } catch {}
+                try { if (item.tex && item.tex !== PIXI.Texture.WHITE && item.tex.destroy) item.tex.destroy(true); } catch {}
+             }
+             window._pendingUnload = null;
+          }
+          self.render = function () {};
       };
 
       this.start = function () {

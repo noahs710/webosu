@@ -5,48 +5,9 @@
 
 import { unzipSync } from "fflate";
 import { log as clog, warn as cwarn } from "./logger.js";
+import { OSK_NAME_MAP, OSK_EXTRA_TEXTURES, HITSOUND_NAMES, isGameplayTexture, isGameplaySound } from "./skin-filter.js";
 
-// ── Name mapping: osu! skin filename → webosu spritesheet key ──
-// Most osu! skin names already match webosu keys; only these need translation.
-const OSK_NAME_MAP = {
-  "hitcircle.png": "disc.png",
-  "sliderb0.png": "sliderb.png",
-  "sliderb.png": "sliderb.png",
-  "default-0.png": "0.png", "default-1.png": "1.png", "default-2.png": "2.png",
-  "default-3.png": "3.png", "default-4.png": "4.png", "default-5.png": "5.png",
-  "default-6.png": "6.png", "default-7.png": "7.png", "default-8.png": "8.png",
-  "default-9.png": "9.png",
-  "default-x.png": "score-x.png",
-  "default-dot.png": "dot.png",
-  "default-percent.png": "percent.png",
-  "default-comma.png": "default-comma.png", // not in default spritesheet; added dynamically
-};
-
-// Textures that exist in .osk skins but NOT in the default webosu spritesheet.
-// These are loaded as new PIXI textures and added to window.Skin dynamically.
-// Keep this list minimal for gameplay — alphabet is handled generically on demand, not prelisted.
-const OSK_EXTRA_TEXTURES = [
-   "hit0.png", "hit50.png", "hit100.png", "hit300.png", "hit300g.png",
-   "cursortrail.png", "cursormiddle.png",
-   "sliderendcircle.png", "sliderendcircleoverlay.png",
-   "followpoint-0.png", "followpoint-1.png", "followpoint-2.png",
-   "followpoint-3.png", "followpoint-4.png", "followpoint-5.png",
-   "followpoint-6.png", "followpoint-7.png", "followpoint-8.png", "followpoint-9.png",
-   "scorebar-bg.png", "scorebar-colour.png",
-   "ring-glow.png", "hitcircleoverlay.png", "approachcircle.png",
-   "sliderscorepoint.png", "sliderfollowcircle.png", "reversearrow.png",
-];
-
-// Hitsound canonical names (without extension) → game.sample mapping
-const HITSOUND_NAMES = [
-  "normal-hitnormal", "normal-hitwhistle", "normal-hitfinish", "normal-hitclap",
-  "normal-slidertick",
-  "soft-hitnormal", "soft-hitwhistle", "soft-hitfinish", "soft-hitclap",
-  "soft-slidertick",
-  "drum-hitnormal", "drum-hitwhistle", "drum-hitfinish", "drum-hitclap",
-  "drum-slidertick",
-  "combobreak",
-];
+// ── Name mapping, texture filter, and hitsound names imported from skin-filter.js ──
 
 // ── skin.ini parser ──
 export function parseSkinIni(iniText) {
@@ -155,36 +116,6 @@ function pickBestResolution(files, name) {
   return name;
 }
 
-// ── Gameplay-relevant texture filter — prevents OUT_OF_MEMORY from loading 800+ menu/ranking images
-function isGameplayTexture(name) {
-  const n = name.toLowerCase();
-  // block menu/ranking/selection/fail/pause etc. immediately (huge, not gameplay)
-  if (n.startsWith("menu-") || n.startsWith("ranking-") || n.startsWith("selection-") || n.startsWith("fail-") || n.startsWith("pause-") || n.startsWith("play-") || n.startsWith("mode-") || n.startsWith("welcome") || n.startsWith("inputoverlay") || n.includes("background") || n.includes("ranking") || n.includes("menu-")) return false;
-  // whitelist: only gameplay essentials
-  if (n.startsWith("hit") && n.match(/^hit(0|50|100|300)[k]?\.png$/)) return true; // only base hit judgements, not hit0-0.png variants
-  if (n.match(/^default-[0-9]\.png$/)) return true;
-  if (n.match(/^default-(dot|comma|percent|x)\.png$/)) return true;
-  if (n.match(/^score-[0-9]\.png$/)) return true;
-  if (n.match(/^score-(dot|comma|percent|x)\.png$/)) return true;
-  if (n.startsWith("cursor") || n.startsWith("followpoint") || n.startsWith("slider") || n.startsWith("approachcircle") || n.startsWith("hitcircle")) {
-     // for followpoint, only 0-9
-     if (n.match(/^followpoint-\d+\.png$/)) {
-        const idx = parseInt(n.match(/followpoint-(\d+)\.png/)[1], 10);
-        return idx >=0 && idx <=9;
-     }
-     // for sliderb, only base and 0
-     if (n.match(/^sliderb\d*\.png$/)) return true;
-     return true;
-  }
-  if (["disc.png","hitcircleoverlay.png","ring-glow.png","hitburst.png","followpoint.png","approachcircle.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","sliderendcircle.png","sliderendcircleoverlay.png","cursortrail.png","cursormiddle.png","cursor.png","dot.png","percent.png","score-x.png","score-dot.png","score-percent.png","0.png","1.png","2.png","3.png","4.png","5.png","6.png","7.png","8.png","9.png","hit0.png","hit50.png","hit100.png","hit300.png","hit300g.png","scorebar-bg.png","scorebar-colour.png","errormeterbar.png","errormeterindicator.png","spinnerbase.png","spinnerprogress.png","spinnertop.png","bar.png","barend.png"].includes(n)) return true;
-  if (OSK_EXTRA_TEXTURES.includes(name) || OSK_NAME_MAP[name]) return true;
-  // numbers/combos prefixes for WhiteCat — only digits, not letters (letters not needed for gameplay numbers)
-  if (n.match(/^(numbers|combos)-[0-9]\.png$/)) return true;
-  if (n.match(/^(numbers|combos)-(dot|comma|percent|x)\.png$/)) return true;
-  // default: block everything else (including score-a-z, ranking, etc.)
-  return false;
-}
-
 // ── Extract and load a .osk file ──
 export async function loadOsk(file) {
   if (file.size > 80 * 1024 * 1024) throw new Error("osk too large (80MB limit)");
@@ -285,12 +216,59 @@ export async function loadOsk(file) {
 }
 
 // ── Apply skin to the game ──
+// Module-level tracking for texture lifecycle (unload-on-switch)
+const _activeSkinKeys = new Set();      // blob URLs currently in Assets.cache
+const _pendingBlobUrls = new Set();     // all blob URLs created (for error-path cleanup)
+window._pendingUnload = null;           // [{tex, url}] to unload on playback.destroy()
+
+function trackBlobUrl(blob) {
+  const u = URL.createObjectURL(blob);
+  _pendingBlobUrls.add(u);
+  return u;
+}
+function revokeAllSkinBlobs() {
+  for (const u of _pendingBlobUrls) { try { URL.revokeObjectURL(u); } catch {} }
+  _pendingBlobUrls.clear();
+}
+
+export async function unloadActiveSkin() {
+  // restore window.Skin to defaults so no sprite holds a destroyed texture
+  if (window._defaultSkin && window.Skin) {
+    for (const k of Object.keys(window.Skin)) {
+      if (!(k in window._defaultSkin)) delete window.Skin[k];
+      else window.Skin[k] = window._defaultSkin[k];
+    }
+  }
+  // unload each Assets-managed texture → frees GPU memory
+  for (const url of _activeSkinKeys) {
+    try { if (PIXI.Assets && PIXI.Assets.cache && PIXI.Assets.cache.has(url)) await PIXI.Assets.unload(url); } catch {}
+  }
+  _activeSkinKeys.clear();
+  revokeAllSkinBlobs();
+}
+
 export async function applySkin(skinData) {
   if (!skinData) return;
 
+  // If a previous skin is active, unload it first (safe when no game is running)
+  const gameRunning = !!(window.playback && !window.playback.ended);
+  if (_activeSkinKeys.size > 0 && !gameRunning) {
+    try { await unloadActiveSkin(); } catch {}
+  }
+
   // Reset to default before applying new skin to prevent accumulation and exponential scaling
   if (window._defaultSkin && window.Skin) {
-    // remove custom keys not in default — just delete, don't destroy (avoids Assets warning/split error)
+    // If game is running, capture old textures for deferred unload
+    if (gameRunning && _activeSkinKeys.size > 0) {
+      if (!window._pendingUnload) window._pendingUnload = [];
+      for (const k in window.Skin) {
+        const t = window.Skin[k];
+        if (t && t !== PIXI.Texture.WHITE && !(k in window._defaultSkin)) {
+          try { window._pendingUnload.push({ tex: t, url: t.source?.url || null }); } catch {}
+        }
+      }
+    }
+    // remove custom keys not in default
     for (const k in window.Skin) {
       if (!(k in window._defaultSkin)) {
         delete window.Skin[k];
@@ -326,6 +304,7 @@ export async function applySkin(skinData) {
               tex = PIXI.Texture.from(url);
             }
             try { if (PIXI.Assets && PIXI.Assets.cache) PIXI.Assets.cache.set(url, tex); } catch (_) {}
+            _activeSkinKeys.add(url);
           }
         } catch (e) {
           tex = PIXI.Texture.from(url);
@@ -380,14 +359,19 @@ export async function applySkin(skinData) {
     for (const name in skinData.sounds) {
       const mapping = sampleMap[name];
       if (mapping && window.game.sample && window.game.sample[mapping[0]]) {
-        // Load the sound via Howler
-        const snd = new Howl({ src: [skinData.sounds[name].url], preload: true });
+        const sndUrl = skinData.sounds[name].url;
+        const snd = new Howl({ src: [sndUrl], preload: true });
+        snd.once('load', () => { try { URL.revokeObjectURL(sndUrl); } catch {} });
+        setTimeout(() => { try { URL.revokeObjectURL(sndUrl); } catch {} }, 5000);
         window.game.sample[mapping[0]][mapping[1]] = snd;
       }
     }
     // combobreak is special — game uses sampleComboBreak, not sample.combo
     if (skinData.sounds["combobreak"]) {
-      const snd = new Howl({ src: [skinData.sounds["combobreak"].url], preload: true });
+      const cbUrl = skinData.sounds["combobreak"].url;
+      const snd = new Howl({ src: [cbUrl], preload: true });
+      snd.once('load', () => { try { URL.revokeObjectURL(cbUrl); } catch {} });
+      setTimeout(() => { try { URL.revokeObjectURL(cbUrl); } catch {} }, 5000);
       window.game.sampleComboBreak = snd;
     }
   }
@@ -604,6 +588,22 @@ export async function loadCachedSkin() {
   } catch (e) {
     return null;
   }
+}
+
+// Lightweight metadata read — does NOT create blob URLs (safe for UI display)
+export async function getCachedSkinMeta() {
+  try {
+    const db = await openDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const req = tx.objectStore(STORE_NAME).get("config");
+      req.onsuccess = () => {
+        db.close();
+        resolve(req.result ? JSON.parse(req.result) : null);
+      };
+      req.onerror = () => { db.close(); resolve(null); };
+    });
+  } catch { return null; }
 }
 
 export async function clearCachedSkin() {
