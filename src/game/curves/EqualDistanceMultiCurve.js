@@ -82,4 +82,20 @@ const CURVE_POINTS_SEPERATION = 5;
             };
         }
     }
+    // in-place variant: writes into `out` to avoid per-frame allocation
+    EqualDistanceMultiCurve.prototype.pointAtInto = function pointAtInto(t, out) {
+        var indexF = t * this.ncurve;
+        var index = Math.floor(indexF);
+        if (index >= this.ncurve) {
+            out.x = this.curve[this.ncurve].x;
+            out.y = this.curve[this.ncurve].y;
+        } else {
+            let poi = this.curve[index];
+            let poi2 = this.curve[index + 1];
+            let lt = indexF - index;
+            out.x = Curve.lerp(poi.x, poi2.x, lt);
+            out.y = Curve.lerp(poi.y, poi2.y, lt);
+        }
+        return out;
+    };
     export default EqualDistanceMultiCurve;

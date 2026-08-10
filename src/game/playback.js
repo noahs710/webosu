@@ -46,6 +46,11 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       self._spritePool = new Map();
       self._hitBursts = [];
       self._comboFlashes = [];
+      // reusable point objects to avoid per-frame allocation in slider update
+      self._tmpPt1 = { x: 0, y: 0 };
+      self._tmpPt2 = { x: 0, y: 0 };
+      // reusable mouse-predict object to avoid per-frame allocation
+      self._tmpMouse = { x: 0, y: 0, r: 0 };
       self.replayFrames = []; // input log uploaded to the webosu leaderboard
       self.replayPlayback = window.__replayFrames || null; // frames to play back
       window.__replayFrames = null;
@@ -88,12 +93,15 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       var gfx = (window.gfx = {}); // game field area
       self.gamefield = new PIXI.Container();
       self.gamefield.eventMode = 'none';
-      self.gamefield.cullable = false;
+      // v8: sortableChildren+zIndex replaces manual addChildAt binary-search (O(n) shifts → O(1) append + sort)
+      self.gamefield.sortableChildren = true;
+      // culling: gamefield is 512×384 osu-pixel space — cull objects outside it
+      self.gamefield.cullable = true;
+      self.gamefield.cullArea = new PIXI.Rectangle(0, 0, 512, 384);
       try {
          const cp = new URLSearchParams(window.location.search).get('cull');
-         if (cp === 'true') { self.gamefield.cullable = true; self.gamefield.cullArea = new PIXI.Rectangle(0, 0, 512, 384); }
-         else if (cp === 'false') self.gamefield.cullable = false;
-         if (import.meta.env.DEV && cp) glog("playback", "cull spike gamefield", { cullable: self.gamefield.cullable, cullArea: self.gamefield.cullArea });
+         if (cp === 'false') self.gamefield.cullable = false;
+         if (import.meta.env.DEV && cp) glog("playback", "cull gamefield", { cullable: self.gamefield.cullable, cullArea: self.gamefield.cullArea });
       } catch {}
       // Recommended field size = the playfield as it renders on a 1920x1080
       // screen (80% fit = 1152x864). The field/notes scale with the screen only
@@ -574,13 +582,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
       };
 
-      // binary search for depth-sorted insertion into gamefield (O(log n) vs O(n) linear scan)
+      // depth-sorted rendering via Pixi v8 sortableChildren+zIndex (eliminates O(n) addChildAt shifts)
       this._depthIndex = function (depth) {
+         // kept for hit bursts / combo flashes — still uses addChildAt for effects layer
          let children = self.gamefield.children;
          let l = 0, r = children.length;
          while (l + 1 < r) {
             let m = Math.floor((l + r) / 2) - 1;
-            if ((children[m].depth || 0) < depth) l = m + 1;
+            if ((children[m].zIndex || 0) < depth) l = m + 1;
             else r = m + 1;
          }
          return l;
@@ -595,8 +604,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          s.scale.set(this.hitSpriteScale);
          s.alpha = 1;
          s._burstT0 = time;
-         s.depth = 4.5;
-         self.gamefield.addChildAt(s, this._depthIndex(s.depth));
+         s.zIndex = 4.5;
+         s.eventMode = 'none';
+         s.cullable = false;
+         self.gamefield.addChild(s);
          self._hitBursts.push(s);
       };
       // T11: combo color flash (scale 1.0 -> 2.0, alpha 0.6 -> 0 over 100ms)
@@ -604,7 +615,6 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          var g;
          try {
             g = new PIXI.Graphics();
-            // Pixi v8: circle + fill
             if (typeof g.circle === "function") {
                g.circle(0, 0, self.circleRadius * 0.45);
                g.fill({ color: color, alpha: 1 });
@@ -623,8 +633,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          g.alpha = 0.6;
          g.scale.set(1);
          g._flashT0 = time;
-         g.depth = 4.6;
-         self.gamefield.addChildAt(g, this._depthIndex(g.depth));
+         g.zIndex = 4.6;
+         g.eventMode = 'none';
+         g.cullable = false;
+         self.gamefield.addChild(g);
          self._comboFlashes.push(g);
       };
       this.updateEffects = function (time) {
@@ -807,6 +819,21 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       glog("playback", "combos", combos.length, combos.map(c=>"#"+c.toString(16).padStart(6,"0")), "trackOverride", SliderTrackOverride, "border", SliderBorder, "hits", self.hits.length);
 
       self.game.stage.addChild(this.gamefield);
+      // v8: zIndex layering — gamefield=0, HUD=10..60, cursor=999
+      this.gamefield.zIndex = 0;
+      // HUD overlays are always on-screen — skip culler from recursing into them
+      this.scoreOverlay.cullableChildren = false;
+      this.scoreOverlay.zIndex = 10;
+      this.errorMeter.cullableChildren = false;
+      this.errorMeter.zIndex = 20;
+      this.progressOverlay.cullableChildren = false;
+      this.progressOverlay.zIndex = 30;
+      this.breakOverlay.cullableChildren = false;
+      this.breakOverlay.zIndex = 40;
+      this.volumeMenu.cullableChildren = false;
+      this.volumeMenu.zIndex = 50;
+      this.loadingMenu.cullableChildren = false;
+      this.loadingMenu.zIndex = 60;
       self.game.stage.addChild(this.scoreOverlay);
       self.game.stage.addChild(this.errorMeter);
       self.game.stage.addChild(this.progressOverlay);
@@ -1233,13 +1260,22 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          )
             this.createFollowPoint(this.hits[i], this.hits[i + 1]);
       }
-      if (this.hideFollowPoints) {
-         for (let i = 0; i < this.hits.length; i++) {
-            if (this.hits[i].followPoints) {
-               this.hits[i].followPoints.visible = false;
-            }
-         }
-      }
+       if (this.hideFollowPoints) {
+          for (let i = 0; i < this.hits.length; i++) {
+             if (this.hits[i].followPoints) {
+                this.hits[i].followPoints.visible = false;
+             }
+          }
+       }
+       // pre-upload skin textures to GPU before gameplay to avoid first-hit hitches
+       try {
+          if (window.app?.renderer?.prepare?.upload) {
+             const texKeys = Object.keys(window.Skin || {});
+             const texs = [];
+             for (const k of texKeys) { const t = window.Skin[k]; if (t && t.valid && t !== PIXI.Texture.WHITE) texs.push(t); }
+             if (texs.length) window.app.renderer.prepare.upload(texs).catch(() => {});
+          }
+       } catch {}
 
       // hit result handling
       // use separate timing for sounds, since volume may change inside a slider or spinner
@@ -1363,37 +1399,22 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          )
             waitinghitid++;
 
-         function findindex(i) {
-            // returning smallest j satisfying (self.gamefield.children[j].depth || 0)>=i
-            let l = 0,
-               r = self.gamefield.children.length;
-            while (l + 1 < r) {
-               let m = Math.floor((l + r) / 2) - 1;
-               if ((self.gamefield.children[m].depth || 0) < i) l = m + 1;
-               else r = m + 1;
-            }
-            return l;
-         }
-         // Cache hit objects in the next 3 seconds
-         while (current < self.hits.length && futuremost < time + 3000) {
-            var hit = self.hits[current++];
-            for (let i = hit.judgements.length - 1; i >= 0; i--) {
-               self.gamefield.addChildAt(
-                  hit.judgements[i],
-                  findindex(hit.judgements[i].depth || 0.0001)
-               );
-            }
-            for (let i = hit.objects.length - 1; i >= 0; i--) {
-               self.gamefield.addChildAt(
-                  hit.objects[i],
-                  findindex(hit.objects[i].depth || 0.0001)
-               );
-            }
-            self.upcomingHits.push(hit);
-            if (hit.time > futuremost) {
-               futuremost = hit.time;
-            }
-         }
+          // Cache hit objects in the next 3 seconds — v8: addChild + zIndex, no addChildAt shifts
+          while (current < self.hits.length && futuremost < time + 3000) {
+             var hit = self.hits[current++];
+             for (let i = hit.judgements.length - 1; i >= 0; i--) {
+                hit.judgements[i].zIndex = hit.judgements[i].depth || 0.0001;
+                self.gamefield.addChild(hit.judgements[i]);
+             }
+             for (let i = hit.objects.length - 1; i >= 0; i--) {
+                hit.objects[i].zIndex = hit.objects[i].depth || 0.0001;
+                self.gamefield.addChild(hit.objects[i]);
+             }
+             self.upcomingHits.push(hit);
+             if (hit.time > futuremost) {
+                futuremost = hit.time;
+             }
+          }
           for (var i = 0; i < self.upcomingHits.length; i++) {
              var hit = self.upcomingHits[i];
              var diff = hit.time - time;
@@ -1585,16 +1606,15 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                );
                hit.body.endt = t;
                if (hit.reverse) {
-                  let p = hit.curve.pointAt(t);
-                  hit.reverse.x = p.x;
-                  hit.reverse.y = p.y;
-                  let p2;
+                  hit.curve.pointAtInto ? hit.curve.pointAtInto(t, self._tmpPt1) : (self._tmpPt1 = hit.curve.pointAt(t));
+                  hit.reverse.x = self._tmpPt1.x;
+                  hit.reverse.y = self._tmpPt1.y;
                   if (t < 0.5) {
-                     let p2 = hit.curve.pointAt(t + 0.005);
-                     hit.reverse.rotation = Math.atan2(p.y - p2.y, p.x - p2.x);
+                     hit.curve.pointAtInto ? hit.curve.pointAtInto(t + 0.005, self._tmpPt2) : (self._tmpPt2 = hit.curve.pointAt(t + 0.005));
+                     hit.reverse.rotation = Math.atan2(self._tmpPt1.y - self._tmpPt2.y, self._tmpPt1.x - self._tmpPt2.x);
                   } else {
-                     let p2 = hit.curve.pointAt(t - 0.005);
-                     hit.reverse.rotation = Math.atan2(p2.y - p.y, p2.x - p.x);
+                     hit.curve.pointAtInto ? hit.curve.pointAtInto(t - 0.005, self._tmpPt2) : (self._tmpPt2 = hit.curve.pointAt(t - 0.005));
+                     hit.reverse.rotation = Math.atan2(self._tmpPt2.y - self._tmpPt1.y, self._tmpPt2.x - self._tmpPt1.x);
                   }
                }
             }
@@ -1629,43 +1649,43 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             // clamp t
             t = repeatclamp(Math.min(t, hit.repeat));
 
-            // Update ball and follow circle position
-            let at = hit.curve.pointAt(t);
+            // Update ball and follow circle position — reuse tmp point to avoid alloc
+            hit.curve.pointAtInto ? hit.curve.pointAtInto(t, self._tmpPt1) : (self._tmpPt1 = hit.curve.pointAt(t));
 
-            hit.follow.x = at.x;
-            hit.follow.y = at.y;
-            hit.ball.x = at.x;
-            hit.ball.y = at.y;
+            hit.follow.x = self._tmpPt1.x;
+            hit.follow.y = self._tmpPt1.y;
+            hit.ball.x = self._tmpPt1.x;
+            hit.ball.y = self._tmpPt1.y;
 
             if (hit.base.visible && hit.score <= 0) {
                // the hit circle at start of slider will move if not hit
-               hit.base.x = at.x;
-               hit.base.y = at.y;
-               hit.circle.x = at.x;
-               hit.circle.y = at.y;
-               for (let i = 0; i < hit.numbers.length; ++i) {
-                  hit.numbers[i].x = at.x;
-                  hit.numbers[i].y = at.y;
-               }
-               hit.glow.x = at.x;
-               hit.glow.y = at.y;
-               hit.burst.x = at.x;
-               hit.burst.y = at.y;
-               hit.approach.x = at.x;
-               hit.approach.y = at.y;
-            }
+               hit.base.x = self._tmpPt1.x;
+               hit.base.y = self._tmpPt1.y;
+               hit.circle.x = self._tmpPt1.x;
+               hit.circle.y = self._tmpPt1.y;
+                for (let i = 0; i < hit.numbers.length; ++i) {
+                   hit.numbers[i].x = self._tmpPt1.x;
+                   hit.numbers[i].y = self._tmpPt1.y;
+                }
+                hit.glow.x = self._tmpPt1.x;
+                hit.glow.y = self._tmpPt1.y;
+                hit.burst.x = self._tmpPt1.x;
+                hit.burst.y = self._tmpPt1.y;
+                hit.approach.x = self._tmpPt1.x;
+                hit.approach.y = self._tmpPt1.y;
+             }
 
-            let dx = game.mouseX - at.x;
-            let dy = game.mouseY - at.y;
+            let dx = game.mouseX - self._tmpPt1.x;
+            let dy = game.mouseY - self._tmpPt1.y;
             let followPixelSize = hit.followSize * this.circleRadius;
             let isfollowing =
                dx * dx + dy * dy <= followPixelSize * followPixelSize;
-            let predict = game.mouse(this.realtime);
-            let dx1 = predict.x - at.x;
-            let dy1 = predict.y - at.y;
+            game.mouseInto ? game.mouseInto(this.realtime, self._tmpMouse) : (self._tmpMouse = game.mouse(this.realtime));
+            let dx1 = self._tmpMouse.x - self._tmpPt1.x;
+            let dy1 = self._tmpMouse.y - self._tmpPt1.y;
             isfollowing |=
                dx1 * dx1 + dy1 * dy1 <=
-               (followPixelSize + predict.r) * (followPixelSize + predict.r);
+               (followPixelSize + self._tmpMouse.r) * (followPixelSize + self._tmpMouse.r);
             let activated =
                (this.game.down && isfollowing) || hit.followSize > 1.01;
 

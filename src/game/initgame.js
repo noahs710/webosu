@@ -88,6 +88,7 @@ import { gamesettings } from "../shell/gamesettings.js";
    window.soundReady = false;
    window.scriptReady = false;
    game.stage = new PIXI.Container();
+   game.stage.sortableChildren = true; // v8: zIndex-based layering (cursor on top, HUD below)
    game.cursor = null;
 
    // load skin & game cursor — with detailed logging

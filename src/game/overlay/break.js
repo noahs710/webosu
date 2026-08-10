@@ -64,7 +64,9 @@ class BreakOverlay extends PIXI.Container {
          this.barmid.width = 2 * radius;
          this.barleft.x = -radius;
          this.barright.x = radius;
-         this.number.text = Math.ceil(t / 1000).toString();
+         // dirty-check: only update Text when the integer second changes
+         let nextSecond = Math.ceil(t / 1000).toString();
+         if (this.number.text !== nextSecond) this.number.text = nextSecond;
          this.alpha = Math.max(
             0,
             Math.min(

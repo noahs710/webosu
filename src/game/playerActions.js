@@ -217,6 +217,21 @@
                Math.max(t - m[0].t, window.currentFrameInterval),
          };
       };
+      // in-place variant: writes into `out` to avoid per-frame allocation in slider update
+      playback.game.mouseInto = function (t, out) {
+         let m = movehistory;
+         let i = 0;
+         while (i < m.length - 1 && m[0].t - m[i].t < 40 && t - m[i].t < 100)
+            i += 1;
+         let vx, vy;
+         if (i == 0) { vx = 0; vy = 0; }
+         else { vx = (m[0].x - m[i].x) / (m[0].t - m[i].t); vy = (m[0].y - m[i].y) / (m[0].t - m[i].t); }
+         let dt = Math.min(t - m[0].t + window.currentFrameInterval, 40);
+         out.x = m[0].x + vx * dt;
+         out.y = m[0].y + vy * dt;
+         out.r = Math.hypot(vx, vy) * Math.max(t - m[0].t, window.currentFrameInterval);
+         return out;
+      };
 
       var mousemoveCallback = function (e) {
          playback.game.mouseX = ((e.clientX - gfx.xoffset) / gfx.width) * 512;

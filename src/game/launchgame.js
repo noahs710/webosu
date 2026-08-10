@@ -34,23 +34,29 @@ export async function launchOSU(osu, beatmapid, version) {
    // prevent launching multiple times
    if (window.app) { lwarn("launchgame", "app already exists, ignoring launch"); return; }
    llog("launchgame", "Launching PIXI app", { beatmapid, version, trackid });
-   // launch PIXI app
-   let app = (window.app = new PIXI.Application());
-   await app.init({
-      width: window.innerWidth,
-      height: window.innerHeight,
-      resolution: Math.min(2, (window.game.overridedpi ? window.game.dpiscale : window.devicePixelRatio) || 1),
-      background: 0x111111,
-      backgroundAlpha: 1,
-      autoDensity: true,
-       antialias: true,
-      powerPreference: "high-performance",
-      preference: "webgl",
-      // per pixijs-performance skill — GC tuning (ms), not deprecated textureGC.*
-      gcActive: true,
-      gcMaxUnusedTime: 60_000,
-      gcFrequency: 30_000,
-   });
+    // launch PIXI app — adaptive quality: AA off on low-end for FPS, on for visual quality
+    const _lowEnd = (() => {
+      try {
+         return (navigator.deviceMemory && navigator.deviceMemory <= 4) ||
+                (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
+      } catch { return false; }
+    })();
+    let app = (window.app = new PIXI.Application());
+    await app.init({
+       width: window.innerWidth,
+       height: window.innerHeight,
+       resolution: Math.min(2, (window.game.overridedpi ? window.game.dpiscale : window.devicePixelRatio) || 1),
+       background: 0x111111,
+       backgroundAlpha: 1,
+       autoDensity: true,
+       antialias: !_lowEnd,
+       powerPreference: "high-performance",
+       preference: "webgl",
+       // per pixijs-performance skill — GC tuning (ms), not deprecated textureGC.*
+       gcActive: true,
+       gcMaxUnusedTime: 60_000,
+       gcFrequency: 30_000,
+    });
    // ponytail: uncapped ticker for lowest render latency; cullable already handled per-object
    try { app.ticker.maxFPS = 0; app.ticker.minFPS = 0; } catch {}
    
@@ -81,10 +87,11 @@ export async function launchOSU(osu, beatmapid, version) {
       // individual sprites each frame (render win: cursor-trail z-order fix).
       // Trail sprites keep a fixed back-to-front order; the cursor is added
       // last so it renders above the trail.
-      game.cursorLayer = new PIXI.Container();
-      game.cursorLayer.eventMode = 'none';
-      game.cursorLayer.cullable = false;
-      game.stage.addChild(game.cursorLayer);
+       game.cursorLayer = new PIXI.Container();
+       game.cursorLayer.eventMode = 'none';
+       game.cursorLayer.cullable = false;
+       game.cursorLayer.zIndex = 999; // v8: zIndex keeps cursor on top, no per-frame reparent
+       game.stage.addChild(game.cursorLayer);
       const cursorCentre = !(window.game && window.game.skinConfig && window.game.skinConfig.cursorCentre === false);
       const anchorVal = cursorCentre ? 0.5 : 0;
       game.cursor = new PIXI.Sprite(window.Skin?.["cursor.png"] || PIXI.Texture.WHITE);
@@ -266,20 +273,12 @@ export async function launchOSU(osu, beatmapid, version) {
                   (entry.x / 512) * gfx.width + gfx.xoffset;
                entry.sprite.y =
                   (entry.y / 384) * gfx.height + gfx.yoffset;
-               entry.sprite.alpha = Math.max(0, 0.5 * (1 - age / N));
-            }
-         }
-         // keep the cursor layer above gameplay/HUD with one re-parent per
-         // frame instead of N+1 per-sprite re-parents
-         // capture parent first: removeChild nulls .parent in Pixi v8
-         let cl = game.cursorLayer;
-         let clParent = cl && cl.parent;
-         if (clParent) {
-            clParent.removeChild(cl);
-            clParent.addChild(cl);
-         }
-      }
-      app.renderer.render(game.stage);
+                entry.sprite.alpha = Math.max(0, 0.5 * (1 - age / N));
+             }
+          }
+          // v8: cursor layer stays on top via zIndex=999 + sortableChildren — no reparent needed
+       }
+       app.renderer.render(game.stage);
       // Phase 6 frame-timing sample (only when the perf HUD is on)
       if (perfOn) {
          var now = performance.now();
