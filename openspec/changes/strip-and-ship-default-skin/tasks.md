@@ -7,7 +7,7 @@
 - [x] Update `Dockerfile` builder stage: add `ARG DEFAULT_SKIN_URL`, `RUN curl`, `RUN strip`, `RUN test -f` guard
 - [x] Update `fly.toml`: add `[build.args]` with `DEFAULT_SKIN_URL`
 - [x] Run `node scripts/strip-skin.mjs` locally to generate the stripped .osk (40MB → 460KB, 80 files)
-- [ ] Upload stripped .osk to GitHub Release: `gh release create skins skins/default.osk --notes "Default reowoTuna skin (gameplay-only)"` — **manual step, requires gh CLI auth**
+- [x] Upload stripped .osk to GitHub Release: `gh release create skins skins/default.osk --notes "Default reowoTuna skin (gameplay-only)"` — uploaded via GitHub API, release ID 367686535, download URL: https://github.com/noahs710/webosu/releases/download/skins/default.osk
 - [x] Verify: `npm run build` produces `dist/skins/default.osk` at ~460KB
 - [x] Verify: `npm test` passes
 - [x] Verify: `npm run test:game` passes (game loads with stripped skin)
