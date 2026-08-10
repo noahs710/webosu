@@ -73,11 +73,12 @@ const app = createApp({
             const ab = await r.arrayBuffer();
             overlay.setText("Unzipping & parsing...");
             // let the overlay paint before the sync unzip/parse
-            await new Promise(requestAnimationFrame);
-            window.launchGame(new Blob([ab]), beatmapId, version);
-            overlay.remove();
-         } catch (err) {
-            overlay.remove();
+             await new Promise(requestAnimationFrame);
+             window.launchGame(new Blob([ab]), beatmapId, version);
+             // overlay is removed by the worker's onmessage handler (on result/error)
+          } catch (err) {
+             const overlay = document.getElementById("beatmap-loading-overlay");
+             if (overlay) overlay.remove();
             if (import.meta.env.DEV) console.warn("launch failed:", err);
             alert("Could not start: " + (err.message || err));
          }

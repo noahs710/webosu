@@ -318,132 +318,157 @@ export function launchGame(osublob, beatmapid, version) {
    // Use Web Worker for unzip + parse (eliminates main-thread freeze)
    if (!window._beatmapWorker) {
       window._beatmapWorker = new Worker(new URL("./beatmap-worker.js", import.meta.url), { type: "module" });
+      // assign onmessage ONCE — uses a pending-request pattern to handle rapid re-launches
+      window._beatmapWorker._pending = { beatmapid, version };
+      window._beatmapWorker.onmessage = (e) => {
+         const msg = e.data;
+         const pending = window._beatmapWorker._pending;
+         if (!pending) return;
+         if (msg.type === "progress") {
+            const el = document.getElementById("beatmap-loading-text");
+            if (el) {
+               if (msg.stage === "unzip") el.textContent = "Unzipping...";
+               else if (msg.stage === "parse") el.textContent = "Parsing beatmap...";
+            }
+         } else if (msg.type === "result") {
+            window._beatmapWorker._pending = null;
+            const bid = pending.beatmapid, ver = pending.version;
+            llog("launchgame", "worker parsed", msg.tracks.length, "tracks");
+            // rehydrate curves + re-link timing
+            for (const track of msg.tracks) {
+               for (const hit of track.hitObjects) {
+                  if (hit.curve && hit.curve.curve && hit.curve.curve.length >= 2) {
+                     const curve = hit.curve.curve;
+                     const ncurve = hit.curve.ncurve || curve.length - 1;
+                     hit.curve.pointAt = (t) => {
+                        const indexF = t * ncurve;
+                        const idx = Math.floor(indexF);
+                        if (idx >= ncurve) return { x: curve[ncurve].x, y: curve[ncurve].y };
+                        if (idx < 0) return { x: curve[0].x, y: curve[0].y };
+                        const p1 = curve[idx], p2 = curve[idx + 1];
+                        if (!p1 || !p2) return { x: curve[ncurve].x, y: curve[ncurve].y };
+                        const lt = indexF - idx;
+                        return { x: p1.x + (p2.x - p1.x) * lt, y: p1.y + (p2.y - p1.y) * lt };
+                     };
+                     hit.curve.pointAtInto = (t, out) => {
+                        const indexF = t * ncurve;
+                        const idx = Math.floor(indexF);
+                        if (idx >= ncurve) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
+                        else if (idx < 0) { out.x = curve[0].x; out.y = curve[0].y; }
+                        else {
+                           const p1 = curve[idx], p2 = curve[idx + 1];
+                           if (!p1 || !p2) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
+                           else {
+                              const lt = indexF - idx;
+                              out.x = p1.x + (p2.x - p1.x) * lt;
+                              out.y = p1.y + (p2.y - p1.y) * lt;
+                           }
+                        }
+                        return out;
+                     };
+                  } else if (hit.curve) {
+                     const start = { x: hit.x, y: hit.y };
+                     hit.curve.pointAt = () => start;
+                     hit.curve.pointAtInto = (t, out) => { out.x = start.x; out.y = start.y; return out; };
+                  }
+                  if (hit.timingIndex != null) {
+                     hit.timing = track.timingPoints[hit.timingIndex];
+                  }
+               }
+            }
+            // build minimal zip shim for getCoverSrc + load_mp3
+            const files = msg.files || {};
+            const zipShim = {
+               children: Object.keys(files).map(n => ({ name: n })),
+               getChildByName: (name) => {
+                  const lower = name.toLowerCase();
+                  return files[lower] ? {
+                     name: lower,
+                     getBlob: (type, cb) => cb(new Blob([files[lower]], { type })),
+                     getText: (cb) => cb(new TextDecoder().decode(files[lower])),
+                  } : null;
+               },
+            };
+            // build Osu facade
+            const osu = {
+               zip: zipShim,
+               tracks: msg.tracks,
+               audio: null,
+               ondecoded: null,
+               onready: null,
+               onerror: null,
+               getCoverSrc: function(img) {
+                  try {
+                     // events are line.split(",") arrays: ["0","0","0","\"bg.jpg\"","0","0"]
+                     // or ["Background","0","\"bg.jpg\"","0","0"] — find the filename at index 2 or 3
+                     let file = null;
+                     for (const ev of this.tracks[0].events) {
+                        const evType = (ev[0]||"").trim();
+                        if (evType === "0" || evType === "Background") {
+                           // standard: 0,x-offset,y-offset,"filename",x,y
+                           file = ev[3] || ev[2];
+                           break;
+                        }
+                     }
+                     if (file) {
+                        file = file.replace(/^"|"$/g, "");
+                        var entry = zipShim.getChildByName(file);
+                     }
+                  } catch { entry = null; }
+                  if (entry) entry.getBlob("image/jpeg", (blob) => { img.src = URL.createObjectURL(blob); });
+                  else img.src = "img/defaultbg.jpg";
+               },
+               requestStar: function() {
+                  try {
+                     let xhr = new XMLHttpRequest();
+                     xhr.open("GET", "https://api.sayobot.cn/beatmapinfo?1=" + this.tracks[0].metadata.BeatmapSetID);
+                     xhr.responseType = "text";
+                     xhr.onload = () => {
+                        let info = JSON.parse(xhr.response);
+                        if (info.status == 0) for (let d of info.data) for (let t of this.tracks) if (t.metadata.BeatmapID == d.bid) { t.difficulty.star = d.star; t.length = d.length; }
+                     };
+                     xhr.send();
+                  } catch {}
+               },
+               filterTracks: function() { this.tracks = this.tracks.filter(t => t.general.Mode == 0); },
+               sortTracks: function() { this.tracks.sort((a,b) => a.difficulty.OverallDifficulty - b.difficulty.OverallDifficulty); },
+               load_mp3: function(track) {
+                  track = track || this.tracks[0];
+                  const audioName = (track.general.AudioFilename || "").toLowerCase();
+                  const entry = zipShim.getChildByName(audioName);
+                  if (!entry) { if (this.onerror) this.onerror("Audio file not found: " + audioName); return; }
+                  entry.getBlob("audio/mpeg", (blob) => {
+                     var reader = new FileReader();
+                     reader.onload = (e) => {
+                        this.audio = new OsuAudio(audioName, e.target.result, () => { if (this.onready) this.onready(); });
+                     };
+                     reader.readAsArrayBuffer(blob);
+                  });
+               },
+            };
+            // remove loading overlay before launching (parse complete)
+            const overlay = document.getElementById("beatmap-loading-overlay");
+            if (overlay) overlay.remove();
+            launchOSU(osu, bid, ver);
+            // fetch star ratings in the background (non-blocking)
+            try { osu.requestStar(); } catch {}
+         } else if (msg.type === "error") {
+            window._beatmapWorker._pending = null;
+            // remove loading overlay on error
+            const overlay = document.getElementById("beatmap-loading-overlay");
+            if (overlay) overlay.remove();
+            lerror("launchgame", "worker parse error", msg.message);
+            alert("Could not parse beatmap: " + msg.message);
+         }
+      };
+   } else {
+      // worker already exists — update pending request
+      window._beatmapWorker._pending = { beatmapid, version };
    }
    const worker = window._beatmapWorker;
 
    osublob.arrayBuffer().then((ab) => {
-      // transfer the ArrayBuffer to the worker (zero-copy)
       worker.postMessage({ type: "parse", buffer: ab }, [ab]);
    });
-
-   worker.onmessage = (e) => {
-      const msg = e.data;
-      if (msg.type === "progress") {
-         // update loading overlay if present
-         const el = document.getElementById("beatmap-loading-text");
-         if (el) {
-            if (msg.stage === "unzip") el.textContent = "Unzipping...";
-            else if (msg.stage === "parse") el.textContent = "Parsing beatmap...";
-         }
-      } else if (msg.type === "result") {
-         llog("launchgame", "worker parsed", msg.tracks.length, "tracks");
-          // rehydrate curves + re-link timing
-          for (const track of msg.tracks) {
-             for (const hit of track.hitObjects) {
-                if (hit.curve && hit.curve.curve && hit.curve.curve.length >= 2) {
-                   const curve = hit.curve.curve;
-                   const ncurve = hit.curve.ncurve || curve.length - 1;
-                   hit.curve.pointAt = (t) => {
-                      const indexF = t * ncurve;
-                      const idx = Math.floor(indexF);
-                      if (idx >= ncurve) return { x: curve[ncurve].x, y: curve[ncurve].y };
-                      if (idx < 0) return { x: curve[0].x, y: curve[0].y };
-                      const p1 = curve[idx], p2 = curve[idx + 1];
-                      if (!p1 || !p2) return { x: curve[ncurve].x, y: curve[ncurve].y };
-                      const lt = indexF - idx;
-                      return { x: p1.x + (p2.x - p1.x) * lt, y: p1.y + (p2.y - p1.y) * lt };
-                   };
-                   hit.curve.pointAtInto = (t, out) => {
-                      const indexF = t * ncurve;
-                      const idx = Math.floor(indexF);
-                      if (idx >= ncurve) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
-                      else if (idx < 0) { out.x = curve[0].x; out.y = curve[0].y; }
-                      else {
-                         const p1 = curve[idx], p2 = curve[idx + 1];
-                         if (!p1 || !p2) { out.x = curve[ncurve].x; out.y = curve[ncurve].y; }
-                         else {
-                            const lt = indexF - idx;
-                            out.x = p1.x + (p2.x - p1.x) * lt;
-                            out.y = p1.y + (p2.y - p1.y) * lt;
-                         }
-                      }
-                      return out;
-                   };
-                } else if (hit.curve) {
-                   // degenerate curve (fewer than 2 points) — return start position
-                   const start = { x: hit.x, y: hit.y };
-                   hit.curve.pointAt = () => start;
-                   hit.curve.pointAtInto = (t, out) => { out.x = start.x; out.y = start.y; return out; };
-                }
-               if (hit.timingIndex != null) {
-                  hit.timing = track.timingPoints[hit.timingIndex];
-               }
-            }
-         }
-         // build minimal zip shim for getCoverSrc + load_mp3
-         const files = msg.files || {};
-         const zipShim = {
-            children: Object.keys(files).map(n => ({ name: n })),
-            getChildByName: (name) => {
-               const lower = name.toLowerCase();
-               return files[lower] ? {
-                  name: lower,
-                  getBlob: (type, cb) => cb(new Blob([files[lower]], { type })),
-                  getText: (cb) => cb(new TextDecoder().decode(files[lower])),
-               } : null;
-            },
-         };
-         // build Osu facade
-         const osu = {
-            zip: zipShim,
-            tracks: msg.tracks,
-            audio: null,
-            ondecoded: null,
-            onready: null,
-            onerror: null,
-            getCoverSrc: function(img) {
-               try {
-                  var file = this.tracks[0].events[0][2];
-                  if (this.tracks[0].events[0][0] === "Video") file = this.tracks[0].events[1][2];
-                  file = file.substr(1, file.length - 2);
-                  var entry = zipShim.getChildByName(file);
-               } catch { entry = null; }
-               if (entry) entry.getBlob("image/jpeg", (blob) => { img.src = URL.createObjectURL(blob); });
-               else img.src = "img/defaultbg.jpg";
-            },
-            requestStar: function() {
-               try {
-                  let xhr = new XMLHttpRequest();
-                  xhr.open("GET", "https://api.sayobot.cn/beatmapinfo?1=" + this.tracks[0].metadata.BeatmapSetID);
-                  xhr.responseType = "text";
-                  xhr.onload = () => {
-                     let info = JSON.parse(xhr.response);
-                     if (info.status == 0) for (let d of info.data) for (let t of this.tracks) if (t.metadata.BeatmapID == d.bid) { t.difficulty.star = d.star; t.length = d.length; }
-                  };
-                  xhr.send();
-               } catch {}
-            },
-            filterTracks: function() { this.tracks = this.tracks.filter(t => t.general.Mode == 0); },
-            sortTracks: function() { this.tracks.sort((a,b) => a.difficulty.OverallDifficulty - b.difficulty.OverallDifficulty); },
-            load_mp3: function(track) {
-               track = track || this.tracks[0];
-               const audioName = (track.general.AudioFilename || "").toLowerCase();
-               const entry = zipShim.getChildByName(audioName);
-               if (!entry) { if (this.onerror) this.onerror("Audio file not found: " + audioName); return; }
-               entry.getBlob("audio/mpeg", (blob) => {
-                  var reader = new FileReader();
-                  reader.onload = (e) => {
-                     this.audio = new OsuAudio(audioName, e.target.result, () => { if (this.onready) this.onready(); });
-                  };
-                  reader.readAsArrayBuffer(blob);
-               });
-            },
-         };
-         launchOSU(osu, beatmapid, version);
-      } else if (msg.type === "error") {
-         lerror("launchgame", "worker parse error", msg.message);
-         alert("Could not parse beatmap: " + msg.message);
-      }
-   };
 }
 

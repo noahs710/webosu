@@ -16,38 +16,6 @@ import EqualDistanceMultiCurve from "./curves/EqualDistanceMultiCurve.js";
 const HIT_TYPE_CIRCLE = 1, HIT_TYPE_SLIDER = 2, HIT_TYPE_NEWCOMBO = 4, HIT_TYPE_SPINNER = 8;
 const CURVE_POINTS_SEPERATION = 5;
 
-// Curve flattening — converts class instances to plain data for structured clone
-function flattenCurve(hit) {
-   if (!hit.curve) return;
-   // LinearBezier/EqualDistanceMultiCurve instance: has this.curve (array)
-   if (hit.curve.curve && Array.isArray(hit.curve.curve)) {
-      hit.curve = { curve: hit.curve.curve, ncurve: hit.curve.curve.length - 1 };
-   }
-   // CircumscribedCircle returns {curve, pointAt, totalDistance} — already has .curve
-   else if (hit.curve.length !== undefined) {
-      // [] empty (collinear fallback already handled) or plain object with curve array
-      if (Array.isArray(hit.curve) && hit.curve.length > 0) {
-         hit.curve = { curve: hit.curve, ncurve: hit.curve.length - 1 };
-      }
-   }
-}
-
-// Reuse the exact same Track parsing from osu.js by importing it as a module
-// osu.js exports default Osu, but we need the internal Track class.
-// Since Track isn't exported, we'll import the full osu.js and use its load() method
-// with a mock zip that provides getText() for .osu files.
-
-// Actually, the cleanest approach: import osu.js and use its Osu class with a mock zip.
-// The worker creates a mock zip from the unzipped files, creates an Osu instance,
-// calls osu.load(), and on decoded, serializes the tracks.
-
-// But Osu.load() uses callback-based getText(), which is async. We can handle that.
-// The Osu class is in osu.js which imports osu-audio.js (which uses AudioContext — NOT worker-safe).
-// So we can't import osu.js directly.
-
-// Instead, let's copy the Track parsing logic from osu.js but keep it in sync.
-// This is the pragmatic approach — the parsing logic is stable and rarely changes.
-
 function Track(track) {
    var self = this;
    this.general = {};
@@ -166,6 +134,12 @@ function Track(track) {
        }
        if (!self.general.StackLeniency) self.general.StackLeniency = 0.7;
        if (!self.general.Mode) self.general.Mode = 0;
+       // guard: empty beatmaps
+       if (self.hitObjects.length === 0) { self.length = 0; return; }
+       if (self.timingPoints.length === 0) {
+          // create a default timing point to avoid crashes
+          self.timingPoints.push({ offset: 0, millisecondsPerBeat: 60000/120, meter: 4, sampleSet: 0, sampleIndex: 0, volume: 100, uninherited: true, trueMillisecondsPerBeat: 60000/120, kaiMode: false });
+       }
        // convert inherited timing points (same as original osu.js:240-259)
        var last = self.timingPoints[0];
        for (var i = 0; i < self.timingPoints.length; i++) {
