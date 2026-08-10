@@ -129,7 +129,12 @@
       this.started = 0;
       this.position = 0;
       this.playing = false;
-      this.audio = new AudioContext();
+      // ponytail: interactive hint = lowest output latency (vs balanced/playback); 48k matches decoded
+      try {
+         this.audio = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive", sampleRate: 48000 });
+      } catch { this.audio = new (window.AudioContext || window.webkitAudioContext)(); }
+      // hint the browser we want low latency (no-op if unsupported)
+      try { if (this.audio.updateInterval) this.audio.updateInterval = 0.005; } catch {}
       this.gain = this.audio.createGain();
       this.gain.connect(this.audio.destination);
       this.playbackRate = 1.0;
@@ -171,14 +176,23 @@
       };
 
       this._getPosition = function _getPosition() {
-         if (!self.playing) {
-            return self.position;
-         } else {
-            return (
-               self.position +
-               (self.audio.currentTime - self.started) * self.playbackRate
-            );
+         if (!self.playing) return self.position;
+         // ponytail: prefer getOutputTimestamp for sub-ms sync (lowest render-audio drift)
+         let now = self.audio.currentTime;
+         let usedOutputTs = false;
+         try {
+            if (typeof self.audio.getOutputTimestamp === "function") {
+               const ts = self.audio.getOutputTimestamp();
+               if (ts && ts.contextTime != null) { now = ts.contextTime; usedOutputTs = true; }
+            }
+         } catch {}
+         // getOutputTimestamp already accounts for output latency; only compensate on fallback path
+         if (!usedOutputTs) {
+            let lat = 0;
+            try { lat = self.audio.outputLatency || self.audio.baseLatency || 0; } catch {}
+            if (lat) now -= lat * 0.5;
          }
+         return self.position + (now - self.started) * self.playbackRate;
       };
 
       this.play = function play(wait = 0) {

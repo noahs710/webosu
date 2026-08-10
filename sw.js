@@ -27,16 +27,22 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // never cache the webosu API or catboy.best
-  if (url.pathname.startsWith("/api") || url.hostname.indexOf("catboy.best") !== -1) {
-    e.respondWith(fetch(req));
+  // never cache the webosu API or catboy.best — but must still return a Response on failure
+  // per Pixi v8 skill + service-worker spec, respondWith must resolve to Response, not rejected promise
+  if (url.pathname.startsWith("/api") || url.hostname.includes("catboy.best")) {
+    e.respondWith(
+      fetch(req).catch(() => new Response(JSON.stringify({ error: "offline" }), {
+        status: 504,
+        headers: { "Content-Type": "application/json" },
+      }))
+    );
     return;
   }
 
   // navigations: network-first, fall back to cached shell
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req).catch(() => caches.match("/index.html"))
+      fetch(req).catch(() => caches.match("/index.html").then((r) => r || new Response("offline", { status: 503 })))
     );
     return;
   }
@@ -52,7 +58,7 @@ self.addEventListener("fetch", (e) => {
             caches.open(CACHE).then((c) => c.put(req, copy));
           }
           return res;
-        }).catch(() => hit);
+        }).catch(() => hit || new Response("", { status: 504 }));
       })
     );
   }

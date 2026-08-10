@@ -16,20 +16,20 @@ async function main(){
 await p.waitForFunction(()=>typeof window.__ensureGame==="function", null, {timeout:15000}).catch(()=>{});
   await p.evaluate(()=>window.__ensureGame && window.__ensureGame()).catch(()=>{});
   await p.waitForFunction(()=>typeof window.PIXI==="object" && window.PIXI.Geometry, null, {timeout:15000}).catch(()=>{});
-  // import the SliderMesh class + construct (creates this.geometry) + destroy
+  // SliderMesh is now a Container+Graphics (ponytail), not a Mesh — verify construct+destroy
   const r = await p.evaluate(async () => {
     try {
       const SM = (await import("/src/game/SliderMesh.js")).default;
       const curve = { curve: [{x:0,y:0,t:0},{x:100,y:50,t:1},{x:200,y:0,t:2}] };
       const sm = new SM(curve, 20, 0);
-      const hadGeom = !!sm.geometry;
+      const isContainer = sm instanceof PIXI.Container;
       sm.destroy();
-      return { ok: true, hadGeom, geomAfter: sm.geometry };
+      return { ok: true, isContainer, destroyed: sm.destroyed };
     } catch (e) { return { ok: false, err: String(e) }; }
   });
   console.log("=== SliderMesh construct + destroy ==="); console.log("  ", JSON.stringify(r));
-  const ok = r && r.ok && r.hadGeom && r.geomAfter === null;
-  console.log("SliderMesh.destroy() works (no crash, geometry freed):", ok);
+  const ok = r && r.ok && r.isContainer && r.destroyed;
+  console.log("SliderMesh.destroy() works (no crash, Container destroyed):", ok);
   await b.close(); for(const k of kids)try{k.kill("SIGTERM")}catch(e){}
   const fatal=errs.filter(e=>!/catboy|api\/|500|network/i.test(e));
   console.log("fatal:", fatal.length);

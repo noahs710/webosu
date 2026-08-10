@@ -1,8 +1,7 @@
-# slider-rendering Specification
+# slider-rendering
 
-## Purpose
-TBD - created by archiving change fix-pixi-v8-cleanup. Update Purpose after archive.
-## Requirements
+## MODIFIED Requirements
+
 ### Requirement: Slider track rendering via Graphics
 The slider track SHALL be rendered as a `PIXI.Graphics` polyline with 3 strokes (shadow `w+4` black 0.35, border `w+6` white/SliderBorder 0.95, fill `w` SliderTrackOverride/combo 0.9) and `cap: "round"`/`join: "round"`, with `cullable=false`. `MeshRope` is optional fallback, not primary, until `tint`/`gradient` proven opaque.
 
@@ -18,7 +17,7 @@ The slider `Graphics` SHALL only `clear()` and `stroke()` when `startt` or `endt
 - **THEN** `Graphics` is not cleared or restroked.
 
 ### Requirement: Slider alpha inheritance
-The slider `Container` SHALL use native `Container.alpha` inheritance (`worldAlpha`) and SHALL NOT shadow `alpha` via `Object.defineProperty`; `cullable` SHALL be `false`.
+The slider `Container` SHALL use native `Container.alpha` (`worldAlpha`) and SHALL NOT shadow `alpha` via `Object.defineProperty`; `cullable` SHALL be `false`.
 
 #### Scenario: Slider fades with hit object
 - **WHEN** `hit.body.alpha` is set via `setbodyAlpha` during approach fade

@@ -39,10 +39,20 @@ export async function launchOSU(osu, beatmapid, version) {
    await app.init({
       width: window.innerWidth,
       height: window.innerHeight,
-      resolution: (window.game.overridedpi ? window.game.dpiscale : window.devicePixelRatio) || 1,
+      resolution: Math.min(2, (window.game.overridedpi ? window.game.dpiscale : window.devicePixelRatio) || 1),
       background: 0x111111,
+      backgroundAlpha: 1,
       autoDensity: true,
+      antialias: false,
+      powerPreference: "high-performance",
+      preference: "webgl",
+      // per pixijs-performance skill — GC tuning (ms), not deprecated textureGC.*
+      gcActive: true,
+      gcMaxUnusedTime: 60_000,
+      gcFrequency: 30_000,
    });
+   // ponytail: uncapped ticker for lowest render latency; cullable already handled per-object
+   try { app.ticker.maxFPS = 0; app.ticker.minFPS = 0; } catch {}
    
    
 
@@ -195,7 +205,8 @@ export async function launchOSU(osu, beatmapid, version) {
          game.cursorTrail = null;
          game.cursorTrailHead = 0;
       }
-      window.app.destroy(true);
+      // per pixijs-performance skill: must release global pools to avoid cross-app leakage
+      try { window.app.destroy({ removeView: true, releaseGlobalResources: true }); } catch { try { window.app.destroy(true); } catch {} }
       window.app = null;
       gameLoop = null;
       window.cancelAnimationFrame(window.animationRequestID);

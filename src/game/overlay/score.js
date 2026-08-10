@@ -249,12 +249,25 @@
 
       this.charspacing = 12; // in texture pixel (was 10, increased to reduce overlapping)
 
+      this._measureLogged = false;
       this.setSpriteArrayText = function (arr, str) {
          let width = 0;
          if (str.length > arr.length) console.error("displaying string failed");
          let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.scorePrefix) || "score";
          const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.scoreOverlap) || 0;
-         const effSpacing = this.charspacing - overlap;
+         // keep charspacing 12, respect ScoreOverlap exactly (osu! spec), no forced score-0
+         const baseEff = this.charspacing - overlap;
+         const getOrigWidth = (t) => {
+            if (!t) return null;
+            if (t.orig?.width) return t.orig.width / (t.source?.resolution || 1);
+            if (t.source?.width) return t.source.width / (t.source.resolution || 1);
+            return t.width || null;
+         };
+         // spike: log per-digit metrics once per prefix/overlap (DEV only)
+         let _measureRows = null;
+         if (import.meta.env.DEV && !this._measureLogged && str.length) {
+            _measureRows = [];
+         }
          for (let i = 0; i < str.length; ++i) {
             let ch = str[i];
             if (ch == "%") ch = "percent";
@@ -263,11 +276,24 @@
             if (!window.Skin || !window.Skin[textname]) textname = (window.Skin && window.Skin[ch + ".png"]) ? ch + ".png" : "score-" + ch + ".png";
             const tex = window.Skin?.[textname] || PIXI.Texture.WHITE;
             arr[i].texture = tex;
-            const w = (tex && tex.valid && tex.width) ? tex.width : (window.Skin?.["score-0.png"]?.valid ? window.Skin["score-0.png"].width : 14);
+            // use orig.width / resolution for @2x correctness, fallback width only for layout, texture stays as digit
+            let w = getOrigWidth(tex);
+            if (!w || !tex.valid) {
+               const fallback = window.Skin?.["score-0.png"];
+               w = getOrigWidth(fallback) || 14;
+            }
+            const is2x = tex?.source?.resolution === 2;
+            const effSpacing = baseEff + (is2x ? 1 : 0);
             arr[i].knownwidth =
                arr[i].scale.x * (w + effSpacing);
             arr[i].visible = true;
             width += arr[i].knownwidth;
+            if (_measureRows) _measureRows.push({ ch, textname, w: tex.width, orig: tex.orig?.width, srcW: tex.source?.width, res: tex.source?.resolution, valid: tex.valid, effSpacing, known: arr[i].knownwidth });
+         }
+         if (_measureRows) {
+            if (import.meta.env.DEV) console.log(`[skinned-text-measure] prefix=${prefix} overlap=${overlap} dpr=${window.devicePixelRatio} str=${str}`, _measureRows);
+            if (import.meta.env.DEV) console.table(_measureRows);
+            this._measureLogged = true;
          }
          for (let i = str.length; i < arr.length; ++i) {
             arr[i].visible = false;

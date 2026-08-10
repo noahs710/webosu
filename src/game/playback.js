@@ -89,6 +89,12 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       self.gamefield = new PIXI.Container();
       self.gamefield.eventMode = 'none';
       self.gamefield.cullable = false;
+      try {
+         const cp = new URLSearchParams(window.location.search).get('cull');
+         if (cp === 'true') { self.gamefield.cullable = true; self.gamefield.cullArea = new PIXI.Rectangle(0, 0, 512, 384); }
+         else if (cp === 'false') self.gamefield.cullable = false;
+         if (import.meta.env.DEV && cp) glog("playback", "cull spike gamefield", { cullable: self.gamefield.cullable, cullArea: self.gamefield.cullArea });
+      } catch {}
       // Recommended field size = the playfield as it renders on a 1920x1080
       // screen (80% fit = 1152x864). The field/notes scale with the screen only
       // when the screen is smaller than this recommended minimum (touchscreens /
@@ -145,6 +151,13 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       window.onresize = function () {
          window.app.renderer.resize(window.innerWidth, window.innerHeight);
          self.calcSize();
+         if (import.meta.env.DEV) {
+            try {
+               const b = self.gamefield?.getBounds?.();
+               const cull = self.gamefield?.cullable;
+               glog("playback", "cull spike resize", { cullable: cull, cullArea: self.gamefield?.cullArea, bounds: b, gfx, sliderBounds: self.hits?.[0]?.body?.getBounds?.() });
+            } catch {}
+         }
          self.scoreOverlay.resize({
             width: window.innerWidth,
             height: window.innerHeight,
@@ -642,38 +655,50 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
       };
 
-      this.createBackground = function () {
+       this.createBackground = function () {
          async function loadBackground(uri) {
             glog("playback", "loadBackground", uri.slice(0, 60));
-            let bgTexture;
+            let bgTexture = null;
+            const isBlob = uri && uri.startsWith("blob:");
+            // Pixi v8: Texture.from does NOT fetch — must use Assets.load with parser:"texture" for blob URLs
+            // per pixijs-assets skill: parser at top level, data for scaleMode/mipmaps
             try {
-               // blob: URLs have no extension, need parser:"texture" per Assets skill
+               bgTexture = await PIXI.Assets.load(
+                  { src: uri, parser: "texture", data: { scaleMode: "linear", autoGenerateMipmaps: false, resolution: 1 } },
+                  { strategy: "retry", retryCount: 1 }
+               );
+               // ensure GPU upload before revoke — PrepareSystem avoids first-frame hitch
                try {
-                 bgTexture = await PIXI.Assets.load({ src: uri, parser: "texture" });
-               } catch {
-                 bgTexture = await PIXI.Assets.load({ src: uri, parser: "texture", data: { scaleMode: "linear" } });
-               }
-               if (!bgTexture || !bgTexture.valid) bgTexture = PIXI.Texture.from(uri);
+                  if (window.app?.renderer?.prepare?.upload) await window.app.renderer.prepare.upload(bgTexture);
+               } catch {}
             } catch (e) {
-               gdebug("playback", "Assets.load failed, fallback to Texture.from", e.message);
-               try { bgTexture = PIXI.Texture.from(uri); } catch { bgTexture = PIXI.Texture.WHITE; }
+               gdebug("playback", "Assets.load bg failed", e?.message || e);
+               // retry once with explicit parser (fallback)
+               try {
+                  bgTexture = await PIXI.Assets.load(
+                     { src: uri, parser: "texture", data: { scaleMode: "linear", autoGenerateMipmaps: false } }
+                  );
+                  try { if (window.app?.renderer?.prepare?.upload) await window.app.renderer.prepare.upload(bgTexture); } catch {}
+               } catch (e2) { bgTexture = null; }
             }
-            // Ensure texture is valid before use — Pixi v8 uses texture.source not baseTexture
-            if (!bgTexture || !bgTexture.valid) {
+            // strict valid check: v8 uses texture.valid and texture.source.valid
+            const isValid = (t) => !!(t && (t.valid || t.source?.valid));
+            if (!isValid(bgTexture)) {
+               // try to await source load if not yet valid
                try {
                   const src = bgTexture?.source;
                   if (src && src.load) await src.load();
-                  else if (bgTexture?.source?.resource?.load) await bgTexture.source.resource.load();
                } catch (_) {}
             }
-            if (!bgTexture || !bgTexture.valid) {
+            if (!isValid(bgTexture)) {
                gwarn("playback", "bgTexture invalid, using default");
                bgTexture = PIXI.Texture.WHITE;
+               if (isBlob) { try { URL.revokeObjectURL(uri); } catch {} try { await PIXI.Assets.unload(uri); } catch {} }
             }
             let sprite = new PIXI.Sprite(bgTexture);
             if (self.game.backgroundBlurRate > 0.0001) {
-               let width = bgTexture.width || window.innerWidth;
-               let height = bgTexture.height || window.innerHeight;
+               let width = bgTexture.source?.width || bgTexture.width || window.innerWidth;
+               let height = bgTexture.source?.height || bgTexture.height || window.innerHeight;
                sprite.anchor.set(0.5);
                sprite.x = width / 2;
                sprite.y = height / 2;
@@ -685,16 +710,17 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                sprite.filters = [blurFilter];
             }
             // Pixi v8: render with options object { container, target }
-            let w = bgTexture.width || 1920, h = bgTexture.height || 1080;
-            let texture = PIXI.RenderTexture.create({ width: w, height: h });
+            let w = bgTexture.source?.width || bgTexture.width || 1920, h = bgTexture.source?.height || bgTexture.height || 1080;
+            let texture = PIXI.RenderTexture.create({ width: w, height: h, resolution: 1 });
             try {
                await window.app.renderer.render({ container: sprite, target: texture });
             } catch (e) {
                try { window.app.renderer.render(sprite, texture); } catch (e2) { gerror("playback", "background render failed", e2); texture = bgTexture; sprite = new PIXI.Sprite(texture); }
             }
-            // revoke blob URL after GPU upload (if it was a blob)
-            if (uri && uri.startsWith("blob:")) {
-               try { if (bgTexture && bgTexture.valid) URL.revokeObjectURL(uri); else if (bgTexture?.source) bgTexture.source.once?.("loaded", () => { try { URL.revokeObjectURL(uri); } catch {} }); } catch {}
+            // revoke blob URL after GPU upload — already uploaded via prepare
+            if (isBlob) {
+               try { URL.revokeObjectURL(uri); } catch {}
+               try { await PIXI.Assets.unload(uri); } catch {}
             }
                   // destroy previous background RenderTexture to prevent GPU leak
                   if (self.background) {
@@ -924,14 +950,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                const brd = SliderBorder ?? 0xffffff;
                const pts = hit.curve?.curve || [{x: hit.x, y: hit.y}, {x: hit.x+50, y: hit.y}];
                const w = this.circleRadius * 2;
-               // shadow / outline: draw slightly wider, darker line first
+               // 3-stroke: shadow (w+4 black 0.35) + border (w+6 white 0.95) + fill (w combo 0.9) — opaque on dim
                body.moveTo(pts[0].x, pts[0].y);
                for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
                body.stroke({ width: w + 4, color: 0x000000, alpha: 0.35, cap: "round", join: "round" });
                // border
                body.moveTo(pts[0].x, pts[0].y);
                for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
-               body.stroke({ width: w + 2, color: brd, alpha: 0.95, cap: "round", join: "round" });
+               body.stroke({ width: w + 6, color: brd, alpha: 0.95, cap: "round", join: "round" });
                // inner track
                body.moveTo(pts[0].x, pts[0].y);
                for (let i = 1; i < pts.length; i++) body.lineTo(pts[i].x, pts[i].y);
