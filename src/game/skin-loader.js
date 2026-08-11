@@ -555,7 +555,10 @@ export async function loadCachedSkin() {
       const getSounds = store.get("sounds");
 
       getConfig.onsuccess = () => {
-        results.config = getConfig.result ? JSON.parse(getConfig.result) : null;
+        // Defensive: a corrupt IndexedDB entry used to throw here and reject
+        // the load. Treat as no config and let the rest of the skin apply.
+        try { results.config = getConfig.result ? JSON.parse(getConfig.result) : null; }
+        catch { results.config = null; }
       };
       getTextures.onsuccess = () => {
         results.rawTextures = getTextures.result || {};
@@ -601,7 +604,11 @@ export async function getCachedSkinMeta() {
       const req = tx.objectStore(STORE_NAME).get("config");
       req.onsuccess = () => {
         db.close();
-        resolve(req.result ? JSON.parse(req.result) : null);
+        // Defensive: a corrupt or non-JSON config blob in IndexedDB used to
+        // throw and propagate the rejection. Resolve to null instead.
+        let meta = null;
+        try { meta = req.result ? JSON.parse(req.result) : null; } catch { meta = null; }
+        resolve(meta && typeof meta === "object" ? meta : null);
       };
       req.onerror = () => { db.close(); resolve(null); };
     });

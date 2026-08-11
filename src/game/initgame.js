@@ -275,24 +275,48 @@ import "./mods/register.js";
     sounds.load(sample);
 
    // resume the hitsound AudioContext on the first user gesture (autoplay policy)
+   // Both pointerdown AND keydown need to resume it because the user may be on
+   // a touch device with no keyboard, OR a desktop with a mouse that doesn't
+   // generate pointer events on some browsers.
    function resumeHitsoundContext() {
-      if (window.actx && window.actx.state === "suspended") {
-         window.actx.resume();
-      }
+      // Wrap in try/catch — some browsers reject the resume() promise
+      // (e.g. when no user gesture was detected, e.g. synthetic event).
+      try {
+         if (window.actx && window.actx.state === "suspended") {
+            const p = window.actx.resume();
+            if (p && typeof p.catch === "function") p.catch(() => {});
+         }
+      } catch (e) { /* ignore — autoplay policy race; the next gesture will retry */ }
    }
     window.addEventListener("pointerdown", resumeHitsoundContext, { once: true });
     window.addEventListener("keydown", resumeHitsoundContext, { once: true });
+    window.addEventListener("touchend", resumeHitsoundContext, { once: true, passive: true });
 
     // load script done
     window.scriptReady = true;
 
-   // load play history
+   // load play history. Prefer localforage but fall back to localStorage
+   // (so the history written by addPlayHistory's localStorage fallback is
+   // visible on the next load).
+   let historyLoaded = false;
    if (window.localforage) {
-      localforage.getItem("playhistory1000", function (err, item) {
-         if (!err && item && item.length) {
-            window.playHistory1000 = item;
+      try {
+         localforage.getItem("playhistory1000", function (err, item) {
+            if (!err && item && item.length) {
+               window.playHistory1000 = item;
+               historyLoaded = true;
+            }
+         });
+      } catch (e) { /* fall through to localStorage */ }
+   }
+   if (!historyLoaded) {
+      try {
+         const raw = window.localStorage.getItem("playhistory1000");
+         if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) window.playHistory1000 = parsed;
          }
-      });
+      } catch (e) {}
    }
 
    // prevent all drag-related events

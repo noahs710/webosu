@@ -129,3 +129,30 @@ A follow-up read-through of the gameplay + shell hot paths surfaced five more is
 - **`GET /api/skins/:id` validates the id**: `server/app.js` returns 400 on non-finite or non-positive ids before calling `D.getSkin(sid)`. Previously `parseInt(req.params.id, 10)` silently accepted `0`, `-1`, `1e6`, `Infinity`, and the DB layer was asked for an invalid id. The 404 path for valid-but-missing ids is unchanged.
 - **`pause()` is null-safe on `self.source`**: `src/game/osu-audio.js` wraps `self.source.stop()` in a null-guard and explicitly sets `self.source = null` after the call. A second `pause()` (e.g. when the user clicks Pause twice, or after a `play()` that failed to obtain a buffer) no longer throws `TypeError: Cannot read properties of null`.
 - **Missing-audio popup**: `src/game/launchgame.js` `load_mp3` shim now logs the error via `lerror` and surfaces a foreground `__showErrorPopup` with title `"Missing audio"` when the audio file is not in the beatmap. Previously the silent `this.onerror` was unreachable, and the game sat on a white loading screen until the user pressed Escape. The popup is z-index 2147483647 so it renders above the loading overlay, and the user can immediately pick a different beatmap.
+
+
+## Deep bug hunt (post-Phase 5b hardening #2)
+
+A third pass through the gameplay + shell + server hot paths surfaced another batch of small, easy-to-miss issues that match the profile of the prior hardening passes: defensive guards, parseInt / JSON.parse hardening, null-safety, and foreground error surfaces. None of them crash on a normal session, but each one would surface as a silent console.error, a broken `?` button, or a stuck loading screen under specific user actions (corrupt mp3, wrong-mode beatmap, manually-edited localStorage, missing hitsound, broken skin cache, etc.).
+
+The change set lives at `openspec/changes/archive/2026-08-11-deep-bug-hunt/`. 10 files changed, 274 / -104 lines. 53/53 smoke and 15/15 ws-sse still pass; all 15 headless tests still pass with 0 pageerrors.
+
+- **Server: `/api/comments/:setId` validates the setId** — previously `parseInt("abc")` returned NaN and the route silently returned `[]`. Now returns 400.
+- **`api.getUser()` parse-hardens the user blob** — `localStorage` corrupted by a browser extension or a manual edit no longer throws. Treated as "no user".
+- **`osu.js` length fallback when hitObjects is empty** — a storyboard-only beatmap no longer throws on `this.length = ...this.hitObjects[last].endTime`. Falls back to `PreviewTime` or 0.
+- **`requestStar` JSON.parse try/catch** — a sayobot 5xx HTML response can no longer blow up the entire `onload`. Also guards `info.status == 0 && Array.isArray(info.data)`.
+- **`launchOSU` defensive track-id search + popup** — a wrong-mode beatmap (e.g. opening a mania map in osu!standard) used to leave the user on a blank loading overlay. Now logs + popup + removes overlay.
+- **`launchGame` arrayBuffer hardening** — a malformed `Blob.arrayBuffer()` no longer surfaces as an uncaught rejection; popup instead.
+- **`osu-audio.play()` null-safe on `self.decoded`** — corrupt mp3 + retry exhausted no longer dereferences null. Returns false early.
+- **`osu.onerror` surface popup** — the launchgame path now wires up `osu.onerror` so the Missing-audio popup fires from the Osu facade, not just the worker error path.
+- **`osu.onready` start() try/catch** — a corrupt track can't take down the game right after audio decode.
+- **Render-loop per-frame try/catch** — `updateHitObjects`, overlay updates, Adaptive Speed, etc. are all wrapped so a single bad frame can't kill the whole render loop.
+- **`judgementText/Color` no-throw** — unknown points values fall back to "meh" / 0xffcc22. A future lazer judgement routed through the existing path is safe.
+- **`setSpriteArrayText/Pos` defensive** — empty / corrupt sprite arrays no longer throw string "wtf!" exceptions. `arr[i].scale.x` is clamped to a number.
+- **`playHitsound` per-sample null-safety** — `game.sample[set].hitnormal` etc. are guarded with optional chaining + try/catch. A skin that overrides slots but is missing some hitsounds no longer throws.
+- **`playerActions.inUpcoming[_grace]` type checks** — return `false` on undefined `hit.x` / `hit.y` / `playback.circleRadius` instead of throwing.
+- **Mods panel in-pause Vue app lifecycle** — `mp.__vueApp` tracks the mounted Vue app, `unmount()` on close. Repeated open/close doesn't leak listeners. Import error surfaces via popup.
+- **`showSummary` user resolution** — `webosu_user` JSON blob (matches leaderboard) with fallback to legacy `localStorage.username` and finally `metadata.Player`. Coerces ids to numbers; guards title/artist against missing metadata.
+- **`addPlayHistory` localStorage fallback** — persists to localforage if available, falls back to localStorage (private-mode Safari, IndexedDB quota exhausted). `initgame.js` mirrors the same fallback when restoring history.
+- **AudioContext resume try/catch** — synthetic gestures that don't satisfy the autoplay policy no longer surface as uncaught errors. Also registers the first-gesture listener on `touchend` for touch devices without a keyboard.
+- **`getCachedSkinMeta` + `loadCachedSkin` parse hardening** — manually-tainted IndexedDB config blobs no longer reject the skin load. Treats as "no config" / "no skin".

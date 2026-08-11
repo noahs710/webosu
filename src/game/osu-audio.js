@@ -199,6 +199,10 @@
          if (self.audio.state == "suspended") {
             self.audio.resume();
          }
+         // defensive: bail out cleanly if decodeAudioData never produced a
+         // buffer (corrupt mp3, retry exhausted, etc). Without this, the
+         // call below dereferences self.decoded.buffer = null which throws.
+         if (!self.decoded) { if (import.meta.env.DEV) console.warn("audio.play: no decoded buffer"); return false; }
          self.source = self.audio.createBufferSource();
          self.source.playbackRate.value = self.playbackRate;
          self.source.buffer = self.decoded;

@@ -7,17 +7,24 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
       }
       window.playHistory1000.push(summary);
       if (window.playHistory1000.length > 1000) window.playHistory1000.shift();
-      // save history
+      // save history — localforage is the primary path; fall back to localStorage
+      // so the in-memory list still survives a refresh when localforage failed
+      // to load (e.g. private-mode Safari, IndexedDB quota exhausted).
+      let persisted = false;
       if (window.localforage) {
-         localforage.setItem(
-            "playhistory1000",
-            window.playHistory1000,
-            function (err, val) {
-               if (err) {
-                  console.error("Error saving play history");
+         try {
+            localforage.setItem(
+               "playhistory1000",
+               window.playHistory1000,
+               function (err) {
+                  if (err) { console.error("Error saving play history"); }
                }
-            }
-         );
+            );
+            persisted = true;
+         } catch (e) { /* swallow — fall through to localStorage */ }
+      }
+      if (!persisted) {
+         try { window.localStorage.setItem("playhistory1000", JSON.stringify(window.playHistory1000)); } catch (e) {}
       }
    }
 
@@ -311,8 +318,10 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
             }
             const is2x = tex?.source?.resolution === 2;
             const effSpacing = baseEff + (is2x ? 1 : 0);
-            arr[i].knownwidth =
-               arr[i].scale.x * (w + effSpacing);
+            // Defensive: if scale.x is not a number (e.g. reset to default 1 in
+            // some edge case) or arr[i] is missing, clamp to 0 to avoid NaN.
+            const sx = (typeof arr[i].scale.x === "number") ? arr[i].scale.x : 1;
+            arr[i].knownwidth = sx * (w + effSpacing);
             arr[i].visible = true;
             width += arr[i].knownwidth;
          }
@@ -326,11 +335,14 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
 
       this.setSpriteArrayPos = function (arr, x, y) {
          let curx = x;
-         if (arr.useLength <= 0) throw "wtf!";
+         // Defensive: a corrupt or empty sprite array would otherwise throw a
+         // string exception that halts the render loop. Just early-return.
+         if (!arr || !(arr.useLength > 0)) return;
          const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.scoreOverlap) || 0;
          const effSpacing = this.charspacing - overlap;
          for (let i = 0; i < arr.useLength; ++i) {
-            arr[i].x = curx + (arr[i].scale.x * effSpacing) / 2;
+            const sx = (typeof arr[i].scale.x === "number") ? arr[i].scale.x : 1;
+            arr[i].x = curx + (sx * effSpacing) / 2;
             arr[i].y = y;
             curx += arr[i].knownwidth;
          }
@@ -594,7 +606,17 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
          };
          let bProf = newdiv(btns, "rbtn profile"); bProf.textContent = "Profile";
          bProf.onclick = function () {
-            window.open("profile-v2.html?u=" + encodeURIComponent(window.localStorage.getItem("username") || ""), "_blank");
+            // Read the logged-in username from the webosu_user JSON blob (login writes
+            // it via API.register/login) with a fallback to the legacy raw
+            // "username" key for back-compat. If neither is present, the link
+            // still opens to the home page instead of `?u=undefined`.
+            let u = "";
+            try {
+               const raw = window.localStorage.getItem("webosu_user");
+               if (raw) { const p = JSON.parse(raw); u = (p && p.username) || ""; }
+            } catch {}
+            if (!u) { try { u = window.localStorage.getItem("username") || ""; } catch {} }
+            window.open("profile-v2.html?u=" + encodeURIComponent(u), "_blank");
          };
          if (window.lastPlayedOszBlob && window.playback && window.playback.replayFrames && window.playback.replayFrames.length) {
             let bReplay = newdiv(btns, "rbtn watch"); bReplay.textContent = "Watch replay";
@@ -641,12 +663,23 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
          window.setTimeout(function () { grading.classList.remove("transparent"); }, 100);
                   // generate summary data
          let summary = {
-            sid: metadata.BeatmapSetID,
-            bid: metadata.BeatmapID,
-            title: metadata.Title,
-            artist: metadata.Artist,
-            player: metadata.Player,
-            version: metadata.Version,
+            // Coerce ids to numbers (some beatmaps leave them as strings).
+            sid: parseInt(metadata.BeatmapSetID, 10) || 0,
+            bid: parseInt(metadata.BeatmapID, 10) || 0,
+            title: metadata.Title || "Untitled",
+            artist: metadata.Artist || "Unknown artist",
+            // Use the logged-in username from the webosu_user JSON blob
+            // (matches what gets posted to the leaderboard), falling back to
+            // legacy "username" for back-compat, then metadata.Player.
+            player: (function () {
+               try {
+                  const raw = window.localStorage.getItem("webosu_user");
+                  if (raw) { const p = JSON.parse(raw); if (p && p.username) return p.username; }
+               } catch {}
+               try { const u = window.localStorage.getItem("username"); if (u) return u; } catch {}
+               return metadata.Player || "guest";
+            })(),
+            version: metadata.Version || "",
             mods: modstext(window.game),
             modsNum: modsEnum(window.game),
             count300: this.judgecnt.great,
@@ -697,7 +730,14 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
                         };
                      })(),
                   });
-               } catch (e) { if (import.meta.env.DEV) console.warn("webosu score submit failed", e); }
+               } catch (e) {
+                  if (import.meta.env.DEV) console.warn("webosu score submit failed", e);
+                  // Surface the failure through the foreground ErrorPopup so the
+                  // user isn't left wondering why their score didn't show up.
+                  if (typeof window.__showErrorPopup === "function") {
+                     try { window.__showErrorPopup("Score submission failed: " + (e.message || e), "Could not post score"); } catch {}
+                  }
+               }
             }
          };
          if (!isReplay) addPlayHistory(summary);

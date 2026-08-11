@@ -529,14 +529,25 @@ function buildApp({ serveStatic = true } = {}) {
   });
 
   // ---------- comments on beatmap sets ----------
-  app.get("/api/comments/:setId", async (req, reply) =>
-    reply.send(D.commentsFor(parseInt(req.params.setId, 10)))
-  );
+  // Validate setId as a finite positive integer (the DB layer assumes this).
+  function parseSetId(raw) {
+    const n = parseInt(raw, 10);
+    if (!isFinite(n) || n <= 0) return null;
+    return n;
+  }
+  app.get("/api/comments/:setId", async (req, reply) => {
+    const setId = parseSetId(req.params.setId);
+    if (setId == null) return reply.code(400).send({ error: "invalid setId" });
+    return reply.send(D.commentsFor(setId));
+  });
   app.post("/api/comments/:setId", { preHandler: authRequired }, async (req, reply) => {
+    const setId = parseSetId(req.params.setId);
+    if (setId == null) return reply.code(400).send({ error: "invalid setId" });
     const body = (req.body && req.body.body) || "";
     if (!body.trim()) return reply.code(400).send({ error: "empty" });
-    const id = D.addComment(parseInt(req.params.setId, 10), req.user.id, body.slice(0, 1000));
-    reply.send({ ok: true, id, username: req.user.username, body });
+    if (body.length > 1000) return reply.code(413).send({ error: "body too long" });
+    const id = D.addComment(setId, req.user.id, body.slice(0, 1000));
+    reply.send({ ok: true, id, username: req.user.username, body: body.slice(0, 1000) });
   });
 
   // ---------- achievements ----------

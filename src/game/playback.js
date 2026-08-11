@@ -106,10 +106,28 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          self.loadingMenu.hide();
          self.audioReady = true;
          if (self.onload) self.onload();
-         self.start();
+         // start() defers music to self.backgroundFadeTime + self.wait. If audio
+         // decoded but the source buffer is missing (corrupt mp3 — see osu-audio
+         // null-guard), start() would set a stale position then loop forever.
+         try { self.start(); } catch (e) { gerror("playback", "start() failed", e); }
+      };
+      self.osu.onerror = function (msg) {
+         // The Osu facade signals missing/corrupt audio here. Show a foreground
+         // error so the user isn't stuck on a loading menu, and mark audio as
+         // ready (no audio = nothing will play, but the game can still load
+         // visuals and let the user quit gracefully).
+         gerror("playback", "osu.onerror", msg);
+         self.loadingMenu.hide();
+         if (typeof window.__showErrorPopup === "function") {
+            try { window.__showErrorPopup(String(msg || "Audio could not be loaded."), "Missing audio"); } catch {}
+         }
+         // Avoid leaving the user in a stuck-loading state
+         const overlay = document.getElementById("beatmap-loading-overlay");
+         if (overlay) overlay.remove();
+         self.audioReady = true;
       };
       self.load = function () {
-         self.osu.load_mp3(self.track);
+         try { self.osu.load_mp3(self.track); } catch (e) { gerror("playback", "load_mp3 threw", e); self.osu.onerror && self.osu.onerror("Failed to load audio: " + (e.message || e)); }
       };
 
       var gfx = (window.gfx = {}); // game field area
@@ -421,12 +439,25 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                         import("vue"),
                      ]).then(([mod, vue]) => {
                         const ModSelectPanel = mod.default;
+                        // Defensive: tear down any prior app instance so toggling
+                        // mods on/off doesn't leak detached Vue apps and listeners.
+                        if (mp.__vueApp) { try { mp.__vueApp.unmount(); } catch (e) {} }
                         mp.innerHTML = "";
                         const modApp = vue.createApp(ModSelectPanel);
                         modApp.mount(mp);
+                        mp.__vueApp = modApp;
                         mp.removeAttribute("hidden");
-                     }).catch(() => { mp.removeAttribute("hidden"); });
+                     }).catch((e) => {
+                        // Show the panel even on import failure so the user isn't
+                        // stuck on a paused screen with a non-functional Mods button.
+                        if (typeof window.__showErrorPopup === "function") {
+                           try { window.__showErrorPopup("Could not open mod panel: " + (e.message || e), "Mods panel"); } catch {}
+                        }
+                        mp.removeAttribute("hidden");
+                     });
                   } else {
+                     // Hide the panel; also unmount the Vue app to free listeners.
+                     if (mp.__vueApp) { try { mp.__vueApp.unmount(); } catch (e) {} mp.__vueApp = null; }
                      mp.setAttribute("hidden", "");
                   }
                };
@@ -497,31 +528,24 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
       function judgementText(points) {
          switch (points) {
-            case 0:
-               return "miss";
-            case 50:
-               return "meh";
-            case 100:
-               return "good";
-            case 300:
-               return "great";
-            default:
-               throw "No judgement";
+            case 0: return "miss";
+            case 50: return "meh";
+            case 100: return "good";
+            case 300: return "great";
+            // Defensive: an unknown points value (e.g. a new lazer judgement
+            // 0k=Ok/0k miss that gets routed here) would throw and crash
+            // invokeJudgement. Treat as a 0-equivalent so the game keeps running.
+            default: if (import.meta.env.DEV) console.warn("judgementText unknown points", points); return "meh";
          }
       }
 
       function judgementColor(points) {
          switch (points) {
-            case 0:
-               return 0xed1121;
-            case 50:
-               return 0xffcc22;
-            case 100:
-               return 0x88b300;
-            case 300:
-               return 0x66ccff;
-            default:
-               throw "No judgement";
+            case 0: return 0xed1121;
+            case 50: return 0xffcc22;
+            case 100: return 0x88b300;
+            case 300: return 0x66ccff;
+            default: return 0x66ccff;
          }
       }
 
@@ -1048,7 +1072,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
           const targetRate = baseRate * this._asCurrentRate;
           if (this.osu.audio.playbackRate !== targetRate) {
              this.osu.audio.playbackRate = targetRate;
-             if (this.osu.audio.source) this.osu.audio.source.playbackRate.value = targetRate;
+             try { if (this.osu.audio.source) this.osu.audio.source.playbackRate.value = targetRate; } catch (e) {}
           }
           // scale approach time so objects approach at the new speed
           this._asApproachScale = 1 / this._asCurrentRate;
@@ -1689,19 +1713,19 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
           function playHit(bitmask, normalSet, additionSet) {
             // The normal sound is always played
-            self.game.sample[normalSet].hitnormal.volume = volume;
-            self.game.sample[normalSet].hitnormal.play();
+            const norm = self.game.sample && self.game.sample[normalSet] && self.game.sample[normalSet].hitnormal;
+            if (norm) { norm.volume = volume; try { norm.play(); } catch (e) {} }
             if (bitmask & 2) {
-               self.game.sample[additionSet].hitwhistle.volume = volume;
-               self.game.sample[additionSet].hitwhistle.play();
+               const w = self.game.sample && self.game.sample[additionSet] && self.game.sample[additionSet].hitwhistle;
+               if (w) { w.volume = volume; try { w.play(); } catch (e) {} }
             }
             if (bitmask & 4) {
-               self.game.sample[additionSet].hitfinish.volume = volume;
-               self.game.sample[additionSet].hitfinish.play();
+               const f = self.game.sample && self.game.sample[additionSet] && self.game.sample[additionSet].hitfinish;
+               if (f) { f.volume = volume; try { f.play(); } catch (e) {} }
             }
             if (bitmask & 8) {
-               self.game.sample[additionSet].hitclap.volume = volume;
-               self.game.sample[additionSet].hitclap.play();
+               const c = self.game.sample && self.game.sample[additionSet] && self.game.sample[additionSet].hitclap;
+               if (c) { c.volume = volume; try { c.play(); } catch (e) {} }
             }
          }
          if (hit.type == "circle" || hit.type == "spinner") {
@@ -2420,15 +2444,15 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                   ? this.hits[waitinghitid].time -
                     (this.hits[waitinghitid].approachTime || this.approachTime)
                   : -1;
-             this.breakOverlay.countdown(nextapproachtime, time);
+             try { this.breakOverlay.countdown(nextapproachtime, time); } catch (e) {}
              this.updateBackground(time);
-             this.updateHitObjects(time);
+             try { this.updateHitObjects(time); } catch (e) { if (import.meta.env.DEV) console.warn("updateHitObjects failed", e); }
              try { this.updateEffects(time); } catch (e) {}
              if (this._bubbles.length) try { this.updateBubbles(time); } catch (e) {}
-             this.scoreOverlay.update(time);
-             this.game.updatePlayerActions(time);
-             this.progressOverlay.update(time);
-             this.errorMeter.update(time);
+             try { this.scoreOverlay.update(time); } catch (e) {}
+             try { this.game.updatePlayerActions(time); } catch (e) {}
+             try { this.progressOverlay.update(time); } catch (e) {}
+             try { this.errorMeter.update(time); } catch (e) {}
              if (this.flOverlay) try { this.updateFlashlight(time); } catch (e) {}
              // Adaptive Speed: adjust playback rate based on recent accuracy
              if (this.game.adaptiveSpeed && this.osu && this.osu.audio) {

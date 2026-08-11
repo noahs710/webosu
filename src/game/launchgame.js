@@ -14,20 +14,27 @@ export async function launchOSU(osu, beatmapid, version) {
       if (!window.Skin["hit300.png"]) lwarn("launchgame", "window.Skin not ready, using WHITE fallback");
    }
    llog("launchgame", "launchOSU", { beatmapid, version, tracks: osu.tracks?.length, autoplay: window.game?.autoplay });
-   // select track
+   // select track (defensive against a missing metadata or Mode field)
    let trackid = -1;
-   // mode can be 0 or undefined
-    for (let i = 0; i < osu.tracks.length; i++) {
-       if (
-          osu.tracks[i].metadata.BeatmapID == beatmapid ||
-          (osu.tracks[i].general.Mode == 0 && osu.tracks[i].metadata.Version == version)
-       ) {
-          trackid = i;
-          break;
-       }
-    }
+   if (Array.isArray(osu.tracks)) {
+      for (let i = 0; i < osu.tracks.length; i++) {
+         const t = osu.tracks[i];
+         if (!t || !t.metadata) continue;
+         if (t.metadata.BeatmapID == beatmapid) { trackid = i; break; }
+         if (version && t.metadata.Version == version && (t.general == null || t.general.Mode == 0 || t.general.Mode == undefined)) {
+            trackid = i; break;
+         }
+      }
+   }
    if (trackid == -1) {
-      lerror("launchgame", "No such track", { beatmapid, version, available: osu.tracks?.map(t=>({id: t.metadata.BeatmapID, ver: t.metadata.Version})) });
+      lerror("launchgame", "No such track", { beatmapid, version, available: osu.tracks?.map(t=>({id: t && t.metadata && t.metadata.BeatmapID, ver: t && t.metadata && t.metadata.Version})) });
+      // Surface via the foreground ErrorPopup so the user isn't left on a blank
+      // loading screen when the requested difficulty isn't in the .osu.
+      if (typeof window.__showErrorPopup === "function") {
+         try { window.__showErrorPopup("This beatmap doesn't contain that difficulty (it may be a different game mode or set).", "Could not launch beatmap"); } catch {}
+      }
+      const overlay = document.getElementById("beatmap-loading-overlay");
+      if (overlay) overlay.remove();
       return;
    }
    llog("launchgame", "selected track", trackid, osu.tracks[trackid]?.metadata);
@@ -76,11 +83,14 @@ export async function launchOSU(osu, beatmapid, version) {
     };
     document.addEventListener("contextmenu", contextMenuHandler);
     document.body.classList.add("gaming");
-   // update game settings
-   if (window.gamesettings) {
-      window.gamesettings.refresh();
-      window.gamesettings.loadToGame();
-   }
+   // update game settings (wrap so a loadToGame throw doesn't take down the
+   // PIXI app + cursor that we just initialized)
+   try {
+      if (window.gamesettings) {
+         window.gamesettings.refresh();
+         window.gamesettings.loadToGame();
+      }
+   } catch (e) { lerror("launchgame", "gamesettings load failed", e); }
 
    // load cursor
    if (!game.showhwmouse || game.autoplay || game.replayMode) {
@@ -462,13 +472,24 @@ export function launchGame(osublob, beatmapid, version) {
                },
                requestStar: function() {
                   try {
+                     const sid = (this.tracks[0].metadata && this.tracks[0].metadata.BeatmapSetID) || 0;
+                     if (!sid) return;
                      let xhr = new XMLHttpRequest();
-                     xhr.open("GET", "https://api.sayobot.cn/beatmapinfo?1=" + this.tracks[0].metadata.BeatmapSetID);
+                     xhr.open("GET", "https://api.sayobot.cn/beatmapinfo?1=" + sid);
                      xhr.responseType = "text";
                      xhr.onload = () => {
-                        let info = JSON.parse(xhr.response);
-                        if (info.status == 0) for (let d of info.data) for (let t of this.tracks) if (t.metadata.BeatmapID == d.bid) { t.difficulty.star = d.star; t.length = d.length; }
+                        // sayobot can return HTML / plain text on 5xx; the only
+                        // valid response is JSON. Wrap so a non-JSON payload
+                        // doesn't blow up the entire onload handler.
+                        let info;
+                        try { info = JSON.parse(xhr.response); } catch { return; }
+                        if (!info || info.status != 0 || !Array.isArray(info.data)) return;
+                        for (let d of info.data) for (let t of this.tracks) if (t.metadata && t.metadata.BeatmapID == d.bid) {
+                           if (typeof d.star === "number") t.difficulty.star = d.star;
+                           if (typeof d.length === "number") t.length = d.length;
+                        }
                      };
+                     xhr.onerror = () => {};
                      xhr.send();
                   } catch {}
                },
@@ -515,8 +536,19 @@ export function launchGame(osublob, beatmapid, version) {
    }
    const worker = window._beatmapWorker;
 
-   osublob.arrayBuffer().then((ab) => {
+   // Wrap the arrayBuffer conversion so a malformed/empty .osu blob doesn't
+   // surface as an uncaught promise rejection (e.g. blob.arrayBuffer() throws
+   // on a corrupt Blob). Surface via the foreground ErrorPopup.
+   Promise.resolve().then(() => osublob.arrayBuffer()).then((ab) => {
+      if (!ab || ab.byteLength === 0) throw new Error("empty beatmap blob");
       worker.postMessage({ type: "parse", buffer: ab }, [ab]);
+   }).catch((err) => {
+      lerror("launchgame", "arrayBuffer failed", err);
+      if (typeof window.__showErrorPopup === "function") {
+         try { window.__showErrorPopup("Could not read beatmap data: " + (err.message || err), "Beatmap failed to load"); } catch {}
+      }
+      const overlay = document.getElementById("beatmap-loading-overlay");
+      if (overlay) overlay.remove();
    });
 }
 

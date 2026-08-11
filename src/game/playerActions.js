@@ -84,6 +84,12 @@
 
    var inUpcoming = function (click) {
       return function (hit) {
+         // Defensive: a few beatmap defects can leave hit.x/y or
+         // playback.circleRadius undefined. Skip rather than throw.
+         if (!hit || typeof hit.x !== "number" || typeof hit.y !== "number") return false;
+         if (typeof click.x !== "number" || typeof click.y !== "number") return false;
+         if (typeof click.time !== "number" || typeof hit.time !== "number") return false;
+         if (typeof playback.circleRadius !== "number" || typeof playback.MehTime !== "number") return false;
          var dx = click.x - hit.x;
          var dy = click.y - hit.y;
          return (
@@ -95,14 +101,18 @@
    };
    var inUpcoming_grace = function (predict) {
       return function (hit) {
+         if (!hit || typeof hit.x !== "number" || typeof hit.y !== "number") return false;
+         if (!predict || typeof predict.x !== "number" || typeof predict.y !== "number") return false;
+         if (typeof predict.time !== "number" || typeof hit.time !== "number") return false;
+         if (typeof playback.circleRadius !== "number" || typeof playback.MehTime !== "number") return false;
          var dx = predict.x - hit.x;
          var dy = predict.y - hit.y;
-         var r = predict.r + playback.circleRadius;
-         let result =
+         var r = (predict.r || 0) + playback.circleRadius;
+         return (
             hit.score < 0 &&
             dx * dx + dy * dy < r * r &&
-            Math.abs(predict.time - hit.time) < playback.MehTime;
-         return result;
+            Math.abs(predict.time - hit.time) < playback.MehTime
+         );
       };
    };
 

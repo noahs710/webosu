@@ -37,7 +37,18 @@ function notifyAuth() {
 
 const api = {
   token, isLoggedIn() { return !!token(); },
-  getUser() { const u = localStorage.getItem(USER_KEY); return u ? JSON.parse(u) : null; },
+  getUser() {
+    // localStorage may be corrupted (manually edited, browser extension,
+    // older app versions that wrote a non-JSON value). Wrap in try/parse
+    // and treat any non-object as no user.
+    let u;
+    try { u = localStorage.getItem(USER_KEY); } catch { return null; }
+    if (!u) return null;
+    try {
+      const p = JSON.parse(u);
+      return p && typeof p === "object" ? p : null;
+    } catch { return null; }
+  },
   async register(username, password) { const d = await json("POST", "/api/auth/register", { username, password }); localStorage.setItem(TOKEN_KEY, d.token); localStorage.setItem(USER_KEY, JSON.stringify(d.user)); notifyAuth(); return d.user; },
   async login(username, password) { const d = await json("POST", "/api/auth/login", { username, password }); localStorage.setItem(TOKEN_KEY, d.token); localStorage.setItem(USER_KEY, JSON.stringify(d.user)); notifyAuth(); return d.user; },
   logout() { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); notifyAuth(); },

@@ -272,10 +272,17 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
             }
             // spinners already have an endTime
          }
-         // just give an estimated track length
-         this.length = Math.round(
-            this.hitObjects[this.hitObjects.length - 1].endTime / 1000 + 1.5
-         );
+         // just give an estimated track length. Fall back to PreviewTime (ms)
+         // when the beatmap has no hit objects (storyboard-only / parsed
+         // with zero hits so far), so downstream UI doesn't see `undefined`.
+         if (this.hitObjects.length > 0) {
+            const lastEnd = this.hitObjects[this.hitObjects.length - 1].endTime;
+            this.length = Math.round((typeof lastEnd === "number" ? lastEnd : 0) / 1000 + 1.5);
+         } else if (this.general && typeof this.general.PreviewTime === "number") {
+            this.length = Math.round(this.general.PreviewTime / 1000 + 30);
+         } else {
+            this.length = 0;
+         }
 
          calculateCurve(this);
          // stack hitobjects
