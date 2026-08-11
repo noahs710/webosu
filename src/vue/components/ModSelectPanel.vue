@@ -166,6 +166,23 @@ function setModSetting(key, val) {
   if (activeMods.value.has("FL") || activeMods.value.has("DA") || activeMods.value.has("TP") || activeMods.value.has("AS") || activeMods.value.has("TF")) {
     GameState.syncLegacy();
   }
+  // If FL is currently active, also push the new size into the running
+  // playback so the in-game flashlight resizes without requiring a replay.
+  if (key === "flSize0" || key === "flSize200") {
+    try {
+      const flMod = window.ModRegistry ? window.ModRegistry.get("FL") : null;
+      if (flMod && flMod.settings) {
+        const s0 = parseFloat(gamesettings.flSize0) || 400;
+        const s200 = parseFloat(gamesettings.flSize200) || 250;
+        flMod.settings.sizeCombo0 = s0;
+        flMod.settings.sizeCombo100 = Math.round(s0 + (s200 - s0) * 0.5);
+        flMod.settings.sizeCombo200 = s200;
+      }
+      if (window.playback && typeof window.playback.refreshFlashlight === "function") {
+        window.playback.refreshFlashlight();
+      }
+    } catch (e) {}
+  }
   saveToLocal();
   gs.value = { ...gamesettings };
 }

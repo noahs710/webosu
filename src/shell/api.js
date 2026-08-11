@@ -51,7 +51,9 @@ const api = {
   async version() { return json("GET", "/api/version"); },
   async health() { return json("GET", "/api/health"); },
   async profile(username) { return json("GET", "/api/profiles/" + encodeURIComponent(username)); },
-  async profileRecent(username, limit) { const p = new URLSearchParams(); if (limit) p.set("limit", limit); return json("GET", "/api/profiles/" + encodeURIComponent(username) + "/recent?" + p.toString()); },
+  async profileRecent(username, limit, offset) { const p = new URLSearchParams(); if (limit) p.set("limit", limit); if (offset) p.set("offset", offset); return json("GET", "/api/profiles/" + encodeURIComponent(username) + "/recent?" + p.toString()); },
+  // Current user's own paginated scores (newest first).
+  async myScores(limit, offset) { const p = new URLSearchParams(); if (limit) p.set("limit", limit); if (offset) p.set("offset", offset); return json("GET", "/api/me/scores?" + p.toString()); },
   async rankings(offset) { const p = new URLSearchParams({ limit: "50" }); if (offset) p.set("offset", offset); return json("GET", "/api/rankings?" + p.toString()); },
   async rankingsCountry(country, offset) { const p = new URLSearchParams({ limit: "50" }); if (offset) p.set("offset", offset); return json("GET", "/api/rankings/country/" + encodeURIComponent(country) + "?" + p.toString()); },
   async getMyProfile() { return json("GET", "/api/profile/me"); },

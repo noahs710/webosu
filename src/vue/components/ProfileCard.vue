@@ -13,7 +13,7 @@ async function load() {
   try {
     data.value = await api.profile(props.username);
     // fetch recent plays
-    try { recentPlays.value = await api.profileRecent(props.username, 20); } catch { recentPlays.value = []; }
+    try { const r = await api.profileRecent(props.username, 20); recentPlays.value = (r && r.items) || r || []; } catch { recentPlays.value = []; }
   }
   catch (e) { err.value = String(e.message || e); data.value = null; }
 }

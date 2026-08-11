@@ -105,6 +105,29 @@ async function main() {
   r = await app.inject({ method: "GET", url: "/api/profiles/nobody" });
   check("profile missing 404", r.statusCode === 404, r.payload);
 
+  // /api/users/:id lookup
+  r = await app.inject({ method: "GET", url: "/api/users/" + me.id });
+  check("GET /api/users/:id 200", r.statusCode === 200 && r.json().user && r.json().user.username === "alice", r.payload);
+  r = await app.inject({ method: "GET", url: "/api/users/999999" });
+  check("GET /api/users/:id 404", r.statusCode === 404, r.payload);
+  r = await app.inject({ method: "GET", url: "/api/users/abc" });
+  check("GET /api/users/:id bad 400", r.statusCode === 400, r.payload);
+  r = await app.inject({ method: "GET", url: "/api/users/-1" });
+  check("GET /api/users/:id neg 400", r.statusCode === 400, r.payload);
+
+  // paginated recent (alice has 3 scores from earlier)
+  r = await app.inject({ method: "GET", url: "/api/profiles/alice/recent?limit=2&offset=0" });
+  const pr = r.json();
+  check("GET /api/profiles/:username/recent paginated 200", r.statusCode === 200 && pr && Array.isArray(pr.items) && typeof pr.total === "number" && pr.limit === 2 && pr.offset === 0, r.payload);
+  check("recent returns items+total", pr && Array.isArray(pr.items) && pr.items.length <= 2 && pr.total >= 3, JSON.stringify(pr));
+
+  // /api/me/scores (auth) — alice should see at least 3
+  r = await app.inject({ method: "GET", url: "/api/me/scores?limit=10", headers: { authorization: "Bearer " + token } });
+  const ms = r.json();
+  check("GET /api/me/scores 200", r.statusCode === 200 && ms && Array.isArray(ms.items) && ms.total >= 3, r.payload);
+  r = await app.inject({ method: "GET", url: "/api/me/scores" });
+  check("GET /api/me/scores no token 401", r.statusCode === 401, r.payload);
+
   // profile sync
   r = await app.inject({ method: "GET", url: "/api/profile/me", headers: { authorization: "Bearer " + token } });
   check("GET /api/profile/me 200", r.statusCode === 200, r.payload);

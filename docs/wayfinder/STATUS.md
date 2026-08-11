@@ -26,7 +26,7 @@ src/
 server/
   app.js            — Fastify app builder (routes, static, SPA fallback)
   index.js          — listen + WS
-  test/smoke.js     — 39/39 backend tests
+  test/smoke.js     — 53/53 backend tests (39 original + 14 v2/server hardening)
   test/ws-sse.js    — WS + SSE tests
 scripts/
   copy-static.mjs   — postbuild: copies assets to dist/, generates sw.js precache
@@ -40,6 +40,7 @@ scripts/
 - **Phase 3** (Vue 3 + Tailwind SPA): done — replaced lit with Vue, Tailwind, Vue Router
 - **Phase 4** (dep hygiene): done — underscore→native, zip.js→fflate, sound.js→howler, vercel dropped
 - **Phase 5** (backend + PWA): done — validation, rate-limiting, SSE, WS, PWA sw.js
+- **Phase 5b** (server hardening + accounts UX): done — `/api/version` + CORS, SSE cleanup on disconnect, rate-limiter with idle-IP sweep, `isFinite`/range guards on leaderboards/scores/replays, capped replay/mods_list sizes, `/api/me` (auth) returns user+stats+ranking in one round-trip, paginated `/api/profiles/:username/recent` and `/api/me/scores`, `/api/users/:id` (lookup by id), structured access log via onResponse hook (one line per non-2xx request with request-id), foreground error popup (z-index 2147483647) that survives fail screens via `window.__showErrorPopup()`, PFP URL validated (http/https/relative only), `webosu-auth` event for cross-component login sync, login -> mod-settings re-sync
 - **Phase 6** (benchmark-lock): tools ready (bench.html + perf HUD with F3/F4), needs user to run on 2015 laptop
 - **Lazer Parity** (lazer-parity-overhaul): done — 121/135 tasks, 45/45 backend tests, 0 pageerrors on all headless gameplay paths. See "Lazer Parity" section below.
 
@@ -80,6 +81,8 @@ Gameplay, mods, scoring, HP drain, slider judgement, spinner formula, stacking, 
 - `node scripts/headless-mod-fun-all.js` — all 11 fun mods active, 0 pageerrors, 1301 hits
 - `node scripts/headless-settings-migrate.js` — DT/NC migration verified (`nightcore:true` → `["HR","DT","NC"]`)
 - `node scripts/headless-settings-page.js` — ModSelectPanel renders, 0 pageerrors
+- `node scripts/headless-touch.js` — 5/5 (laptop scale 1.5, large screen capped at 2.25, small screen scales down, on-screen pause button present on touch devices, 0 fatal pageerrors)
+- `node scripts/headless-error-popup.js` — ErrorPopup z-index 2147483647 > grading 9000, popup is on top via elementFromPoint, 0 pageerrors
 
 ### Remaining (deferred to real hardware)
 - Phase 6 benchmark on 2015 floor device (p95 ≤16.6ms verification)
@@ -93,7 +96,7 @@ Gameplay, mods, scoring, HP drain, slider judgement, spinner formula, stacking, 
 ## Remaining
 
 1. **Phase 6 benchmark** — deploy to Fly.io, open `/?perf=1` on 2015 laptop, play a dense map, press F4, paste p95. ≤16.6ms → lock v8, goal complete. >16.6ms → optimize SliderMesh.
-2. **Integration test** — 10/11 (1 failure: replay anti-cheat rejects fast-forwarded replay — test limitation, not a game bug)
+2. **Integration test** — 10/11 (1 failure: replay anti-cheat rejects fast-forwarded replay — test limitation, not a game bug). headless-touch now 5/5 after the on-screen pause button was added.
 3. **Light-mode palette** — user's design call
 
 ## GameState seam (deepen-game-state-seam change)
@@ -105,3 +108,14 @@ All non-engine callers now read/write settings through a single, observable `Gam
 - **Shell+engine wiring** — `src/game/initgame.js` calls `GameState.bind(window.game)` and then `gamesettings.loadToGame()`. `gamesettings.loadToGame()` is now a single `GameState.setBatch(...)` + `GameState.syncLegacy()` call.
 - **Vue components** — `ModSelectPanel.vue` toggles mods via `GameState.set("mods.<flag>", bool)` and writes per-mod settings via `GameState.set("settings.<key>", value)`. `SettingsPanel.vue` routes display/audio/input/mods sliders through `GameState.set(...)` with a `PATH_NAMESPACE` map. `Nav.vue` does not read settings directly.
 - **Headless test** — `scripts/headless-gamestate.js` exercises: settings normalization, mod round-trip (FL settings + activation), batched writes + subscribe, idempotent set, deactivation, and the direct-write guard. Add to CI via `npm run test:gamestate`.
+
+
+## Hardening pass (post-Phase 5)
+
+- **Touch pause button**: `src/game/launchgame.js` adds a small on-screen `aria-label="Pause"` button (top-right, 42px circle) when the runtime reports touch capability, so users without a keyboard can still open the pause menu. The button is removed by `quitGame` on game teardown. `scripts/headless-touch.js` now passes 5/5 (was 4/5 — the `touch pause button present` assertion was previously failing).
+- **Live FL size refresh**: `src/vue/components/ModSelectPanel.vue` `setModSetting` now also pushes the new `flSize0`/`flSize200` into the running `window.playback` via the existing `refreshFlashlight()` hook. Previously the in-game overlay kept the size from initial launch until replay.
+- **Paginated recent scores** are now `{items,total,limit,offset}` instead of a bare array. `ProfileCard.vue` reads `(r && r.items) || r || []` so it works with both shapes. `api.js` exposes `myScores(limit,offset)` for the new `/api/me/scores` route.
+- **Server access log**: every non-2xx request is logged as `[webosu] <request-id> <METHOD> <path> -> <status> (<ms>ms)` so production errors are easy to triage. Disabled in the test harness via `NODE_ENV=test`.
+- **/api/users/:id** lookup: returns `{user, stats, globalRank, countryRank}` like `/api/profiles/:username` but by numeric id. Validates id is a finite positive integer (400 otherwise) and 404s if missing. Useful for hydrating a profile when only the id is known (e.g. from a /api/me or score row).
+- **/profile** redirect now reads from the `webosu_user` JSON blob (the only place login writes the username) with a fallback to the legacy `localStorage.username` for back-compat.
+- **/api/me/scores** (auth) returns the same paginated shape as the public recent endpoint.

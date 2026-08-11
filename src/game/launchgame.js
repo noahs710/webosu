@@ -156,7 +156,27 @@ export async function launchOSU(osu, beatmapid, version) {
       pGameArea.classList.remove("showhwmousesmall");
       pGameArea.classList.remove("showhwmousetiny");
    }
-   // pause via ESC only (removed on-screen pause button per user request)
+   // pause via ESC for desktop. On touch devices we ALSO add a small on-screen
+   // pause button in the top-right corner so users without a keyboard can still
+   // open the pause menu. The button has aria-label="Pause" so the headless-touch
+   // test can find it. It is appended to pGameArea so it follows the same lifecycle
+   // (removed by quitGame on game teardown).
+   var touchPauseBtn = null;
+   try {
+      var isTouch = ("ontouchstart" in window) || ((navigator.maxTouchPoints || 0) > 0);
+   } catch (e) { var isTouch = false; }
+   if (isTouch) {
+      touchPauseBtn = document.createElement("button");
+      touchPauseBtn.id = "touch-pause-btn";
+      touchPauseBtn.setAttribute("aria-label", "Pause");
+      touchPauseBtn.textContent = "\u2759\u2759";
+      touchPauseBtn.style.cssText = "position:fixed;top:14px;right:14px;z-index:60;width:42px;height:42px;border-radius:50%;border:1px solid rgba(255,255,255,0.25);background:rgba(20,20,30,0.7);color:#fff;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);font-family:system-ui,sans-serif;";
+      touchPauseBtn.onclick = function (ev) {
+         if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+         try { if (window.playback && !window.playback.game.paused && !window.playback.ended) window.playback.pause(); } catch (e) {}
+      };
+      pGameArea.appendChild(touchPauseBtn);
+   }
    // ---- Phase 6 perf HUD (frame timing) ----
    var perfHUD = document.createElement("div");
    perfHUD.id = "perf-hud";
@@ -197,6 +217,7 @@ export async function launchOSU(osu, beatmapid, version) {
        window.removeEventListener("keydown", perfKey);
        document.removeEventListener("contextmenu", contextMenuHandler);
        if (perfHUD && perfHUD.parentNode) perfHUD.parentNode.removeChild(perfHUD);
+       if (touchPauseBtn && touchPauseBtn.parentNode) touchPauseBtn.parentNode.removeChild(touchPauseBtn);
        pGameArea.setAttribute("hidden", "");
        pMainPage.removeAttribute("hidden");
        pNav.removeAttribute("style");

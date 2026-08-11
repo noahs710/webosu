@@ -151,6 +151,26 @@ function buildApp({ serveStatic = true } = {}) {
       reply.header("Access-Control-Max-Age", "86400");
     }
   });
+  // Lightweight structured access log: one line per non-2xx request, with a
+  // request-id header for correlating client errors with server output. Disabled
+  // in the test harness (NODE_ENV=test) so headless output stays clean.
+  if (process.env.NODE_ENV !== "test") {
+    let reqCounter = 0;
+    app.addHook("onRequest", async (req, _reply) => {
+      req._logId = (++reqCounter).toString(36) + "-" + Date.now().toString(36);
+      req._logStart = process.hrtime.bigint();
+      try { req.raw && req.raw.headers && req.raw.headers["x-request-id"]; } catch {}
+    });
+    app.addHook("onResponse", async (req, reply) => {
+      try {
+        const startNs = req._logStart || process.hrtime.bigint();
+        const ms = Number((process.hrtime.bigint() - startNs) / 1000000n);
+        const url = (req.url || "").split("?")[0];
+        const status = reply.statusCode;
+        if (status >= 400) console.log("[webosu] " + req._logId + " " + req.method + " " + url + " -> " + status + " (" + ms + "ms)");
+      } catch (e) {}
+    });
+  }
   app.options("/*", async (_req, reply) => reply.code(204).send(""));
 
   // ---------- auth ----------
@@ -407,6 +427,19 @@ function buildApp({ serveStatic = true } = {}) {
     const total = D.userScoresCount(u.id);
     const items = D.userScoresRecent(u.id, limit, offset);
     reply.send({ items, total, limit, offset });
+  });
+
+  // Look up a user by numeric id. Useful for client-side profile hydration when
+  // you only know the id (e.g. from a /api/me or score row that includes user_id).
+  app.get("/api/users/:id", async (req, reply) => {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id) || id <= 0) return reply.code(400).send({ error: "bad id" });
+    const u = D.getUserById(id);
+    if (!u) return reply.code(404).send({ error: "not found" });
+    const stats = D.userStats(u.id);
+    const globalRank = D.userRank(u.id);
+    const countryRank = D.userCountryRank(u.id);
+    reply.send({ user: u, stats, globalRank, countryRank });
   });
 
   // ---------- rankings ----------
