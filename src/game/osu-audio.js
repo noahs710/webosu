@@ -221,7 +221,9 @@
           if (!self.playing) return false;
           // use _getPosition for latency-accurate position
          self.position = self._getPosition();
-         self.source.stop();
+         // defensive: source can be null after a prior stop or on initial state
+         try { if (self.source) self.source.stop(); } catch (e) {}
+         self.source = null;
          self.playing = false;
          return true;
       };

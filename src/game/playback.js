@@ -94,7 +94,7 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
 
       self.approachScale = 3;
       self.audioReady = false;
-      if (self.hits.length === 0) { gerror("playback", "empty beatmap — no hit objects"); self.endTime = 0; this.wait = 0; self.skipTime = 0; }
+      if (self.hits.length === 0) { gerror("playback", "empty beatmap — no hit objects"); self.endTime = 0; this.wait = 0; self.skipTime = 0; return; }
       else {
       self.endTime = self.hits[self.hits.length - 1].endTime + 1500;
       this.wait = Math.max(0, 1500 - this.hits[0].time);

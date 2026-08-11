@@ -242,6 +242,9 @@ export async function launchOSU(osu, beatmapid, version) {
        // per pixijs-performance skill: must release global pools to avoid cross-app leakage
        try { window.app.destroy({ removeView: true, releaseGlobalResources: true }); } catch { try { window.app.destroy(true); } catch {} }
        window.app = null;
+       // clear stale references so a follow-up launchGame starts from a known state
+       window.playback = null;
+       try { if (window.game) { window.game.scene = null; window.game.cursorLayer = null; window.game.cursor = null; window.game.cursorTrail = null; window.game.cursorTrailHead = 0; } } catch {}
     };
 
    // load playback

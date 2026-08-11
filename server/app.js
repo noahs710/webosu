@@ -520,7 +520,7 @@ function buildApp({ serveStatic = true } = {}) {
   });
 
   app.get("/api/skins/:id", async (req, reply) => {
-    const s = D.getSkin(parseInt(req.params.id, 10));
+    const sid = parseInt(req.params.id, 10); if (!isFinite(sid) || sid <= 0) return reply.code(400).send({ error: 'invalid id' }); const s = D.getSkin(sid);
     if (!s) return reply.code(404).send({ error: "not found" });
     reply.header("Content-Type", "application/octet-stream");
     const safe = (s.filename || "skin.osk").replace(/[^a-zA-Z0-9._\-]/g, "_");
