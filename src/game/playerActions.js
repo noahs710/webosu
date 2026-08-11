@@ -1,11 +1,57 @@
 
    var checkClickdown = function checkClickdown() {
+      // Relax (RX) handles hits via auto-click in updatePlayerActions; ignore manual clicks
+      if (playback.game.relax) return;
       var upcoming = playback.upcomingHits;
-      var click = {
-         x: playback.game.mouseX,
-         y: playback.game.mouseY,
-         time: (playback.osu && playback.osu.audio) ? playback.osu.audio.getPosition() * 1000 : 0,
-      };
+      // Use the predicted cursor position (game.mouse(realtime)) for clicks, matching
+      // lazer's single-cursor-position model. The ?legacyinput=1 flag restores the old
+      // raw-position behavior for A/B testing.
+      // NOTE: autoplay/autopilot/replay set game.mouseX/Y directly (no mouse events →
+      // movehistory is empty → game.mouse() would return a stale/NaN position), so they
+      // MUST use the raw position.
+      var useLegacy = false;
+      try { useLegacy = new URLSearchParams(window.location.search).get("legacyinput") === "1"; } catch {}
+      var useRaw = useLegacy || playback.autoplay || playback.game.autopilot || (playback.replayMode && playback.replayPlayback);
+      var click;
+      if (!useRaw && playback.game.mouse) {
+         // predicted position (same as slider following uses)
+         var pred = playback.game.mouse(performance.now());
+         click = { x: pred.x, y: pred.y, time: (playback.osu && playback.osu.audio) ? playback.osu.audio.getPosition() * 1000 : 0 };
+      } else {
+         // raw position (autoplay/autopilot/replay or ?legacyinput=1)
+         click = {
+            x: playback.game.mouseX,
+            y: playback.game.mouseY,
+            time: (playback.osu && playback.osu.audio) ? playback.osu.audio.getPosition() * 1000 : 0,
+         };
+      }
+      // Magnetised (MG): bias the click position toward the nearest unhit object within magnetRadius
+      // Repel (RP): bias the click position away from hit objects within repelRadius
+      if (playback.game.magnetised || playback.game.repel) {
+         const mod = playback.game.magnetised
+            ? (window.ModRegistry ? window.ModRegistry.get("MG") : null)
+            : (window.ModRegistry ? window.ModRegistry.get("RP") : null);
+         const radius = (mod && mod.settings && (mod.settings.magnetRadius || mod.settings.repelRadius)) || 100;
+         const radius2 = radius * radius;
+         let nearest = null, nearestD2 = Infinity;
+         for (let i = 0; i < upcoming.length; i++) {
+            const h = upcoming[i];
+            if (h.score >= 0) continue;
+            if (h.type !== "circle" && h.type !== "slider") continue;
+            const dx = h.x - click.x, dy = h.y - click.y;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < radius2 && d2 < nearestD2) { nearest = h; nearestD2 = d2; }
+         }
+         if (nearest) {
+            const dx = nearest.x - click.x, dy = nearest.y - click.y;
+            const d = Math.sqrt(nearestD2);
+            if (d > 0) {
+               const factor = playback.game.magnetised ? Math.min(1, 0.5) : -Math.min(1, 0.5);
+               click.x += dx * factor;
+               click.y += dy * factor;
+            }
+         }
+      }
       // note-lock: prefer the earliest in-range hit (lazer lets you hit the
       // earliest overlapping object, not whichever is first in the array)
       var hit = null;
@@ -102,11 +148,87 @@
          }
          driveReplay._lastD = d;
       }
-      playback.game.updatePlayerActions = function (time) {
-         if (playback.replayMode && playback.replayPlayback) {
-            return driveReplay(time);
-         }
-         if (playback.autoplay) {
+       playback.game.updatePlayerActions = function (time) {
+          if (playback.replayMode && playback.replayPlayback) {
+             return driveReplay(time);
+          }
+          // Relax (RX): auto-click when cursor is over an unhit circle in the window.
+          // No keypress required. Player still controls the cursor.
+          if (playback.game.relax) {
+             // check each upcoming hit for cursor-over + in-time-window
+             var upcoming = playback.upcomingHits;
+             for (var i = 0; i < upcoming.length; i++) {
+                var h = upcoming[i];
+                if (h.score >= 0) continue;  // already hit
+                if (h.type !== "circle" && h.type !== "slider") continue;
+                var dx = playback.game.mouseX - h.x;
+                var dy = playback.game.mouseY - h.y;
+                var inRange = (dx * dx + dy * dy) < playback.circleRadius * playback.circleRadius;
+                var clickTime = (playback.osu && playback.osu.audio) ? playback.osu.audio.getPosition() * 1000 : 0;
+                var inTime = Math.abs(clickTime - h.time) < playback.MehTime;
+                if (inRange && inTime) {
+                   // auto-hit: compute points like checkClickdown
+                   let points = 50;
+                   let diff = clickTime - h.time;
+                   if (Math.abs(diff) < playback.GoodTime) points = 100;
+                   if (Math.abs(diff) < playback.GreatTime) points = 300;
+                   playback.hitSuccess(h, points, clickTime);
+                   break;  // one hit per frame
+                }
+             }
+             return;  // RX: no key/mouse input processing for hits
+          }
+          // AutoPilot (AP): auto-move cursor to the next hit object (reuse autoplay
+          // movement), but require key/mouse press for clicks (no auto-click).
+          if (playback.game.autopilot) {
+             const spinRadius = 60;
+             let cur = playback.auto ? playback.auto.currentObject : null;
+             if (!playback.auto) playback.auto = { currentObject: null, curid: 0, lastx: playback.game.mouseX, lasty: playback.game.mouseY, lasttime: 0 };
+             // auto move cursor (same as autoplay movement)
+             if (playback.game.down && cur) {
+                if (cur.type == "circle" || time > cur.endTime) {
+                   playback.game.down = false;
+                   playback.auto.currentObject = null;
+                   playback.auto.lasttime = time;
+                   playback.auto.lastx = playback.game.mouseX;
+                   playback.auto.lasty = playback.game.mouseY;
+                } else if (cur.type == "slider") {
+                   playback.game.mouseX = cur.ball.x || cur.x;
+                   playback.game.mouseY = cur.ball.y || cur.y;
+                } else {
+                   let currentAngle = Math.atan2(playback.game.mouseY - cur.y, playback.game.mouseX - cur.x);
+                   currentAngle += 0.8;
+                   playback.game.mouseY = cur.y + spinRadius * Math.sin(currentAngle);
+                   playback.game.mouseX = cur.x + spinRadius * Math.cos(currentAngle);
+                }
+             }
+             // looking for next target (auto-move only; NO auto-click)
+             cur = playback.auto.currentObject;
+             while (playback.auto.curid < playback.hits.length && playback.hits[playback.auto.curid].time < time) {
+                playback.auto.curid++;
+             }
+             if (!cur && playback.auto.curid < playback.hits.length) {
+                cur = playback.hits[playback.auto.curid];
+                playback.auto.currentObject = cur;
+             }
+             if (!cur || cur.time > time + playback.approachTime) {
+                playback.auto.lasttime = time;
+                return;
+             }
+             if (!playback.game.down) {
+                // move toward the object (auto-cursor), but DON'T auto-click
+                let targX = cur.x, targY = cur.y;
+                if (cur.type == "spinner") targY -= spinRadius;
+                let t = (time - playback.auto.lasttime) / (cur.time - playback.auto.lasttime);
+                t = Math.max(0, Math.min(1, t));
+                t = 0.5 - Math.sin((Math.pow(1 - t, 1.5) - 0.5) * Math.PI) / 2;
+                playback.game.mouseX = t * targX + (1 - t) * playback.auto.lastx;
+                playback.game.mouseY = t * targY + (1 - t) * playback.auto.lasty;
+                // the player's key/mouse press triggers checkClickdown (handled by the normal input listeners)
+             }
+             return;  // AP: no further autoplay-style auto-click
+          }
+          if (playback.autoplay) {
             const spinRadius = 60;
             let cur = playback.auto.currentObject;
             // auto move cursor

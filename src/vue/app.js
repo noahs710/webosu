@@ -1,7 +1,9 @@
-import { createApp, onMounted } from "vue";
+import { createApp, ref, onMounted, onUnmounted } from "vue";
 import "./styles.css";
 import { router } from "./router.js";
 import Nav from "./components/Nav.vue";
+import ModSelectPanel from "./components/ModSelectPanel.vue";
+import HealthCheckPopup from "./components/HealthCheckPopup.vue";
 import { ensureGame } from "./game-loader.js";
 import "../shell/api.js"; // side effect: sets window.WebosuAPI for game score submission
 window.__ensureGame = ensureGame;
@@ -50,14 +52,52 @@ const gameAreaHTML = `
     <div class="button-list">
       <div class="pausebutton continue" id="pausebtn-continue"><div class="inner">Continue</div></div>
       <div class="pausebutton retry" id="pausebtn-retry"><div class="inner">Retry</div></div>
+      <div class="pausebutton mods" id="pausebtn-mods"><div class="inner">Mods</div></div>
       <div class="pausebutton quit" id="pausebtn-quit"><div class="inner">Quit</div></div>
     </div>
+    <div id="pause-mod-panel" hidden></div>
   </div>`;
 
 const app = createApp({
-  components: { Nav },
+  components: { Nav, ModSelectPanel, HealthCheckPopup },
   setup() {
+    const showModSidebar = ref(false);
+    const healthIssue = ref(null);
+    function toggleModSidebar() { showModSidebar.value = !showModSidebar.value; }
+    function closeModSidebar() { showModSidebar.value = false; }
+    window.__toggleModSidebar = toggleModSidebar;
+    function onKey(e) {
+      if (e.key === "F1") { e.preventDefault(); toggleModSidebar(); }
+      if (e.key === "Escape" && showModSidebar.value) closeModSidebar();
+    }
+    function onHealthIssue(e) { healthIssue.value = e.detail; }
+    function repairSkin() {
+      // trigger a file picker for re-import
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".osk,.zip";
+      input.onchange = () => {
+        if (input.files[0]) {
+          import("./game-loader.js").then(({ }) => {
+            // re-import the skin — dispatch to the skins page logic
+            window.location.href = "/skins";
+          });
+        }
+      };
+      input.click();
+      healthIssue.value = null;
+    }
+    function resetDefault() {
+      // clear the skin cache and reload
+      try { localStorage.removeItem("webosu_active_skin"); } catch {}
+      if (window.localforage) localforage.removeItem("skinTextures", () => location.reload());
+      else location.reload();
+      healthIssue.value = null;
+    }
+    function dismissHealth() { healthIssue.value = null; }
     onMounted(() => {
+      window.addEventListener("keydown", onKey);
+      window.addEventListener("skin-health-issue", onHealthIssue);
       // inject game-area + pause-menu into the DOM (outside Vue's control)
       document.body.insertAdjacentHTML("beforeend", gameAreaHTML);
 
@@ -111,11 +151,38 @@ const app = createApp({
         checkReady();
       }
     });
+    onUnmounted(() => { window.removeEventListener("keydown", onKey); window.removeEventListener("skin-health-issue", onHealthIssue); });
+    return { showModSidebar, toggleModSidebar, closeModSidebar, healthIssue, repairSkin, resetDefault, dismissHealth };
   },
   template: `
     <div id="main-page">
-      <Nav />
+      <Nav @toggle-mods="toggleModSidebar" />
       <router-view />
+      <!-- Mod sidebar drawer -->
+      <teleport to="body">
+        <div v-if="showModSidebar" class="mod-sidebar-backdrop" @click="closeModSidebar"></div>
+        <div class="mod-sidebar" :class="{ open: showModSidebar }">
+          <div class="mod-sidebar-header">
+            <span class="text-lazer-pink font-bold text-lg">Mods</span>
+            <button @click="closeModSidebar" class="text-lazer-dim hover:text-white text-xl leading-none">✕</button>
+          </div>
+          <div class="mod-sidebar-body">
+            <ModSelectPanel />
+          </div>
+        </div>
+      </teleport>
+      <!-- Health-check popup -->
+      <teleport to="body">
+        <HealthCheckPopup v-if="healthIssue"
+          :issueType="healthIssue.type"
+          :message="healthIssue.message"
+          :missing="healthIssue.missing || []"
+          :corrupt="healthIssue.corrupt || []"
+          @repair="repairSkin"
+          @reset="resetDefault"
+          @dismiss="dismissHealth"
+        />
+      </teleport>
     </div>
   `,
 });

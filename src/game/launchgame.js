@@ -238,10 +238,15 @@ export async function launchOSU(osu, beatmapid, version) {
       if (game.scene) {
          game.scene.render(timestamp);
       }
-      if (game.cursor) {
-         // Handle cursor
-         game.cursor.x = (game.mouseX / 512) * gfx.width + gfx.xoffset;
-         game.cursor.y = (game.mouseY / 384) * gfx.height + gfx.yoffset;
+       if (game.cursor) {
+          // Handle cursor
+          game.cursor.x = (game.mouseX / 512) * gfx.width + gfx.xoffset;
+          game.cursor.y = (game.mouseY / 384) * gfx.height + gfx.yoffset;
+          // No Scope (NS): hide cursor unless a key/mouse button is down
+          if (game.noscope) {
+             game.cursor.visible = !!game.down;
+             if (game.cursorMiddle) game.cursorMiddle.visible = !!game.down;
+          }
           if (game.cursorMiddle) {
              game.cursorMiddle.x = game.cursor.x;
              game.cursorMiddle.y = game.cursor.y;

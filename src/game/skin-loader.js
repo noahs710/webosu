@@ -621,3 +621,52 @@ export async function clearCachedSkin() {
     if (import.meta.env.DEV) console.warn("skin clear failed:", e);
   }
 }
+
+// ── Skin + hitsound validation (health checks) ──
+
+// Validate that the 8 core gameplay textures exist and are valid in the loaded skin.
+// Returns { ok, missing[], corrupt[] }
+export function validateSkin(skinData) {
+  const missing = [];
+  const corrupt = [];
+  const CORE_TEXTURES = [
+    "hitcircleoverlay.png", "hitcircle.png", "approachcircle.png",
+    "cursor.png", "hit0.png", "hit50.png", "hit100.png", "hit300.png",
+  ];
+  const textures = (skinData && skinData.textures) || window.Skin || {};
+  for (const name of CORE_TEXTURES) {
+    const tex = textures[name];
+    if (!tex || tex === PIXI.Texture.WHITE) {
+      missing.push(name);
+    } else if (tex.valid === false || (tex.source && tex.source.valid === false)) {
+      corrupt.push(name);
+    }
+  }
+  return { ok: missing.length === 0 && corrupt.length === 0, missing, corrupt };
+}
+
+// Validate that the 15 core hitsound files loaded.
+// sliderslide/spinnerspin are optional (warn if missing, don't block).
+// Returns { ok, missing[] }
+export function validateHitsounds() {
+  const missing = [];
+  const REQUIRED = ["hitnormal", "hitwhistle", "hitfinish", "hitclap", "slidertick"];
+  const samples = (window.game && window.game.sample) || [{}, {}, {}, {}];
+  for (let set = 1; set <= 3; set++) {
+    for (const name of REQUIRED) {
+      if (!samples[set] || !samples[set][name]) {
+        // only report if ALL three sets are missing this sound (one set missing is ok — user might not have that set)
+      }
+    }
+  }
+  // Check at least one set has all required sounds
+  let anyComplete = false;
+  for (let set = 1; set <= 3; set++) {
+    const hasAll = REQUIRED.every(name => samples[set] && samples[set][name]);
+    if (hasAll) { anyComplete = true; break; }
+  }
+  if (!anyComplete) {
+    missing.push("hitnormal/hitwhistle/hitfinish/hitclap/slidertick");
+  }
+  return { ok: missing.length === 0, missing };
+}

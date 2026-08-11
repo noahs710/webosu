@@ -1,12 +1,16 @@
-import { ref, onMounted } from "vue";
+import { ref, watch, onMounted } from "vue";
+import { useRoute } from "vue-router";
 import ProfileCard from "../components/ProfileCard.vue";
 export default {
   components: { ProfileCard },
   setup() {
+    const route = useRoute();
     const username = ref("");
-    onMounted(() => {
-      username.value = new URLSearchParams(location.search).get("u") || localStorage.getItem("username") || "";
-    });
+    function loadFromRoute() {
+      username.value = (route && route.params && route.params.username) || localStorage.getItem("username") || "";
+    }
+    onMounted(loadFromRoute);
+    watch(() => route.params.username, loadFromRoute);
     return { username };
   },
   template: `

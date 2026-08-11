@@ -29,10 +29,13 @@ const sounds = {
     if (!arr.length && this.whenLoaded) { this.whenLoaded(); return; }
     for (const url of arr) {
       const s = new GameSound(url, null, () => { if (import.meta.env.DEV) console.warn("hitsound load failed:", url); });
-      s._howl.once("load", () => {
+      // count both load and loaderror as "done" so whenLoaded fires even if some files are missing
+      const onDone = () => {
         this.loaded++;
         if (this.toLoad === this.loaded) { this.toLoad = 0; this.loaded = 0; if (this.whenLoaded) this.whenLoaded(); }
-      });
+      };
+      s._howl.once("load", onDone);
+      s._howl.once("loaderror", onDone);
       this[url] = s;
     }
   },

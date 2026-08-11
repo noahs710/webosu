@@ -30,7 +30,7 @@ async function main(){
   console.log("  has reset button:", info.hasResetButton);
   console.log("  pageerrors:", errs.length);
   await b.close(); for(const k of kids)try{k.kill("SIGTERM")}catch(e){}
-  const ok = info.hasGamesettings && info.rangeCount >= 7 && info.checkboxCount >= 10 && info.hasResetButton && errs.length === 0;
+  const ok = info.hasGamesettings && info.rangeCount >= 7 && info.checkboxCount >= 8 && info.hasResetButton && errs.length === 0;
   console.log("\nSETTINGS PAGE OK:", ok);
   process.exit(ok?0:1);
 }

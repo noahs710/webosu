@@ -68,6 +68,27 @@ async function main() {
   check("GET /api/leaderboards/:id 200", r.statusCode === 200 && Array.isArray(r.json()), r.payload);
   check("leaderboard contains our score", r.json().some((s) => s.id === scoreId), "len=" + r.json().length);
 
+  // v2 score submission with mod list (lazer-scaled leaderboard)
+  r = await app.inject({ method: "POST", url: "/api/scores", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ beatmap_id: 456, score: 888888, combo: 500, acc: 98.0, grade: "S", count300: 90, count100: 5, miss: 0, replay, ruleset_version: "v2", mods_list: ["HR","HD"] }) });
+  check("POST /api/scores v2 with mods 200", r.statusCode === 200 && r.json().ok === true, r.payload);
+  const v2Id = r.json().id;
+  // v2 lazer-scaled leaderboard for the HR+HD mod combo
+  const v2Score = r.json().score || {};
+  r = await app.inject({ method: "GET", url: "/api/leaderboards/456?version=v2&mods_hash=" + (v2Score.mods_hash || "") });
+  check("GET v2 leaderboard for mod combo 200", r.statusCode === 200 && Array.isArray(r.json()), r.payload);
+  // the v2 score should appear on its mod combo leaderboard (if mods_hash was computed)
+  if (v2Score.mods_hash) check("v2 score ranks on its mod-combo leaderboard", r.json().some((s) => s.id === v2Id), "len=" + r.json().length + " hash=" + v2Score.mods_hash);
+
+  // RX (Relax) score is unranked — should be accepted but ranked=0
+  r = await app.inject({ method: "POST", url: "/api/scores", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ beatmap_id: 789, score: 777777, combo: 400, acc: 95.0, grade: "A", count300: 80, miss: 0, replay, ruleset_version: "v2", mods_list: ["RX"] }) });
+  check("POST /api/scores RX accepted 200", r.statusCode === 200 && r.json().ok === true, r.payload);
+  const rxScore = r.json().score || {};
+  check("RX score ranked=0 (unranked)", rxScore.ranked === 0, "ranked=" + rxScore.ranked);
+
+  // unknown mod is rejected
+  r = await app.inject({ method: "POST", url: "/api/scores", headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ beatmap_id: 999, score: 555, mods_list: ["ZZ"] }) });
+  check("POST /api/scores unknown mod 400", r.statusCode === 400, "code=" + r.statusCode);
+
   // score + replay fetch
   r = await app.inject({ method: "GET", url: "/api/scores/" + scoreId });
   check("GET /api/scores/:id 200", r.statusCode === 200 && r.json().username === "alice", r.payload);

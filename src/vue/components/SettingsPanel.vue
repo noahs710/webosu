@@ -1,6 +1,9 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { gamesettings, defaultsettings, saveToLocal } from "../../shell/gamesettings.js";
+import { api } from "../../shell/api.js";
+
+const pfpUrl = ref("");
 
 const SLIDERS = [
   ["dim", "Background dim", 0, 100, 1, "%"], ["blur", "Background blur", 0, 100, 1, "%"],
@@ -17,6 +20,9 @@ const gs = ref(gamesettings);
 
 function set(key, val) { gamesettings[key] = val; gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
 function reset() { Object.assign(gamesettings, defaultsettings); gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
+async function savePfp(url) {
+  try { await api.saveMyProfile({ pfp_url: url }); pfpUrl.value = url; } catch (e) { /* ignore */ }
+}
 function captureKey(ev, key) {
   ev.preventDefault();
   const handler = (e) => {
@@ -45,6 +51,10 @@ onMounted(() => {
   } else {
     gs.value = { ...gamesettings };
     if (window.game) gamesettings.loadToGame();
+  }
+  // Load PFP URL if logged in
+  if (api.isLoggedIn()) {
+    api.me().then((u) => { pfpUrl.value = u.pfp_url || ""; }).catch(() => {});
   }
 });
 </script>
@@ -94,17 +104,16 @@ onMounted(() => {
       </div>
     </div>
     <div class="bg-lazer-panel border border-white/5 rounded-xl p-4">
-      <h3 class="text-lazer-pink font-bold mb-2.5">Mods</h3>
-      <div class="grid gap-1.5" style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));">
-        <label v-for="t in MOD_TOGGLES" :key="t" class="flex items-center gap-1.5 cursor-pointer">
-          <input type="checkbox" :checked="gs[t]" @change="set(t, $event.target.checked)" />
-          {{ TOGGLE_LABELS[t] }}
-        </label>
-      </div>
+      <h3 class="text-lazer-pink font-bold mb-2.5">Skin</h3>
+      <p class="text-lazer-dim text-sm">Manage skins on the <router-link to="/skins" class="text-lazer-pink hover:underline">Skins page</router-link>. Default: reowoTuna. Mods are now in the sidebar (Mods button in the nav or F1).</p>
     </div>
     <div class="bg-lazer-panel border border-white/5 rounded-xl p-4">
-      <h3 class="text-lazer-pink font-bold mb-2.5">Skin</h3>
-      <p class="text-lazer-dim text-sm">Manage skins on the <router-link to="/skins" class="text-lazer-pink hover:underline">Skins page</router-link>. Default: reowoTuna.</p>
+      <h3 class="text-lazer-pink font-bold mb-2.5">Profile</h3>
+      <label class="text-lazer-dim text-sm">Profile picture URL</label>
+      <input type="text" placeholder="https://example.com/avatar.png" :value="pfpUrl"
+        @change="savePfp($event.target.value)"
+        class="block w-full bg-lazer-bg border border-white/10 rounded-lg px-3 py-2 mt-1 mb-2 text-lazer-text focus:border-lazer-pink focus:outline-none text-sm" />
+      <p class="text-lazer-dim text-xs">Paste an image link. Leave empty for initials avatar.</p>
     </div>
     <button @click="reset" class="bg-lazer-pink text-white rounded-lg px-4 py-2 text-sm hover:brightness-110">Reset to defaults</button>
   </div>

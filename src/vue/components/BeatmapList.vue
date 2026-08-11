@@ -2,6 +2,7 @@
 import { ref, watch, onMounted, onUnmounted } from "vue";
 import { ensureGame } from "../game-loader.js";
 import { getCachedBeatmaps, setCachedBeatmaps, clearCachedBeatmaps } from "../../shell/beatmapCache.js";
+import { addFavorite, removeFavorite, getFavorites } from "../../shell/favorites.js";
 
 const props = defineProps({
   src: String,
@@ -15,6 +16,19 @@ const loading = ref(false);
 const error = ref("");
 const selectedSet = ref(null);
 const showModal = ref(false);
+const favSet = ref(new Set());
+const launching = ref(false);
+
+async function loadFavorites() {
+  try { favSet.value = await getFavorites(); } catch { favSet.value = new Set(); }
+}
+function isFav(setId) { return favSet.value.has(setId); }
+async function toggleFav(setId, ev) {
+  if (ev) { ev.stopPropagation(); ev.preventDefault(); }
+  if (isFav(setId)) { favSet.value = await removeFavorite(setId); }
+  else { favSet.value = await addFavorite(setId); }
+  favSet.value = new Set(favSet.value); // trigger reactivity
+}
 
 function starname(star) {
   if (star == null) return "unknown";
@@ -31,8 +45,6 @@ async function load(force = false) {
   if (!props.src && !props.sids) return;
   // empty sids array means no favorites/history — show empty without fetching
   if (props.sids && !props.sids.length) {
-    // check if sids is explicitly an empty array (vs null/undefined)
-    // props.sids being [] should not hit cache, just show empty
     if (Array.isArray(props.sids) && props.sids.length === 0) {
       sets.value = []; loading.value = false; return;
     }
@@ -44,7 +56,6 @@ async function load(force = false) {
       sets.value = cached;
       loading.value = false;
       error.value = "";
-      if (import.meta.env.DEV) console.log("[BeatmapList] cache hit", cacheKey);
       return;
     }
   } else {
@@ -64,7 +75,9 @@ async function load(force = false) {
       if (!r.ok) throw new Error("search " + r.status);
       data = await r.json();
     }
-    let filtered = (data || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+    // The API already filters by mode=0 (osu standard); keep all sets returned.
+    // Guard against null/missing beatmaps arrays (deleted sets).
+    let filtered = (data || []).filter(s => s && s.beatmaps && Array.isArray(s.beatmaps)).slice(0, props.limit);
     // retry once if search returned empty (random offset may hit empty page)
     if (!filtered.length && props.src && props.src.includes('search') && !props.sids) {
        try {
@@ -72,7 +85,7 @@ async function load(force = false) {
          const rr = await fetch(retrySrc);
          if (rr.ok) {
            const rdata = await rr.json();
-           const rfiltered = (rdata || []).filter(s => s.beatmaps && s.beatmaps.some(b => b.mode === "osu")).slice(0, props.limit);
+            const rfiltered = (rdata || []).filter(s => s && s.beatmaps && Array.isArray(s.beatmaps)).slice(0, props.limit);
            if (rfiltered.length) {
               filtered = rfiltered;
               if (import.meta.env.DEV) console.log("[BeatmapList] retry hit", retrySrc, rfiltered.length);
@@ -154,19 +167,38 @@ function closeModal() {
   stopPreview();
   if (import.meta.env.DEV) console.log("[BeatmapList] close modal");
 }
-function launch(b) {
+function waitForReadiness() {
+  return new Promise((resolve) => {
+    if (window.skinReady && window.soundReady) return resolve();
+    const interval = setInterval(() => {
+      if (window.skinReady && window.soundReady) {
+        clearInterval(interval);
+        resolve();
+      }
+    }, 100);
+  });
+}
+
+async function launch(b) {
   const s = selectedSet.value;
   if (!s || !b) return;
-  if (import.meta.env.DEV) console.log("[BeatmapList] launch", s.id, b.id, b.version);
+  console.log("[BeatmapList] launch", s.id, b.id, b.version);
   stopPreview();
-   document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
-   closeModal();
+  document.dispatchEvent(new CustomEvent("beatmap-launch", { detail: { setId: s.id, beatmapId: b.id, version: b.version, title: s.title, artist: s.artist, stars: b.difficulty_rating } }));
+  closeModal();
+}
+function openLeaderboard(b) {
+  if (!b || !b.id) return;
+  const modsHash = (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize().sort().join(",") : "";
+  const url = "/leaderboard?bid=" + encodeURIComponent(b.id) + (modsHash ? "&mods_hash=" + encodeURIComponent(modsHash) : "");
+  window.open(url, "_blank");
 }
 function onKey(e) {
   if (e.key === "Escape" && showModal.value) closeModal();
 }
 onMounted(() => {
   load();
+  loadFavorites();
   window.addEventListener("keydown", onKey);
 });
 onUnmounted(() => {
@@ -180,8 +212,8 @@ onUnmounted(() => {
   <div v-else-if="!loading && !sets.length && emptyMessage" class="text-lazer-dim p-4">{{ emptyMessage }}</div>
   <div v-else>
     <div v-if="sets.length" class="flex justify-end mb-2">
-      <button @click="reload" :disabled="loading" class="text-xs text-lazer-dim hover:text-white disabled:opacity-50 flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5">
-        <span :class="{ 'animate-spin inline-block': loading }">↻</span> {{ loading ? 'Loading...' : 'Reload' }}
+      <button @click="load(true)" :disabled="loading" class="text-xs text-lazer-dim hover:text-white disabled:opacity-50 flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5">
+        {{ loading ? 'Loading...' : 'More' }}
       </button>
     </div>
     <div class="flex flex-wrap gap-3">
@@ -189,11 +221,16 @@ onUnmounted(() => {
       class="beatmap-card beatmapbox group relative cursor-pointer overflow-hidden w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
       style="background: var(--lazer-panel);"
       @click="openModal(s, $event)">
-      <div class="overflow-hidden rounded-t-xl">
+      <div class="overflow-hidden rounded-t-xl relative">
         <img :src="'https://assets.ppy.sh/beatmaps/' + s.id + '/covers/card@2x.jpg'"
              alt="" loading="lazy"
              class="w-full h-[140px] object-cover rounded-t-xl transition-transform duration-200 ease-out group-hover:scale-105"
              @error="$event.target.style.display='none'" />
+        <button @click="toggleFav(s.id, $event)"
+          class="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-lg hover:bg-black/70 transition"
+          :class="isFav(s.id) ? 'text-lazer-pink' : 'text-white/50'" title="Toggle favorite">
+          {{ isFav(s.id) ? '♥' : '♡' }}
+        </button>
       </div>
       <div class="p-3">
         <div class="font-bold text-lazer-text truncate">{{ s.title }}</div>
@@ -222,6 +259,11 @@ onUnmounted(() => {
           <img :src="'https://assets.ppy.sh/beatmaps/' + selectedSet.id + '/covers/cover@2x.jpg'" alt="" class="w-full h-full object-cover" @error="$event.target.style.display='none'" />
           <div class="absolute inset-0 bg-gradient-to-t from-lazer-panel via-lazer-panel/40 to-transparent"></div>
           <button @click="closeModal" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70" aria-label="Close">✕</button>
+          <button @click.stop="toggleFav(selectedSet.id, $event)"
+            class="absolute top-3 right-12 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-lg hover:bg-black/70 transition"
+            :class="isFav(selectedSet.id) ? 'text-lazer-pink' : 'text-white/50'" title="Toggle favorite">
+            {{ isFav(selectedSet.id) ? '♥' : '♡' }}
+          </button>
           <div class="absolute bottom-0 left-0 right-0 p-4">
             <div class="text-xl font-bold text-white drop-shadow">{{ selectedSet.title }}</div>
             <div class="text-sm text-white/80">{{ selectedSet.artist }}</div>
@@ -237,7 +279,8 @@ onUnmounted(() => {
               <div class="version">{{ b.version }}</div>
               <div class="mapper">{{ stars(b.difficulty_rating) }}★ • {{ (b.hit_length||0) }}s • AR{{ b.ar ?? '?' }} CS{{ b.cs ?? '?' }} OD{{ b.accuracy ?? b.od ?? '?' }} HP{{ b.drain ?? '?' }}</div>
             </div>
-            <div class="text-lazer-pink text-sm">▶</div>
+            <button @click.stop="openLeaderboard(b)" class="text-xs text-lazer-dim hover:text-lazer-pink px-2 py-1 rounded border border-white/10 hover:border-lazer-pink/30 transition" title="View leaderboard">🏆</button>
+            <div class="text-lazer-pink text-sm">{{ launching ? '⏳' : '▶' }}</div>
           </div>
         </div>
         <div class="p-3 border-t border-white/5 flex justify-end gap-2 shrink-0">

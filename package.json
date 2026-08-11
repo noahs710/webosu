@@ -16,12 +16,14 @@
     "test:integration": "npm run build && node scripts/headless-integration.js",
     "test:crash": "node scripts/headless-quit.js && node scripts/headless-fail-retry.js && node scripts/headless-slider-destroy.js",
     "test:settings": "node scripts/headless-settings.js && node scripts/headless-settings-page.js",
-    "test:all": "npm test && npm run test:realtime && npm run test:game && npm run test:build && npm run test:shell && npm run test:touch && npm run test:crash && npm run test:settings && npm run test:perf"
+    "test:mods": "node scripts/headless-mod-flashlight.js && node scripts/headless-mod-adaptive-speed.js && node scripts/headless-mod-transform.js && node scripts/headless-mod-incompatible.js && node scripts/headless-mod-fun-all.js",
+    "test:all": "npm test && npm run test:realtime && npm run test:game && npm run test:build && npm run test:shell && npm run test:touch && npm run test:crash && npm run test:settings && npm run test:mods && npm run test:perf"
   },
   "dependencies": {
     "fflate": "^0.8.3",
     "howler": "^2.2.4",
     "pixi.js": "^8.19.0",
+    "rosu-pp-js": "^4.0.1",
     "vue-router": "^5.2.0"
   },
   "devDependencies": {

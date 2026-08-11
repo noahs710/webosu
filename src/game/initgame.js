@@ -1,11 +1,16 @@
 import Osu from "./osu.js";
 import { loadCachedSkin, applySkin } from "./skin-loader.js";
+import { validateSkin, validateHitsounds } from "./skin-loader.js";
 import Playback from "./playback.js";
 import { log as ilog, warn as iwarn, error as ierror } from "./logger.js";
 import { gamesettings } from "../shell/gamesettings.js";
+import { ModRegistry } from "./mods/index.js";
+// Register all mods with the registry (side-effect import)
+import "./mods/register.js";
 
    window.Osu = Osu;
    window.Playback = Playback;
+   window.ModRegistry = ModRegistry;
    // setup compatible audio context
    window.AudioContext = window.AudioContext || window.webkitAudioContext;
 
@@ -40,7 +45,8 @@ import { gamesettings } from "../shell/gamesettings.js";
       ESCkeycode: 27,
       ESC2keycode: 27,
 
-      // mods
+      // mods (flat boolean flags — DEPRECATED, kept as aliases for one release;
+      // new code should read window.ModRegistry.getActive() / game.mods instead)
       autoplay: false,
       replayMode: false,
       nightcore: false,
@@ -59,6 +65,9 @@ import { gamesettings } from "../shell/gamesettings.js";
       customCS: 0,
       customOD: 0,
       customHP: 0,
+
+      // mods — the new Mod instance array (populated by gamesettings.loadToGame via ModRegistry)
+      mods: [],
 
       // skin mods
       hideNumbers: false,
@@ -130,31 +139,43 @@ import { gamesettings } from "../shell/gamesettings.js";
          return true;
       } catch (e) { ierror("initgame", "sprites.json also failed — game cannot start", e); return false; }
    }
-   loadDefaultSkin().then((ok) => {
-      window.skinReady = true;
-      document.body.classList.add("skin-ready");
-      ilog("initgame", "skinReady=true");
-   });
+    loadDefaultSkin().then((ok) => {
+       window.skinReady = true;
+       document.body.classList.add("skin-ready");
+       ilog("initgame", "skinReady=true");
+       // Validate skin after load
+       try {
+          const result = validateSkin(null); // reads from window.Skin
+          if (!result.ok) {
+             ilog("initgame", "skin validation issue", result);
+             window.dispatchEvent(new CustomEvent("skin-health-issue", { detail: {
+                type: "skin", missing: result.missing, corrupt: result.corrupt,
+                message: result.missing.length ? "Missing core textures: " + result.missing.join(", ")
+                  : "Corrupt textures: " + result.corrupt.join(", "),
+             }}));
+          }
+       } catch (e) { iwarn("initgame", "skin validation failed", e); }
+    });
 
    // load sounds
    // load hitsound set
-   var sample = [
-      "/hitsounds/normal-hitnormal.ogg",
-      "/hitsounds/normal-hitwhistle.ogg",
-      "/hitsounds/normal-hitfinish.ogg",
-      "/hitsounds/normal-hitclap.ogg",
-      "/hitsounds/normal-slidertick.ogg",
-      "/hitsounds/soft-hitnormal.ogg",
-      "/hitsounds/soft-hitwhistle.ogg",
-      "/hitsounds/soft-hitfinish.ogg",
-      "/hitsounds/soft-hitclap.ogg",
-      "/hitsounds/soft-slidertick.ogg",
-      "/hitsounds/drum-hitnormal.ogg",
-      "/hitsounds/drum-hitwhistle.ogg",
-      "/hitsounds/drum-hitfinish.ogg",
-      "/hitsounds/drum-hitclap.ogg",
-      "/hitsounds/drum-slidertick.ogg",
-      "/hitsounds/combobreak.ogg",
+    var sample = [
+       "/hitsounds/normal-hitnormal.ogg",
+       "/hitsounds/normal-hitwhistle.ogg",
+       "/hitsounds/normal-hitfinish.ogg",
+       "/hitsounds/normal-hitclap.ogg",
+       "/hitsounds/normal-slidertick.ogg",
+       "/hitsounds/soft-hitnormal.ogg",
+       "/hitsounds/soft-hitwhistle.ogg",
+       "/hitsounds/soft-hitfinish.ogg",
+       "/hitsounds/soft-hitclap.ogg",
+       "/hitsounds/soft-slidertick.ogg",
+       "/hitsounds/drum-hitnormal.ogg",
+       "/hitsounds/drum-hitwhistle.ogg",
+       "/hitsounds/drum-hitfinish.ogg",
+       "/hitsounds/drum-hitclap.ogg",
+       "/hitsounds/drum-slidertick.ogg",
+       "/hitsounds/combobreak.ogg",
    ];
    // override default hitsounds with any custom sounds the user imported (settings page)
    function applyCustomHitsounds() {
@@ -206,25 +227,42 @@ import { gamesettings } from "../shell/gamesettings.js";
       }
    }
 
-   sounds.whenLoaded = function () {
-      game.sample[1].hitnormal = sounds["/hitsounds/normal-hitnormal.ogg"];
-      game.sample[1].hitwhistle = sounds["/hitsounds/normal-hitwhistle.ogg"];
-      game.sample[1].hitfinish = sounds["/hitsounds/normal-hitfinish.ogg"];
-      game.sample[1].hitclap = sounds["/hitsounds/normal-hitclap.ogg"];
-      game.sample[1].slidertick = sounds["/hitsounds/normal-slidertick.ogg"];
-      game.sample[2].hitnormal = sounds["/hitsounds/soft-hitnormal.ogg"];
-      game.sample[2].hitwhistle = sounds["/hitsounds/soft-hitwhistle.ogg"];
-      game.sample[2].hitfinish = sounds["/hitsounds/soft-hitfinish.ogg"];
-      game.sample[2].hitclap = sounds["/hitsounds/soft-hitclap.ogg"];
-      game.sample[2].slidertick = sounds["/hitsounds/soft-slidertick.ogg"];
-      game.sample[3].hitnormal = sounds["/hitsounds/drum-hitnormal.ogg"];
-      game.sample[3].hitwhistle = sounds["/hitsounds/drum-hitwhistle.ogg"];
-      game.sample[3].hitfinish = sounds["/hitsounds/drum-hitfinish.ogg"];
-      game.sample[3].hitclap = sounds["/hitsounds/drum-hitclap.ogg"];
-      game.sample[3].slidertick = sounds["/hitsounds/drum-slidertick.ogg"];
-      game.sampleComboBreak = sounds["/hitsounds/combobreak.ogg"];
+    sounds.whenLoaded = function () {
+       game.sample[1].hitnormal = sounds["/hitsounds/normal-hitnormal.ogg"];
+       game.sample[1].hitwhistle = sounds["/hitsounds/normal-hitwhistle.ogg"];
+       game.sample[1].hitfinish = sounds["/hitsounds/normal-hitfinish.ogg"];
+       game.sample[1].hitclap = sounds["/hitsounds/normal-hitclap.ogg"];
+       game.sample[1].slidertick = sounds["/hitsounds/normal-slidertick.ogg"];
+       game.sample[1].sliderslide = sounds["/hitsounds/normal-sliderslide.ogg"];
+       game.sample[1].spinnerspin = sounds["/hitsounds/normal-spinnerspin.ogg"];
+       game.sample[2].hitnormal = sounds["/hitsounds/soft-hitnormal.ogg"];
+       game.sample[2].hitwhistle = sounds["/hitsounds/soft-hitwhistle.ogg"];
+       game.sample[2].hitfinish = sounds["/hitsounds/soft-hitfinish.ogg"];
+       game.sample[2].hitclap = sounds["/hitsounds/soft-hitclap.ogg"];
+       game.sample[2].slidertick = sounds["/hitsounds/soft-slidertick.ogg"];
+       game.sample[2].sliderslide = sounds["/hitsounds/soft-sliderslide.ogg"];
+       game.sample[2].spinnerspin = sounds["/hitsounds/soft-spinnerspin.ogg"];
+       game.sample[3].hitnormal = sounds["/hitsounds/drum-hitnormal.ogg"];
+       game.sample[3].hitwhistle = sounds["/hitsounds/drum-hitwhistle.ogg"];
+       game.sample[3].hitfinish = sounds["/hitsounds/drum-hitfinish.ogg"];
+       game.sample[3].hitclap = sounds["/hitsounds/drum-hitclap.ogg"];
+       game.sample[3].slidertick = sounds["/hitsounds/drum-slidertick.ogg"];
+       game.sample[3].sliderslide = sounds["/hitsounds/drum-sliderslide.ogg"];
+       game.sample[3].spinnerspin = sounds["/hitsounds/drum-spinnerspin.ogg"];
+       game.sampleComboBreak = sounds["/hitsounds/combobreak.ogg"];
        window.soundReady = true;
        applyCustomHitsounds();
+       // Validate hitsounds after load
+       try {
+          const result = validateHitsounds();
+          if (!result.ok) {
+             iwarn("initgame", "hitsound validation issue", result);
+             window.dispatchEvent(new CustomEvent("skin-health-issue", { detail: {
+                type: "hitsounds", missing: result.missing,
+                message: "Missing core hitsounds: " + result.missing.join(", "),
+             }}));
+          }
+       } catch (e) { iwarn("initgame", "hitsound validation failed", e); }
     };
     sounds.load(sample);
 

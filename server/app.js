@@ -129,8 +129,9 @@ function buildApp({ serveStatic = true } = {}) {
   });
 
   // rosu-pp-js accurate PP (takes raw .osu text) — proxied via :8080
+  // v2: lazer mode + full mod acronym list (opts.modsList)
   app.post("/api/pp/rosu", async (req, reply) => {
-    const { osu, mods, modsNum, accuracy, acc, combo, n300, n100, n50, misses, miss, c300, c100, c50 } = req.body || {};
+    const { osu, mods, modsNum, modsList, accuracy, acc, combo, n300, n100, n50, misses, miss, c300, c100, c50 } = req.body || {};
     const osuText = osu || req.body?.osuText || req.body?.beatmap;
     if (!osuText || typeof osuText !== "string" || osuText.length < 100) {
       return reply.code(400).send({ error: "missing osu text" });
@@ -139,13 +140,14 @@ function buildApp({ serveStatic = true } = {}) {
     const m = mods != null ? mods : (modsNum != null ? modsNum : 0);
     const a = accuracy != null ? accuracy : (acc != null ? acc : undefined);
     const r = calcRosuPP(osuText, {
-      mods: m, accuracy: a,
+      mods: m, accuracy: a, lazer: true,
+      modsList: Array.isArray(modsList) ? modsList : null,
       combo: combo != null ? combo : 0,
       n300: n300 != null ? n300 : c300, n100: n100 != null ? n100 : c100, n50: n50 != null ? n50 : c50,
       misses: misses != null ? misses : (miss != null ? miss : 0),
     });
     if (!r) return reply.code(422).send({ error: "rosu calc failed or suspicious map" });
-    reply.send({ pp: r.pp, stars: r.stars, maxPP: r.maxPP, rosu: true });
+    reply.send({ pp: r.pp, stars: r.stars, maxPP: r.maxPP, rosu: true, lazer: true });
   });
 
   // ---------- scores + replays (webosu leaderboard, additive to catboy.best) ----------
@@ -156,6 +158,24 @@ function buildApp({ serveStatic = true } = {}) {
     if (typeof s.beatmap_id !== "number" || typeof s.score !== "number" || !isFinite(s.beatmap_id) || !isFinite(s.score))
       return reply.code(400).send({ error: "invalid beatmap_id or score" });
     const v = validateReplay(s, s.beatmap, s.replay);
+    // Reject unknown mods (v2 validation)
+    if (v.mods_error) return reply.code(400).send({ error: v.mods_error });
+    // Compute PP via rosu-pp if raw .osu is available
+    let pp = 0;
+    if (s.beatmap && s.beatmap.hitObjects && typeof s.beatmap.track === "string" && s.beatmap.track.length > 100) {
+      try {
+        const { calcRosuPP } = require("./pp");
+        const modsList = Array.isArray(s.mods_list) ? s.mods_list : null;
+        const r = calcRosuPP(s.beatmap.track, {
+          lazer: true, modsList,
+          accuracy: parseFloat(s.acc) || 0,
+          combo: s.combo || 0,
+          n300: s.count300 || 0, n100: s.count100 || 0, n50: s.count50 || 0,
+          misses: s.miss || 0,
+        });
+        if (r && r.pp) pp = r.pp;
+      } catch (e) { /* PP calc failed — store 0 */ }
+    }
     const scoreId = D.insertScore({
       user_id: req.user.id,
       beatmap_id: s.beatmap_id,
@@ -165,7 +185,13 @@ function buildApp({ serveStatic = true } = {}) {
       score: s.score, max_combo: s.combo, acc: parseFloat(s.acc) || 0,
       grade: s.grade, count300: s.count300, count100: s.count100, count50: s.count50, miss: s.miss,
       approved: v.approved ? 1 : 0,
+      ruleset_version: s.ruleset_version || "v2",
+      mods_hash: v.mods_hash,
+      ranked: v.ranked ? 1 : 0,
+      pp,
     });
+    // Recalc the user's total PP after the new score
+    if (pp > 0 && v.ranked) D.recalcTotalPP(req.user.id);
     if (s.replay && Array.isArray(s.replay)) {
       D.insertReplay(scoreId, Buffer.from(JSON.stringify(s.replay)), s.replay.length);
     }
@@ -250,9 +276,23 @@ function buildApp({ serveStatic = true } = {}) {
 
   app.get("/api/leaderboards/:beatmapId", async (req, reply) => {
     const beatmapId = parseInt(req.params.beatmapId, 10);
-    const modsNum = req.query.mods != null ? parseInt(req.query.mods, 10) : null;
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
-    reply.send(D.leaderboard(beatmapId, modsNum, limit));
+    const version = req.query.version || "v2";  // v2 = lazer-scaled (default), v1 = legacy
+    const modsHash = req.query.mods_hash != null ? req.query.mods_hash : null;
+    if (version === "v1") {
+      // legacy v1 leaderboard (by mods_num bitmask)
+      const modsNum = req.query.mods != null ? parseInt(req.query.mods, 10) : null;
+      reply.send(D.leaderboard(beatmapId, modsNum, limit));
+    } else {
+      // v2 lazer-scaled leaderboard (per-mod-combination via mods_hash)
+      reply.send(D.leaderboardV2(beatmapId, modsHash, limit, { version: "v2", ranked: req.query.ranked === "false" ? false : true }));
+    }
+  });
+
+  // List distinct mod combinations played on a beatmap (for the UI selector)
+  app.get("/api/leaderboards/:beatmapId/mods", async (req, reply) => {
+    const beatmapId = parseInt(req.params.beatmapId, 10);
+    reply.send(D.leaderboardModCombos(beatmapId));
   });
 
   app.get("/api/scores/:id", async (req, reply) => {
@@ -276,7 +316,30 @@ function buildApp({ serveStatic = true } = {}) {
     if (!u) return reply.code(404).send({ error: "not found" });
     const stats = D.userStats(u.id);
     const achievements = D.achievements(u.id);
-    reply.send({ user: u, stats, achievements });
+    const globalRank = D.userRank(u.id);
+    const countryRank = D.userCountryRank(u.id);
+    reply.send({ user: u, stats, achievements, globalRank, countryRank });
+  });
+
+  // Recent plays for a specific user
+  app.get("/api/profiles/:username/recent", async (req, reply) => {
+    const u = D.getUserByName(req.params.username);
+    if (!u) return reply.code(404).send({ error: "not found" });
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
+    reply.send(D.userScoresRecent(u.id, limit));
+  });
+
+  // ---------- rankings ----------
+  app.get("/api/rankings", async (req, reply) => {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const offset = parseInt(req.query.offset, 10) || 0;
+    reply.send(D.rankings(limit, offset));
+  });
+
+  app.get("/api/rankings/country/:country", async (req, reply) => {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
+    const offset = parseInt(req.query.offset, 10) || 0;
+    reply.send(D.rankingsByCountry(req.params.country, limit, offset));
   });
 
   app.get("/api/profile/me", { preHandler: authRequired }, async (req, reply) => {
@@ -288,9 +351,13 @@ function buildApp({ serveStatic = true } = {}) {
   });
 
   app.put("/api/profile/me", { preHandler: authRequired }, async (req, reply) => {
-    const { settings, favorites } = req.body || {};
+    const { settings, favorites, pfp_url } = req.body || {};
     if (settings != null) D.setProfileField(req.user.id, "settings", JSON.stringify(settings));
     if (favorites != null) D.setProfileField(req.user.id, "favorites", JSON.stringify(favorites));
+    if (pfp_url != null) {
+      // store pfp_url directly on the users table
+      D.db.prepare("UPDATE users SET pfp_url = ? WHERE id = ?").run(pfp_url, req.user.id);
+    }
     reply.send({ ok: true });
   });
 

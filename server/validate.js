@@ -1,4 +1,5 @@
 "use strict";
+const crypto = require("crypto");
 
 /*
  * Server-side replay validation (anti-cheat).
@@ -17,12 +18,50 @@
  * (including fails, where the replay covers part of the map) are not penalised.
  * catboy.best remains the source of truth for beatmap data; the played beatmap's
  * hitobjects are submitted by the client for validation.
+ *
+ * v2: accepts the expanded lazer mod set + mod acronym list. Scores with
+ * unranked mods (RX, AP, AT, or the fun mods) are marked ranked=0.
  */
+
+// The expanded mod acronym set (lazer parity). Unknown mods are rejected.
+const KNOWN_MODS = new Set([
+  "HR", "EZ", "DT", "NC", "HT", "HD", "NF", "SD", "PF", "SO", "CL", "DA", "AT",
+  "FL", "RX", "AP", "TP", "AS",
+  "MG", "WO", "WU", "TR", "AD", "BU", "RP", "DP", "TF", "NS",
+]);
+
+// Mods that make a score unranked (lazer: 0x multiplier / unranked).
+const UNRANKED_MODS = new Set(["RX", "AP", "AT", "MG", "WO", "WU", "TR", "AD", "BU", "RP", "DP", "TF", "NS"]);
+
+// Compute a stable hash for a mod acronym list (sorted, joined, sha256 truncated).
+function modsHash(modsList) {
+  if (!Array.isArray(modsList) || modsList.length === 0) return "nomod";
+  const sorted = modsList.slice().sort().join(",");
+  return crypto.createHash("sha256").update(sorted).digest("hex").slice(0, 16);
+}
+
 function validate(score, beatmap, replay) {
+  // v2: validate the mod list + compute ranked + mods_hash FIRST (before the early returns)
+  const modsList = Array.isArray(score && score.mods_list) ? score.mods_list : null;
+  let ranked = true;
+  let mh = null;
+  let modsError = null;
+  if (modsList) {
+    for (const m of modsList) {
+      if (!KNOWN_MODS.has(m)) {
+        modsError = "unknown mod: " + m;
+        break;
+      }
+      if (UNRANKED_MODS.has(m)) ranked = false;
+    }
+    if (!modsError) mh = modsHash(modsList);
+  }
+
   if (!replay || !Array.isArray(replay) || replay.length === 0)
-    return { approved: true, reason: "no-replay" };
+    return { approved: true, reason: "no-replay", ranked, mods_hash: mh, mods_error: modsError };
+  if (modsError) return { approved: false, reason: "unknown-mod", ranked: false, mods_hash: mh, mods_error: modsError };
   if (!beatmap || !Array.isArray(beatmap.hitObjects))
-    return { approved: true, reason: "no-beatmap" };
+    return { approved: true, reason: "no-beatmap", ranked, mods_hash: mh, mods_error: modsError };
 
   const od = beatmap.od != null ? beatmap.od : 8;
   const cs = beatmap.cs != null ? beatmap.cs : 4;
@@ -58,20 +97,25 @@ function validate(score, beatmap, replay) {
     if (near) supported++;
   }
 
-  if (checkable === 0) return { approved: true, reason: "no-checkable" };
+  if (checkable === 0) return { approved: true, reason: "no-checkable", ranked: true, mods_hash: null };
 
   // tolerate coarse replay + the slider/spinner judgements that aren't proximity
   // checked (claim can exceed checkable). Require the replay to back most claims.
+  let approved = true;
   if (claimedHits > 0 && supported < claimedHits * 0.6) {
-    return {
-      approved: false,
-      supported,
-      claimedHits,
-      checkable,
-      reason: "replay-does-not-support-claims",
-    };
+    approved = false;
   }
-  return { approved: true, supported, claimedHits, checkable, reason: "ok" };
+
+  return {
+    approved,
+    supported,
+    claimedHits,
+    checkable,
+    reason: approved ? "ok" : "replay-does-not-support-claims",
+    ranked,
+    mods_hash: mh,
+    mods_error: modsError,
+  };
 }
 
 function lowerBound(arr, t) {

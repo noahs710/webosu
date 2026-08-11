@@ -1,6 +1,7 @@
 import { ref, onMounted } from "vue";
 import BeatmapList from "../components/BeatmapList.vue";
 import ActivityFeed from "../components/ActivityFeed.vue";
+import { getFavorites } from "../../shell/favorites.js";
 
 export default {
   components: { BeatmapList, ActivityFeed },
@@ -21,7 +22,7 @@ export default {
     onMounted(async () => {
       if (window.localforage) {
         try {
-          const liked = await new Promise(r => localforage.getItem("likedsidset", (e, v) => r(v)));
+          const liked = await getFavorites();
           if (liked && liked.size) likedSids.value = Array.from(liked).slice(0, 6);
         } catch {}
         try {

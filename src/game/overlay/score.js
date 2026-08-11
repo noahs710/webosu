@@ -1,4 +1,6 @@
 
+import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from "../lazerHpTables.js";
+
    function addPlayHistory(summary) {
       if (!window.playHistory1000) {
          window.playHistory1000 = [];
@@ -19,13 +21,22 @@
       }
    }
 
-   function grade(acc) {
-      if (acc >= 1) return "SS";
-      if (acc >= 0.95) return "S";
-      if (acc >= 0.9) return "A";
-      if (acc >= 0.8) return "B";
-      if (acc >= 0.7) return "C";
-      return "D";
+   // Lazer grade: SS/S/A/B/C/D, with silver SSH/SH for FC + (HD or FL).
+   // The fullcombo flag and mod info (HD/FL active) determine the silver distinction.
+   function grade(acc, fullcombo, hasHdOrFl) {
+      let g;
+      if (acc >= 1) g = "SS";
+      else if (acc >= 0.95) g = "S";
+      else if (acc >= 0.9) g = "A";
+      else if (acc >= 0.8) g = "B";
+      else if (acc >= 0.7) g = "C";
+      else g = "D";
+      // Silver SS/S (SSH/SH): lazer awards for FC with Hidden or Flashlight active
+      if (fullcombo && hasHdOrFl) {
+         if (g === "SS") g = "SSH";
+         else if (g === "S") g = "SH";
+      }
+      return g;
    }
 
    function getUser(name) {
@@ -79,7 +90,13 @@
       // lazer-style standardised score (V2) base + passive HP drain
       this.v1Score = 0;
       this.lastDrainTime = -1e9;
-      this.passiveDrain = 0.00001 * (HPdrain || 0);
+      // Lazer drain rate: lazer computes this per-beatmap via a binary search that
+      // targets a minimum health (99% at HP=0, 90% at HP=5, 40% at HP=10) for a
+      // perfect play (DrainingHealthProcessor.ComputeDrainRate). That requires
+      // simulating the whole beatmap's HP increases — too complex for inline.
+      // This approximation scales with HPdrain; the per-judgement HP values
+      // (lazerHpIncrease) are the impactful change and are exact.
+      this.passiveDrain = lazerDifficultyRange(HPdrain || 0, 0.000003, 0.000008, 0.000015);
 
       this.score = 0; // this have been multiplied by scoreMultiplier
       this.combo = 0;
@@ -165,16 +182,28 @@
          this.HPbar[2].y = -7 * this.scaleMul;
       };
 
-      this.HPincreasefor = function (result) {
+      // Lazer HP increase per judgement (from OsuHealthProcessor.getHealthIncreaseFor)
+      this.HPincreasefor = function (result, maxresult) {
+         const dr = this.HPdrain;
+         // maxresult 300 = main judgement (circle/slider head), 10 = tick, 30 = edge
+         if (maxresult === 10) {
+            // slider tick
+            return result > 0 ? lazerHpIncrease("SmallTickHit", dr) : lazerHpIncrease("SmallTickMiss", dr);
+         }
+         if (maxresult === 30) {
+            // slider edge (repeat)
+            return result > 0 ? lazerHpIncrease("LargeTickHit", dr, "SliderRepeat") : lazerHpIncrease("LargeTickMiss", dr);
+         }
+         // maxresult 300 = main judgement
          switch (result) {
             case 0:
-               return -0.02 * this.HPdrain;
+               return lazerHpIncrease("Miss", dr);
             case 50:
-               return 0.01 * (4 - this.HPdrain);
+               return lazerHpIncrease("Meh", dr);
             case 100:
-               return 0.01 * (8 - this.HPdrain);
+               return lazerHpIncrease("Ok", dr);
             case 300:
-               return 0.01 * (10.2 - this.HPdrain);
+               return lazerHpIncrease("Great", dr);
             default:
                return 0;
          }
@@ -220,7 +249,7 @@
              }
           }
          this.maxcombo = Math.max(this.maxcombo, this.combo);
-         if (this.HP >= 0) this.HP += this.HPincreasefor(result);
+         if (this.HP >= 0) this.HP += this.HPincreasefor(result, maxresult);
          this.HP = Math.min(1, this.HP);
 
          this.score4display.set(time, this.score);
@@ -436,6 +465,10 @@
          }
 
          function modstext(game) {
+            // v2: use ModRegistry.serializeDisplay() (all mods), fallback to flat flags
+            if (window.ModRegistry && window.ModRegistry.serializeDisplay) {
+               return window.ModRegistry.serializeDisplay();
+            }
             let l = [];
             if (game.easy) l.push("EZ");
             if (game.daycore) l.push("DC");
@@ -456,6 +489,10 @@
          }
 
          function modsEnum(game) {
+            // v2: use ModRegistry.toBitmask() (all mods), fallback to flat flags
+            if (window.ModRegistry && window.ModRegistry.toBitmask) {
+               return window.ModRegistry.toBitmask();
+            }
             let num = 0;
             if (game.easy) num += 2;
             if (game.hidden) num += 8;
@@ -476,8 +513,10 @@
             if (text) div.innerText = text;
             return div;
          }
-          let acc = this.maxJudgeTotal > 0 ? this.judgeTotal / this.maxJudgeTotal : 1;
-         let rank = this.HP < 0 ? "F" : grade(acc);
+         let acc = this.maxJudgeTotal > 0 ? this.judgeTotal / this.maxJudgeTotal : 1;
+         // Lazer: silver SS/S for FC + (HD or FL)
+         const _hasHdOrFl = !!(window.ModRegistry && (window.ModRegistry.isActive("HD") || window.ModRegistry.isActive("FL")));
+         let rank = this.HP < 0 ? "F" : grade(acc, this.fullcombo, _hasHdOrFl);
          let grading = document.createElement("div");
          grading.className = "grading transparent";
          document.body.appendChild(grading);
@@ -523,13 +562,13 @@
             if (hiterrors && hiterrors.length >= 5) {
                let sum = 0; for (let i=0;i<hiterrors.length;i++) sum+=hiterrors[i];
                const avg = sum / hiterrors.length;
-               if (Math.abs(avg) >= 5 && Math.abs(avg) <= 50) {
-                  const gs = window.gamesettings;
-                  if (gs) {
-                     const cur = parseFloat(gs.audiooffset) || 0;
-                     // nudge offset by 30% of average error to avoid overcorrection, clamp to [-200,200]
-                     const delta = Math.round(-avg * 0.3);
-                     const next = Math.max(-200, Math.min(200, cur + delta));
+                if (Math.abs(avg) >= 3 && Math.abs(avg) <= 45) {
+                   const gs = window.gamesettings;
+                   if (gs) {
+                      const cur = parseFloat(gs.audiooffset) || 0;
+                      // lazer-style: nudge offset by 20% of average error (conservative, gradual)
+                      const delta = Math.round(-avg * 0.2);
+                      const next = Math.max(-200, Math.min(200, cur + delta));
                      if (next !== cur) {
                         gs.audiooffset = next;
                         gs.save && gs.save();
@@ -572,15 +611,17 @@
          let starsVal = window.lastPlayedStars;
          if (starsVal != null) starsBlock.innerText = `★ ${Number(starsVal).toFixed(2)}`;
          else starsBlock.innerText = "★ ?";
-         if (window.WebosuAPI) {
-            const mods = modsEnum(window.game);
-            // Try to get accurate PP from backend which now uses rosu-pp if _osu available
-            const payload = { stars: starsVal != null ? Number(starsVal) : 0, acc: acc * 100, combo: this.maxcombo, maxCombo: this.maxcombo, modsNum: mods, c300: this.judgecnt.great, c100: this.judgecnt.good, c50: this.judgecnt.meh, miss: this.judgecnt.miss };
-            // If we have the raw .osu, also send it for server-side rosu calculation (more accurate)
-            const rawOsu = window.playback && window.playback.track && window.playback.track.track;
-            if (rawOsu && rawOsu.length < 500000) {
-               // Use new rosu endpoint if available (POST with osu text)
-               fetch("/api/pp/rosu", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ osu: rawOsu, mods, accuracy: acc*100, combo: this.maxcombo, n300: this.judgecnt.great, n100: this.judgecnt.good, n50: this.judgecnt.meh, misses: this.judgecnt.miss }) })
+          if (window.WebosuAPI) {
+             const mods = modsEnum(window.game);
+             // v2: also send the ModRegistry's mod acronym list for lazer-mode PP
+             const modsList = (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize() : null;
+             // Try to get accurate PP from backend which now uses rosu-pp if _osu available
+             const payload = { stars: starsVal != null ? Number(starsVal) : 0, acc: acc * 100, combo: this.maxcombo, maxCombo: this.maxcombo, modsNum: mods, modsList, c300: this.judgecnt.great, c100: this.judgecnt.good, c50: this.judgecnt.meh, miss: this.judgecnt.miss };
+             // If we have the raw .osu, also send it for server-side rosu calculation (more accurate)
+             const rawOsu = window.playback && window.playback.track && window.playback.track.track;
+             if (rawOsu && rawOsu.length < 500000) {
+                // Use new rosu endpoint if available (POST with osu text) — v2 sends modsList for lazer mode
+                fetch("/api/pp/rosu", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ osu: rawOsu, mods, modsList, accuracy: acc*100, combo: this.maxcombo, n300: this.judgecnt.great, n100: this.judgecnt.good, n50: this.judgecnt.meh, misses: this.judgecnt.miss }) })
                  .then(r => r.json()).then(r => {
                     if (r && r.pp != null) ppBlock.innerText = `PP ${Math.round(r.pp)}`;
                     if (r && r.stars != null) starsBlock.innerText = `★ ${Number(r.stars).toFixed(2)}`;
@@ -625,15 +666,17 @@
             uploadScore(summary);
             if (window.WebosuAPI && WebosuAPI.isLoggedIn()) {
                try {
-                  WebosuAPI.submitScore({
-                     beatmap_id: parseInt(summary.bid, 10) || 0,
-                     beatmap_set_id: parseInt(summary.sid, 10) || 0,
-                     title: summary.title,
-                     artist: summary.artist,
-                     version: summary.version,
-                     mods: summary.mods,
-                     modsNum: modsEnum(window.game),
-                     score: parseInt(summary.score, 10) || 0,
+                   WebosuAPI.submitScore({
+                      beatmap_id: parseInt(summary.bid, 10) || 0,
+                      beatmap_set_id: parseInt(summary.sid, 10) || 0,
+                      title: summary.title,
+                      artist: summary.artist,
+                      version: summary.version,
+                      mods: summary.mods,
+                      modsNum: modsEnum(window.game),
+                      mods_list: (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize() : null,
+                      ruleset_version: "v2",
+                      score: parseInt(summary.score, 10) || 0,
                      combo: parseInt(summary.combo, 10) || 0,
                      acc: parseFloat(summary.acc) || 0,
                      grade: summary.grade,

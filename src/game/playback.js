@@ -7,6 +7,9 @@ import LoadingMenu from "./overlay/loading.js";
 import BreakOverlay from "./overlay/break.js";
 import ProgressOverlay from "./overlay/progress.js";
 import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
+import { ModRegistry } from "./mods/index.js";
+import { lazerSpinnerRpm } from "./lazerHpTables.js";
+import SliderJudge from "./slider-judge.js";
 import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./logger.js";
 
    function clamp01(a) {
@@ -78,8 +81,13 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       self.autoplay = game.autoplay;
       self.modhidden = game.hidden;
       self.playbackRate = 1.0;
-      if (self.game.nightcore) self.playbackRate *= 1.5;
+      // DT/NC: 1.5x speed. NC is a DT subclass (game.doubletime is set by both DT and NC).
+      // The NC pitch shift is applied audio-side in ModNightcore.applyToAudio.
+      if (self.game.doubletime) self.playbackRate *= 1.5;
       if (self.game.daycore) self.playbackRate *= 0.75;
+      // Adaptive Speed: start at 1.0, adjusted in the render loop based on accuracy
+      self._asRecentJudgements = [];  // rolling window of recent results
+      self._asCurrentRate = 1.0;
       self.hideNumbers = game.hideNumbers;
       self.hideGreat = game.hideGreat;
       self.hideFollowPoints = game.hideFollowPoints;
@@ -200,12 +208,18 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             width: window.innerWidth,
             height: window.innerHeight,
          });
-         self.progressOverlay.resize({
-            width: window.innerWidth,
-            height: window.innerHeight,
-         });
+          self.progressOverlay.resize({
+             width: window.innerWidth,
+             height: window.innerHeight,
+          });
 
-         if (self.background && self.background.texture) {
+          // FL overlay: force a redraw on resize (the full-screen rect changed)
+          if (self.flOverlay) {
+             self.flLastCursorX = -9999; self.flLastCursorY = -9999; self.flLastRadius = -1;
+             if (self.flSliderDim) { self.flSliderDim.clear(); self._flDimAlpha = 0; }
+          }
+
+          if (self.background && self.background.texture) {
             self.background.x = window.innerWidth / 2;
             self.background.y = window.innerHeight / 2;
             self.background.scale.set(
@@ -255,14 +269,21 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          if (game.customHP >= 0) this.HP = game.customHP;
       }
 
-      let scoreModMultiplier = 1.0;
-      if (game.easy) scoreModMultiplier *= 0.5;
-      if (game.daycore) scoreModMultiplier *= 0.3;
-      if (game.hardrock) scoreModMultiplier *= 1.06;
-      if (game.nightcore) scoreModMultiplier *= 1.12;
-      if (game.hidden) scoreModMultiplier *= 1.06;
-      if (game.nofail) scoreModMultiplier *= 0.5;
-      if (game.spunout) scoreModMultiplier *= 0.9;
+      // Mod multipliers via ModRegistry (replaces the hardcoded block).
+      // Falls back to the legacy flat-flag computation if the registry isn't loaded.
+      let scoreModMultiplier;
+      if (window.ModRegistry && ModRegistry.getActive().length) {
+         scoreModMultiplier = ModRegistry.scoreMultiplier();
+      } else {
+         scoreModMultiplier = 1.0;
+         if (game.easy) scoreModMultiplier *= 0.5;
+         if (game.daycore) scoreModMultiplier *= 0.3;
+         if (game.hardrock) scoreModMultiplier *= 1.06;
+         if (game.nightcore) scoreModMultiplier *= 1.12;
+         if (game.hidden) scoreModMultiplier *= 1.06;
+         if (game.nofail) scoreModMultiplier *= 0.5;
+         if (game.spunout) scoreModMultiplier *= 0.9;
+      }
 
       self.scoreOverlay = new ScoreOverlay(
          {
@@ -369,11 +390,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             var btn_continue = document.getElementById("pausebtn-continue");
             var btn_retry = document.getElementById("pausebtn-retry");
             var btn_quit = document.getElementById("pausebtn-quit");
+            var btn_mods = document.getElementById("pausebtn-mods");
             btn_continue.onclick = function () {
                self.resume();
                btn_continue.onclick = null;
                btn_retry.onclick = null;
                btn_quit.onclick = null;
+               btn_mods.onclick = null;
+               const mp = document.getElementById("pause-mod-panel"); if (mp) mp.setAttribute("hidden", "");
             };
             btn_retry.onclick = function () {
                self.game.paused = false;
@@ -385,6 +409,28 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                menu.setAttribute("hidden", "");
                self.quit();
             };
+            // Mods button: toggle the ModSelectPanel overlay in the pause menu
+            if (btn_mods) {
+               btn_mods.onclick = function () {
+                  const mp = document.getElementById("pause-mod-panel");
+                  if (!mp) return;
+                  if (mp.hasAttribute("hidden")) {
+                     // mount the ModSelectPanel via Vue (lazy ESM import)
+                     Promise.all([
+                        import("../vue/components/ModSelectPanel.vue"),
+                        import("vue"),
+                     ]).then(([mod, vue]) => {
+                        const ModSelectPanel = mod.default;
+                        mp.innerHTML = "";
+                        const modApp = vue.createApp(ModSelectPanel);
+                        modApp.mount(mp);
+                        mp.removeAttribute("hidden");
+                     }).catch(() => { mp.removeAttribute("hidden"); });
+                  } else {
+                     mp.setAttribute("hidden", "");
+                  }
+               };
+            }
          }
       };
       this.resume = function () {
@@ -526,15 +572,18 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          judge.points = points;
          judge.t0 = time;
          if (judge.useSprites) {
-            // Map points to skin judgement texture — always set texture, fallback to WHITE tinted
-            var texKey = "hit300.png";
-            if (points == 0) texKey = "hit0.png";
-            else if (points == 50) texKey = "hit50.png";
-            else if (points == 100) texKey = "hit100.png";
-            else if (points == 300) {
-               texKey = "hit300.png";
-               if (this.fullcombo && window.Skin?.["hit300g.png"]) texKey = "hit300g.png";
-            }
+             // Map points to skin judgement texture — always set texture, fallback to WHITE tinted
+             var texKey = "hit300.png";
+             if (points == 0) texKey = "hit0.png";
+             else if (points == 50) texKey = "hit50.png";
+             else if (points == 100) {
+                // lazer Ok judgement: prefer hit100k.png (Ok-specific) over hit100.png
+                texKey = (window.Skin?.["hit100k.png"]) ? "hit100k.png" : "hit100.png";
+             }
+             else if (points == 300) {
+                texKey = "hit300.png";
+                if (this.fullcombo && window.Skin?.["hit300g.png"]) texKey = "hit300g.png";
+             }
             var tex = window.Skin?.[texKey] || PIXI.Texture.WHITE;
             judge.texture = tex;
             if (tex === PIXI.Texture.WHITE) judge.tint = judgementColor(points);
@@ -854,12 +903,257 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       this.loadingMenu.zIndex = 60;
       self.game.stage.addChild(this.scoreOverlay);
       self.game.stage.addChild(this.errorMeter);
-      self.game.stage.addChild(this.progressOverlay);
-      self.game.stage.addChild(this.breakOverlay);
-      self.game.stage.addChild(this.volumeMenu);
-      self.game.stage.addChild(this.loadingMenu);
+       self.game.stage.addChild(this.progressOverlay);
+       self.game.stage.addChild(this.breakOverlay);
+       self.game.stage.addChild(this.volumeMenu);
+       self.game.stage.addChild(this.loadingMenu);
 
-      // creating hit objects
+       // Flashlight (FL) overlay — full-screen dark Graphics with a transparent circle
+       // hole at the cursor position. zIndex 5 = above gamefield (0), below HUD (10).
+       // Only created when the FL mod is active (game.flashlight).
+       this.flOverlay = null;
+       this.flSliderDim = null;
+       this.flLastCursorX = -9999;
+       this.flLastCursorY = -9999;
+       this.flLastRadius = -1;
+       this._flFollowingSlider = false;
+       this._flDimAlpha = 0;
+       this.initFlashlight = function () {
+          if (!game.flashlight || this.flOverlay) return;
+          const flMod = window.ModRegistry ? window.ModRegistry.get("FL") : null;
+          const s = flMod ? flMod.settings : {};
+          this._flSettings = {
+             sizeCombo0: s.sizeCombo0 || 400,
+             sizeCombo100: s.sizeCombo100 || 300,
+             sizeCombo200: s.sizeCombo200 || 250,
+             sliderDim: s.sliderDim != null ? s.sliderDim : 0.3,
+          };
+          // main overlay: black rect with a circle hole
+          this.flOverlay = new PIXI.Graphics();
+          this.flOverlay.eventMode = 'none';
+          this.flOverlay.cullable = false;
+          this.flOverlay.zIndex = 5;
+          self.game.stage.addChild(this.flOverlay);
+          // slider dim: a second full-screen black rect that fades in during slider following
+          this.flSliderDim = new PIXI.Graphics();
+          this.flSliderDim.eventMode = 'none';
+          this.flSliderDim.cullable = false;
+          this.flSliderDim.zIndex = 5.5;
+          this.flSliderDim.alpha = 0;
+          self.game.stage.addChild(this.flSliderDim);
+          glog("playback", "Flashlight overlay initialized");
+       };
+       this.initFlashlight();
+
+       // Compute the FL circle radius from the current combo (lazer FlashlightSize curve).
+       this.flRadiusForCombo = function (combo) {
+          const s = this._flSettings;
+          if (!s) return 300;
+          if (combo >= 200) return s.sizeCombo200;
+          if (combo >= 100) return s.sizeCombo100 + (s.sizeCombo200 - s.sizeCombo100) * (combo - 100) / 100;
+          if (combo > 0) return s.sizeCombo0 + (s.sizeCombo100 - s.sizeCombo0) * combo / 100;
+          return s.sizeCombo0;
+       };
+
+       // Redraw the FL overlay hole at the cursor's screen position.
+       // Called from the render loop; dirty-flagged on cursor movement >1px or radius change.
+       this.updateFlashlight = function (time) {
+          if (!this.flOverlay) return;
+          // cursor screen position (same transform as the cursor sprite in launchgame.js)
+          const cx = (game.mouseX / 512) * gfx.width + gfx.xoffset;
+          const cy = (game.mouseY / 384) * gfx.height + gfx.yoffset;
+          const combo = this.scoreOverlay ? this.scoreOverlay.combo : 0;
+          // scale the osu-pixel radius to screen pixels
+          const radius = this.flRadiusForCombo(combo) * (gfx.width / 512);
+          const dx = cx - this.flLastCursorX;
+          const dy = cy - this.flLastCursorY;
+          const moved = (dx * dx + dy * dy) > 1;  // >1px
+          const radiusChanged = Math.abs(radius - this.flLastRadius) > 0.5;
+          if (moved || radiusChanged) {
+             this.flLastCursorX = cx;
+             this.flLastCursorY = cy;
+             this.flLastRadius = radius;
+             const g = this.flOverlay;
+             g.clear();
+             // full-screen black rect
+             g.rect(0, 0, window.innerWidth, window.innerHeight);
+             g.fill({ color: 0x000000, alpha: 1 });
+             // punch a transparent circle hole at the cursor
+             g.circle(cx, cy, radius);
+             g.cut();
+          }
+          // slider dim: fade in while following a slider, fade out otherwise
+          const targetDim = this._flFollowingSlider ? this._flSettings.sliderDim : 0;
+          // frame-rate-independent lerp toward target
+          const dt = window.currentFrameInterval || 16.67;
+          const k = 1 - Math.exp(-dt / 100);  // ~100ms time constant
+          this._flDimAlpha += (targetDim - this._flDimAlpha) * k;
+          if (this.flSliderDim) {
+             // only redraw the dim rect if alpha changed meaningfully
+             if (Math.abs(this.flSliderDim.alpha - this._flDimAlpha) > 0.01) {
+                this.flSliderDim.clear();
+                this.flSliderDim.rect(0, 0, window.innerWidth, window.innerHeight);
+                this.flSliderDim.fill({ color: 0x000000, alpha: this._flDimAlpha });
+                this.flSliderDim.alpha = 1;
+             }
+          }
+       };
+       // Track whether the cursor is currently following a slider (set in updateSlider)
+       this._flSetFollowing = function (isfollowing) {
+          this._flFollowingSlider = isfollowing;
+       };
+
+       // Adaptive Speed: adjust the audio playback rate based on recent accuracy.
+       // On a streak of greats, increase toward maxRate; on misses, decrease toward 1.0.
+       this.updateAdaptiveSpeed = function (time) {
+          const asMod = window.ModRegistry ? window.ModRegistry.get("AS") : null;
+          const s = asMod ? asMod.settings : {};
+          const maxRate = s.maxRate || 1.05;
+          const step = s.adjustStep || 0.01;
+          const streakReq = s.streakRequired || 5;
+          // sample recent judgements from the score overlay
+          const j = this.scoreOverlay.judgecnt;
+          const recent = this._asRecentJudgements;
+          // track the last total great count to detect new greats
+          if (this._asLastGreats === undefined) this._asLastGreats = j.great;
+          const newGreats = j.great - this._asLastGreats;
+          const newMisses = j.miss - (this._asLastMisses || 0);
+          this._asLastGreats = j.great;
+          this._asLastMisses = j.miss;
+          if (newGreats > 0) {
+             for (let i = 0; i < newGreats; i++) recent.push(300);
+             if (recent.length > streakReq * 2) recent.splice(0, recent.length - streakReq * 2);
+             // if the last streakReq are all greats, increase rate
+             if (recent.length >= streakReq && recent.slice(-streakReq).every(r => r === 300)) {
+                this._asCurrentRate = Math.min(maxRate, this._asCurrentRate + step);
+             }
+          }
+          if (newMisses > 0) {
+             for (let i = 0; i < newMisses; i++) recent.push(0);
+             // any miss → decrease toward 1.0
+             this._asCurrentRate = Math.max(1.0, this._asCurrentRate - step * 2);
+          }
+          // apply the rate (multiply on top of DT/HT if active)
+          const baseRate = this.playbackRate;
+          const targetRate = baseRate * this._asCurrentRate;
+          if (this.osu.audio.playbackRate !== targetRate) {
+             this.osu.audio.playbackRate = targetRate;
+             if (this.osu.audio.source) this.osu.audio.source.playbackRate.value = targetRate;
+          }
+          // scale approach time so objects approach at the new speed
+          this._asApproachScale = 1 / this._asCurrentRate;
+       };
+
+       // Fun-mod geometry transforms applied per-frame to upcoming hit objects.
+       // Wobble: sine-wave displacement. Depth: scale by cursor distance.
+       // Transform: rotate/translate/scale around playfield center.
+       // Traceable: hide objects until cursor is near. NoScope: hide cursor (handled in launchgame).
+       // Bubbles: spawn bubble particles on hits (handled in hitSuccess).
+       this._applyFunModTransforms = function (time) {
+          if (!self.upcomingHits.length) return;
+          const g = this.game;
+          const cx = 256, cy = 192;  // playfield center in osu! pixels
+          const mx = g.mouseX, my = g.mouseY;
+          // Wobble
+          if (g.wobble) {
+             const wm = window.ModRegistry ? window.ModRegistry.get("WO") : null;
+             const s = wm ? wm.settings : {};
+             const strength = s.strength || 8;
+             const freq = s.frequency || 0.005;
+             const dx = Math.sin(time * freq) * strength;
+             const dy = Math.cos(time * freq * 1.3) * strength;
+             for (const hit of self.upcomingHits) {
+                if (hit.type === "spinner") continue;
+                if (hit.base) { hit.base.x = hit.x + dx; hit.base.y = hit.y + dy; }
+             }
+          }
+          // Depth
+          if (g.depth) {
+             const dm = window.ModRegistry ? window.ModRegistry.get("DP") : null;
+             const s = dm ? dm.settings : {};
+             const scaleNear = s.scaleNear || 1.2, scaleFar = s.scaleFar || 0.6, maxDist = s.maxDist || 400;
+             for (const hit of self.upcomingHits) {
+                if (hit.type === "spinner") continue;
+                const dist = Math.hypot(mx - hit.x, my - hit.y);
+                const t = Math.min(1, dist / maxDist);
+                const scale = scaleNear + (scaleFar - scaleNear) * t;
+                if (hit.base) hit.base.scale.set(this.hitSpriteScale * 0.5 * scale);
+             }
+          }
+          // Transform (rotate/translate/scale around playfield center)
+          if (g.transform) {
+             const tm = window.ModRegistry ? window.ModRegistry.get("TF") : null;
+             const s = tm ? tm.settings : {};
+             const rot = (s.rotate || 0) * Math.PI / 180;
+             const tx = s.translateX || 0, ty = s.translateY || 0, sc = s.scale || 1.0;
+             const cosR = Math.cos(rot), sinR = Math.sin(rot);
+             for (const hit of self.upcomingHits) {
+                if (hit.type === "spinner") continue;
+                const dx = (hit.x - cx) * sc, dy = (hit.y - cy) * sc;
+                const nx = cx + dx * cosR - dy * sinR + tx;
+                const ny = cy + dx * sinR + dy * cosR + ty;
+                if (hit.base) { hit.base.x = nx; hit.base.y = ny; }
+             }
+          }
+          // Traceable: hide objects until cursor is within revealRadius
+          if (g.traceable) {
+             const trm = window.ModRegistry ? window.ModRegistry.get("TR") : null;
+             const s = trm ? trm.settings : {};
+             const revealR = s.revealRadius || 120;
+             const revealR2 = revealR * revealR;
+             for (const hit of self.upcomingHits) {
+                if (hit.type === "spinner") continue;
+                const dist2 = (mx - hit.x) * (mx - hit.x) + (my - hit.y) * (my - hit.y);
+                const reveal = dist2 < revealR2;
+                const alpha = reveal ? 1 : 0;
+                if (hit.base) hit.base.alpha = alpha;
+                if (hit.circle) hit.circle.alpha = alpha;
+                if (hit.approach) hit.approach.alpha = alpha;
+             }
+          }
+       };
+
+       // Bubbles: spawn a bubble sprite at the hit position on each successful hit.
+       // Pooled to avoid per-hit allocation.
+       this._bubblePool = [];
+       this._bubbles = [];
+       this.spawnBubble = function (x, y, time) {
+          if (!this.game.bubbles) return;
+          const bm = window.ModRegistry ? window.ModRegistry.get("BU") : null;
+          const lifetime = (bm && bm.settings.lifetime) || 800;
+          let b = this._bubblePool.length ? this._bubblePool.pop() : new PIXI.Graphics();
+          b.clear();
+          b.circle(0, 0, this.circleRadius * 0.3);
+          b.fill({ color: 0x88ccff, alpha: 0.6 });
+          b.x = x; b.y = y;
+          b.alpha = 1;
+          b.visible = true;
+          b._bubbleT0 = time;
+          b._bubbleLifetime = lifetime;
+          b.zIndex = 6;
+          b.eventMode = 'none';
+          b.cullable = false;
+          this.gamefield.addChild(b);
+          this._bubbles.push(b);
+       };
+       this.updateBubbles = function (time) {
+          for (let i = this._bubbles.length - 1; i >= 0; i--) {
+             let b = this._bubbles[i];
+             let t = time - b._bubbleT0;
+             if (t >= b._bubbleLifetime) {
+                this.gamefield.removeChild(b);
+                if (this._bubblePool.length < 32) this._bubblePool.push(b); else b.destroy();
+                this._bubbles.splice(i, 1);
+             } else {
+                let p = t / b._bubbleLifetime;
+                b.y -= 0.5 * (window.currentFrameInterval || 16.67) / 16.67;  // float up
+                b.alpha = 1 - p;
+                b.scale.set(1 + p * 0.5);
+             }
+          }
+       };
+
+       // creating hit objects
       this.createHitCircle = function (hit) {
          function newHitSprite(
             spritename,
@@ -937,44 +1231,36 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             if (window.Skin && window.Skin?.["score-" + digit + ".png"]) return "score-" + digit + ".png";
             return digit + ".png";
           }
-         hit.numbers = [];
-         if (index <= 9) {
-            hit.numbers.push(
-               newHitSprite(hitNumberKey(index), basedep, 0.4, 0.5, 0.47)
-            );
-         } else if (index <= 99) {
-            hit.numbers.push(
-               newHitSprite(
-                  hitNumberKey(index % 10),
-                  basedep,
-                  0.35,
-                  0,
-                  0.47
-               )
-            );
-            hit.numbers.push(
-               newHitSprite(
-                  hitNumberKey(Math.floor(index / 10)),
-                  basedep,
-                  0.35,
-                  1,
-                  0.47
-               )
-            );
-            // handle HitCircleOverlap from skin.ini (overlap in pixels)
-            const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.hitCircleOverlap) || 0;
-            if (overlap) {
-               // tens (index 1) anchor 1, units (index 0) anchor 0 — bring together by overlap
-               hit.numbers[0].x += overlap * 0.3;
-               hit.numbers[1].x -= overlap * 0.3;
-            }
-         }
-         // Note: combos > 99 hits are unsupported
-      };
+          hit.numbers = [];
+          // Multi-digit combo number rendering (supports 1-4+ digits, combos >99).
+          // Leftmost digit anchors x=1 (right-aligned to next), rightmost x=0 (left-aligned),
+          // middle digits x=0.5 (centered). HitCircleOverlap applied between each pair.
+          const digits = index.toString().split("").map(Number);
+          const digitCount = digits.length;
+          for (let di = 0; di < digitCount; di++) {
+             const isLeftmost = (di === digitCount - 1);   // most-significant digit (left)
+             const isRightmost = (di === 0);                // least-significant digit (right)
+             const anchorX = isLeftmost ? 1 : isRightmost ? 0 : 0.5;
+             const scalemul = digitCount === 1 ? 0.4 : 0.35;
+             hit.numbers.push(
+                newHitSprite(hitNumberKey(digits[di]), basedep, scalemul, anchorX, 0.47)
+             );
+          }
+          // handle HitCircleOverlap from skin.ini (overlap in pixels) — apply between each pair
+          const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.hitCircleOverlap) || 0;
+          if (overlap && digitCount > 1) {
+             for (let di = 0; di < digitCount - 1; di++) {
+                 hit.numbers[di].x += overlap * 0.3;      // right digit shifts right
+                 hit.numbers[di + 1].x -= overlap * 0.3;  // left digit shifts left
+              }
+           }
+          // Multi-digit combo numbers supported (1-9999+)
+       };
 
-      this.createSlider = function (hit) {
-         hit.lastrep = 0; // for current-repeat counting
-         hit.nexttick = 0; // for tick hit counting
+       this.createSlider = function (hit) {
+          hit.lastrep = 0; // for current-repeat counting
+          hit.nexttick = 0; // for tick hit counting
+          hit.sliderJudge = new SliderJudge(hit);  // lazer accumulator
 
          // create slider body — Graphics-based SliderMesh is now the primary (no GL shader)
          let body;
@@ -1133,13 +1419,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          // absolute position
          hit.rotation = 0;
          hit.rotationProgress = 0;
-         hit.clicked = false;
-         let spinRequiredPerSec =
-            this.OD < 5 ? 3 + 0.4 * this.OD : 2.5 + 0.5 * this.OD;
-         spinRequiredPerSec *= 0.7; // make it easier
-         hit.rotationRequired =
-            (2 * Math.PI * spinRequiredPerSec * (hit.endTime - hit.time)) /
-            1000;
+          hit.clicked = false;
+          // Lazer spinner: clear RPM = DifficultyRange(OD, 90, 150, 225).
+          // spins/sec = clearRPM / 60. No *0.7 "make it easier" cheat.
+          const spinnerRpm = lazerSpinnerRpm(this.OD);
+          let spinRequiredPerSec = spinnerRpm.clear / 60;
+          hit.rotationRequired =
+             (2 * Math.PI * spinRequiredPerSec * (hit.endTime - hit.time)) /
+             1000;
 
          function newsprite(spritename) {
             var sprite = new PIXI.Sprite(window.Skin?.[spritename] || PIXI.Texture.WHITE);
@@ -1309,30 +1596,69 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
       // use separate timing for sounds, since volume may change inside a slider or spinner
       // note: time is expected time of object hit, not real time
       this.curtimingid = 0;
-      this.playTicksound = function playTicksound(hit, time) {
-         while (
-            this.curtimingid + 1 < this.track.timingPoints.length &&
-            this.track.timingPoints[this.curtimingid + 1].offset <= time
-         )
-            this.curtimingid++;
-         while (
-            this.curtimingid > 0 &&
-            this.track.timingPoints[this.curtimingid].offset > time
-         )
-            this.curtimingid--;
-         let timing = this.track.timingPoints[this.curtimingid];
-         let volume =
-            (self.game.masterVolume *
-               self.game.effectVolume *
-                (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
-             100;
-          let defaultSet = timing.sampleSet > 0 ? timing.sampleSet : self.game.sampleSet;
-          try {
-             self.game.sample[defaultSet].slidertick.volume = volume;
-             self.game.sample[defaultSet].slidertick.play();
-          } catch (e) {}
+       this.playTicksound = function playTicksound(hit, time) {
+          while (
+             this.curtimingid + 1 < this.track.timingPoints.length &&
+             this.track.timingPoints[this.curtimingid + 1].offset <= time
+          )
+             this.curtimingid++;
+          while (
+             this.curtimingid > 0 &&
+             this.track.timingPoints[this.curtimingid].offset > time
+          )
+             this.curtimingid--;
+          let timing = this.track.timingPoints[this.curtimingid];
+          let volume =
+             (self.game.masterVolume *
+                self.game.effectVolume *
+                 (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) /
+              100;
+           let defaultSet = timing.sampleSet > 0 ? timing.sampleSet : self.game.sampleSet;
+           try {
+              self.game.sample[defaultSet].slidertick.volume = volume;
+              self.game.sample[defaultSet].slidertick.play();
+           } catch (e) {}
        };
-      this.playHitsound = function playHitsound(hit, id, time) {
+
+      // Continuous sliderslide sound (lazer: looped while following a slider)
+      this._playSliderSlide = function (hit, time) {
+         let timing = this.track.timingPoints[this.curtimingid] || this.track.timingPoints[0];
+         let volume = (self.game.masterVolume * self.game.effectVolume *
+            (hit.hitSample.volume != null ? hit.hitSample.volume : timing.volume)) / 100;
+         let defaultSet = timing.sampleSet > 0 ? timing.sampleSet : self.game.sampleSet;
+         try {
+            const snd = self.game.sample[defaultSet].sliderslide;
+            if (!snd) return;
+            snd.volume = volume;
+            snd.loop = true;
+            snd.play();
+         } catch (e) {}
+      };
+      this._stopSliderSlide = function (hit) {
+         for (let set = 1; set <= 3; set++) {
+            try { if (self.game.sample[set] && self.game.sample[set].sliderslide) self.game.sample[set].sliderslide.stop(); } catch (e) {}
+         }
+      };
+
+      // Continuous spinnerspin sound (lazer: looped while a spinner is active)
+      this._playSpinnerSpin = function (hit, time) {
+         let timing = this.track.timingPoints[this.curtimingid] || this.track.timingPoints[0];
+         let volume = (self.game.masterVolume * self.game.effectVolume * timing.volume) / 100;
+         let defaultSet = timing.sampleSet > 0 ? timing.sampleSet : self.game.sampleSet;
+         try {
+            const snd = self.game.sample[defaultSet].spinnerspin;
+            if (!snd) return;
+            snd.volume = volume;
+            snd.loop = true;
+            snd.play();
+         } catch (e) {}
+      };
+      this._stopSpinnerSpin = function () {
+         for (let set = 1; set <= 3; set++) {
+            try { if (self.game.sample[set] && self.game.sample[set].spinnerspin) self.game.sample[set].spinnerspin.stop(); } catch (e) {}
+         }
+       };
+       this.playHitsound = function playHitsound(hit, id, time) {
          while (
             this.curtimingid + 1 < this.track.timingPoints.length &&
             this.track.timingPoints[this.curtimingid + 1].offset <= time
@@ -1383,8 +1709,19 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          }
       };
 
-      this.hitSuccess = function hitSuccess(hit, points, time) {
-         let prevCombo = this.scoreOverlay.combo;
+       this.hitSuccess = function hitSuccess(hit, points, time) {
+          // Target Practice: accuracy-based scoring — score from distance to center
+          if (this.game.targetpractice && hit.type === "circle") {
+             const dx = this.game.mouseX - hit.x;
+             const dy = this.game.mouseY - hit.y;
+             const dist = Math.hypot(dx, dy);
+             const maxDist = this.circleRadius;
+             // closer = more score (0..300 based on distance ratio)
+             const acc = Math.max(0, 1 - dist / maxDist);
+             points = Math.round(acc * 300);
+             if (points < 50) points = 50;  // minimum for a hit
+          }
+          let prevCombo = this.scoreOverlay.combo;
          this.scoreOverlay.hit(points, 300, time);
          // T11: combo color flash when combo goes 0 -> 1
          if (prevCombo === 0 && this.scoreOverlay.combo === 1 && points > 0) {
@@ -1407,15 +1744,19 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                self.playHitsound(hit, 0, hit.time);
                self.errorMeter.hit(time - hit.time, time);
             }
-             if (hit.type == "slider") {
-                // special rule: only missing slider end will not result in a miss
-                hit.judgements[hit.judgements.length - 1].defaultScore = 50;
-             }
+              if (hit.type == "slider") {
+                 // Lazer: the slider end is judged by the SliderJudge accumulator,
+                 // not the "missing end → 50" special case. No defaultScore override here.
+              }
             } catch (e) { if (import.meta.env.DEV) console.warn("playHitsound failed", e); }
           }
-         hit.score = points;
-         hit.clickTime = time;
-         self.invokeJudgement(hit.judgements[0], points, time);
+          hit.score = points;
+          hit.clickTime = time;
+          // Bubbles mod: spawn a bubble at the hit position on successful hits
+          if (this.game.bubbles && points > 0) {
+             try { this.spawnBubble(hit.x, hit.y, time); } catch (e) {}
+          }
+          self.invokeJudgement(hit.judgements[0], points, time);
       };
 
       // hit object updating
@@ -1472,7 +1813,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                     else if (o._pooledTex) self._releaseToPool(o);
                     else o.destroy();
                  });
-                hit.destroyed = true;
+                 // stop continuous sounds on despawn
+                 if (hit._slideSoundPlaying) try { self._stopSliderSlide(hit); } catch {} hit._slideSoundPlaying = false;
+                 if (hit._spinSoundPlaying) try { self._stopSpinnerSpin(); } catch {} hit._spinSoundPlaying = false;
+                 hit.destroyed = true;
              }
           }
       };
@@ -1625,13 +1969,15 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                if (hit.reverse_b) hit.reverse_b.alpha = 1;
             }
          }
-         if (this.game.snakein) {
-            if (diff > 0) {
-               let t = clamp01(
-                  (time - (hit.time - this.approachTime)) /
-                     (this.approachTime / 3)
-               );
-               hit.body.endt = t;
+          if (this.game.snakein) {
+             if (diff > 0) {
+                // Lazer snakes in over the full approach time (TimePreempt), not approachTime/3.
+                // The body starts snaking at hit.time - approachTime and completes at hit.time.
+                let t = clamp01(
+                   (time - (hit.time - this.approachTime)) /
+                      this.approachTime
+                );
+                hit.body.endt = t;
                if (hit.reverse) {
                   hit.curve.pointAtInto ? hit.curve.pointAtInto(t, self._tmpPt1) : (self._tmpPt1 = hit.curve.pointAt(t));
                   hit.reverse.x = self._tmpPt1.x;
@@ -1716,42 +2062,60 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             let activated =
                (this.game.down && isfollowing) || hit.followSize > 1.01;
 
-            // slider tick judgement
-            if (
-               hit.nexttick < hit.ticks.length &&
-               time >= hit.ticks[hit.nexttick].time
-            ) {
-               if (activated) {
-                  hit.ticks[hit.nexttick].result = true;
-                  self.playTicksound(hit, hit.ticks[hit.nexttick].time);
-                  // special rule: only missing slider end will not result in a miss
-                  hit.judgements[hit.judgements.length - 1].defaultScore = 50;
-               }
-               self.scoreOverlay.hit(activated ? 10 : 0, 10, time);
-               hit.nexttick++;
+            // Flashlight: track slider-following state for the slider dim
+            if (this.flOverlay) this._flSetFollowing(activated && isfollowing);
+
+            // Continuous sliderslide sound (lazer: looped while following)
+            const slideActive = activated && isfollowing;
+            if (slideActive && !hit._slideSoundPlaying) {
+               hit._slideSoundPlaying = true;
+               try { this._playSliderSlide(hit, time); } catch (e) {}
+            } else if (!slideActive && hit._slideSoundPlaying) {
+               hit._slideSoundPlaying = false;
+               try { this._stopSliderSlide(hit); } catch (e) {}
             }
 
-            // slider edge judgement
-            // Note: being tolerant if follow circle hasn't shrinked to minimum
-            if (atEnd && activated) {
-               let prevEdgeCombo = self.scoreOverlay.combo;
-               self.invokeJudgement(hit.judgements[hit.lastrep], 300, time);
-               self.scoreOverlay.hit(300, 300, time);
-               if (prevEdgeCombo === 0 && self.scoreOverlay.combo === 1) {
-                  try {
-                     let col = (typeof combos !== "undefined" && combos.length) ? combos[hit.combo % combos.length] : 0xffffff;
-                     let j = hit.judgements[hit.lastrep];
-                     let fx = (j && j.basex != null ? j.basex : hit.x);
-                     let fy = (j && j.basey != null ? j.basey : hit.y);
-                     self.createComboFlash(fx, fy, col, time);
-                  } catch (e) {}
-               }
+             // slider tick judgement — immediate scoring (lazer SmallTickHit = 10) + accumulator
+             if (
+                hit.nexttick < hit.ticks.length &&
+                time >= hit.ticks[hit.nexttick].time
+             ) {
+                if (activated) {
+                   hit.ticks[hit.nexttick].result = true;
+                   self.playTicksound(hit, hit.ticks[hit.nexttick].time);
+                   hit.sliderJudge.recordTick(hit, time);
+                } else {
+                   hit.sliderJudge.recordTickMiss(time);
+                }
+                self.scoreOverlay.hit(activated ? 10 : 0, 10, time);
+                hit.nexttick++;
+             }
+
+             // slider edge judgement — immediate scoring (lazer LargeTickHit = 30) + accumulator
+             // Note: being tolerant if follow circle hasn't shrinked to minimum
+             if (atEnd && activated) {
+                let prevEdgeCombo = self.scoreOverlay.combo;
+                hit.sliderJudge.recordEdge(hit, time);
+                self.invokeJudgement(hit.judgements[hit.lastrep], 300, time);
+                self.scoreOverlay.hit(30, 30, time);  // lazer edge = 30 (was 300)
+                if (prevEdgeCombo === 0 && self.scoreOverlay.combo === 1) {
+                   try {
+                      let col = (typeof combos !== "undefined" && combos.length) ? combos[hit.combo % combos.length] : 0xffffff;
+                      let j = hit.judgements[hit.lastrep];
+                      let fx = (j && j.basex != null ? j.basex : hit.x);
+                      let fy = (j && j.basey != null ? j.basey : hit.y);
+                      self.createComboFlash(fx, fy, col, time);
+                   } catch (e) {}
+                }
                 try { self.playHitsound(
                    hit,
                    hit.lastrep,
                    hit.time + hit.lastrep * hit.sliderTime
                 ); } catch (e) {}
-            }
+             } else if (atEnd && !activated) {
+                // edge missed — record to accumulator
+                hit.sliderJudge.recordEdgeMiss(time);
+             }
 
             // sliderball & follow circle Animation
             if (-diff >= 0 && -diff <= hit.sliderTimeTotal) {
@@ -1868,14 +2232,35 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
             }
          }
 
-         // display hit score
-         for (let i = 0; i < hit.judgements.length; ++i)
-            this.updateJudgement(hit.judgements[i], time);
-      };
+          // display hit score
+          for (let i = 0; i < hit.judgements.length; ++i)
+             this.updateJudgement(hit.judgements[i], time);
 
-      this.updateSpinner = function (hit, time) {
-         // update rotation
-         if (time >= hit.time && time <= hit.endTime) {
+          // Lazer slider final judgement: emit once at slider end from the accumulator.
+          // The tail judgement (last edge) already fired above; this is the overall
+          // slider result that lazer scores as the slider's main judgement.
+          if (hit.sliderJudge && hit.sliderJudge._finalScore < 0 && time > hit.endTime) {
+             const finalScore = hit.sliderJudge.finalScore();
+             // emit via the last judgement slot (the slider-end judgement)
+             const tailJudge = hit.judgements[hit.judgements.length - 1];
+             if (tailJudge && tailJudge.points < 0) {
+                self.invokeJudgement(tailJudge, finalScore, hit.endTime);
+                self.scoreOverlay.hit(finalScore, 300, hit.endTime);
+             }
+          }
+       };
+
+       this.updateSpinner = function (hit, time) {
+          // Continuous spinnerspin sound (lazer: looped while the spinner is active)
+          if (time >= hit.time && time <= hit.endTime && !hit._spinSoundPlaying) {
+             hit._spinSoundPlaying = true;
+             try { this._playSpinnerSpin(hit, time); } catch (e) {}
+          } else if (time > hit.endTime && hit._spinSoundPlaying) {
+             hit._spinSoundPlaying = false;
+             try { this._stopSpinnerSpin(); } catch (e) {}
+          }
+          // update rotation
+          if (time >= hit.time && time <= hit.endTime) {
             if (this.game.spunout) {
                // Spun Out: auto-rotate the spinner to completion
                let frac =
@@ -1966,18 +2351,21 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          this.updateJudgement(hit.judgements[0], time);
       };
 
-      this.updateHitObjects = function (time) {
-         self.updateUpcoming(time);
-         for (var i = self.upcomingHits.length - 1; i >= 0; i--) {
-            var hit = self.upcomingHits[i];
-            switch (hit.type) {
-               case "circle":
-                  self.updateHitCircle(hit, time);
-                  break;
-               case "slider":
-                  self.updateSlider(hit, time);
-                  break;
-               case "spinner":
+       this.updateHitObjects = function (time) {
+          self.updateUpcoming(time);
+          // Fun-mod geometry transforms (Wobble, Depth, Transform, Traceable, NoScope)
+          // applied per-frame before the per-hit update.
+          self._applyFunModTransforms(time);
+          for (var i = self.upcomingHits.length - 1; i >= 0; i--) {
+             var hit = self.upcomingHits[i];
+             switch (hit.type) {
+                case "circle":
+                   self.updateHitCircle(hit, time);
+                   break;
+                case "slider":
+                   self.updateSlider(hit, time);
+                   break;
+                case "spinner":
                   self.updateSpinner(hit, time);
                   break;
             }
@@ -2022,17 +2410,23 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
                   ? this.hits[waitinghitid].time -
                     (this.hits[waitinghitid].approachTime || this.approachTime)
                   : -1;
-            this.breakOverlay.countdown(nextapproachtime, time);
-            this.updateBackground(time);
-            this.updateHitObjects(time);
-            try { this.updateEffects(time); } catch (e) {}
-            this.scoreOverlay.update(time);
-            this.game.updatePlayerActions(time);
-            this.progressOverlay.update(time);
-            this.errorMeter.update(time);
-         } else {
-            this.updateBackground(-100000);
-         }
+             this.breakOverlay.countdown(nextapproachtime, time);
+             this.updateBackground(time);
+             this.updateHitObjects(time);
+             try { this.updateEffects(time); } catch (e) {}
+             if (this._bubbles.length) try { this.updateBubbles(time); } catch (e) {}
+             this.scoreOverlay.update(time);
+             this.game.updatePlayerActions(time);
+             this.progressOverlay.update(time);
+             this.errorMeter.update(time);
+             if (this.flOverlay) try { this.updateFlashlight(time); } catch (e) {}
+             // Adaptive Speed: adjust playback rate based on recent accuracy
+             if (this.game.adaptiveSpeed && this.osu && this.osu.audio) {
+                try { this.updateAdaptiveSpeed(time); } catch (e) {}
+             }
+          } else {
+             this.updateBackground(-100000);
+          }
           this.volumeMenu.update(timestamp);
           this.loadingMenu.update(timestamp);
 
@@ -2095,10 +2489,13 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
          self.errorMeter.destroy(opt);
          self.loadingMenu.destroy(opt);
          self.volumeMenu.destroy(opt);
-         self.breakOverlay.destroy(opt);
-         self.progressOverlay.destroy(opt);
-         self.gamefield.destroy(opt);
-         if (self.background) {
+          self.breakOverlay.destroy(opt);
+          self.progressOverlay.destroy(opt);
+          self.gamefield.destroy(opt);
+          // FL overlay cleanup
+          if (self.flOverlay) { try { self.game.stage.removeChild(self.flOverlay); self.flOverlay.destroy(); } catch {} self.flOverlay = null; }
+          if (self.flSliderDim) { try { self.game.stage.removeChild(self.flSliderDim); self.flSliderDim.destroy(); } catch {} self.flSliderDim = null; }
+          if (self.background) {
             try {
                const tex = self.background.texture;
                if (tex && tex !== PIXI.Texture.WHITE && tex.destroy) {

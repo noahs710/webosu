@@ -9,6 +9,7 @@ export default {
     const activeId = ref(null);
     const status = ref("");
     const localStatus = ref("");
+    const uploadQueue = ref([]);
     async function load() { try { skins.value = await api.skins(); } catch { skins.value = []; } }
     async function loadLocal() {
       try {
@@ -38,16 +39,35 @@ export default {
       } catch (e) { status.value = "Upload failed: " + (e.message || e); }
     }
     async function importLocal(e) {
-      const f = e.target.files[0];
-      if (!f) return;
-      localStatus.value = "Importing " + f.name + "...";
-      try {
-        const data = await loadOsk(f);
-        const meta = await saveLocalSkin(data, f.name);
-        localStatus.value = `Imported "${meta.name}" — ${meta.texCount} textures. Applied for next game.`;
-        await loadLocal();
-      } catch (e) { localStatus.value = "Import failed: " + (e.message || e); }
+      const files = Array.from(e.target.files);
+      if (!files.length) return;
+      // Queue multiple files, process sequentially
+      for (const f of files) {
+        uploadQueue.value.push({ name: f.name, status: "pending" });
+      }
       e.target.value = "";
+      // Process queue one at a time
+      for (let i = 0; i < files.length; i++) {
+        const qi = uploadQueue.value.findIndex(q => q.name === files[i].name && q.status === "pending");
+        if (qi < 0) continue;
+        uploadQueue.value[qi].status = "importing";
+        localStatus.value = "Importing " + files[i].name + "...";
+        try {
+          const data = await loadOsk(files[i]);
+          const meta = await saveLocalSkin(data, files[i].name);
+          uploadQueue.value[qi].status = "done";
+          uploadQueue.value[qi].name = meta.name || files[i].name;
+          localStatus.value = `Imported "${meta.name}" — ${meta.texCount} textures. Click Apply to switch.`;
+          await loadLocal();
+        } catch (err) {
+          uploadQueue.value[qi].status = "failed";
+          localStatus.value = "Import failed: " + (err.message || err);
+        }
+        // Yield to UI thread between files (prevent freeze on old Chromebooks)
+        await new Promise(r => setTimeout(r, 0));
+      }
+      // Clean up completed items after a delay
+      setTimeout(() => { uploadQueue.value = uploadQueue.value.filter(q => q.status !== "done"); }, 3000);
     }
     async function applyLocal(id) {
        localStatus.value = "Applying...";
@@ -85,12 +105,22 @@ export default {
        } catch (e) { localStatus.value = "Reset failed: " + (e.message || e); }
     }
     onMounted(() => { load(); loadLocal(); });
-    return { skins, localSkins, activeId, status, localStatus, upload, importLocal, applyLocal, removeLocal, resetDefault, api };
+    return { skins, localSkins, activeId, status, localStatus, uploadQueue, upload, importLocal, applyLocal, removeLocal, resetDefault, api };
   },
   template: `
     <div class="max-w-[1400px] mx-auto px-4 pt-4">
       <h2 class="text-xl font-bold text-white mb-3">Skins</h2>
       <p class="text-lazer-dim text-sm mb-3">Default skin: <b>reowoTuna</b> — loaded automatically on first visit and cached for instant startup. Import .osk files to switch skins.</p>
+
+      <!-- Discord banner -->
+      <div class="bg-gradient-to-r from-[#5865F2]/20 to-[#5865F2]/5 border border-[#5865F2]/30 rounded-xl p-4 mb-4 flex items-center gap-4">
+        <div class="text-3xl">💬</div>
+        <div class="flex-1">
+          <div class="font-bold text-white">Join the webosu Discord!</div>
+          <div class="text-sm text-lazer-dim">Share scores, skins, and chat with the community.</div>
+        </div>
+        <a href="https://discord.gg/v7wBtSdYzx" target="_blank" class="bg-[#5865F2] text-white px-4 py-2 rounded-lg text-sm font-bold hover:brightness-110 transition whitespace-nowrap">Join Discord</a>
+      </div>
 
       <!-- Local vault -->
       <div class="bg-lazer-panel border border-white/8 rounded-xl p-4 mb-4">
@@ -100,11 +130,18 @@ export default {
         </div>
         <div class="flex gap-2 items-center mb-3 flex-wrap">
           <label class="bg-lazer-pink text-white rounded-lg px-3 py-1.5 text-sm cursor-pointer hover:brightness-110">Import .osk
-            <input type="file" accept=".osk,.zip" @change="importLocal" class="hidden" />
+            <input type="file" accept=".osk,.zip" multiple @change="importLocal" class="hidden" />
           </label>
           <button @click="resetDefault" class="bg-lazer-panel2 border border-white/10 text-lazer-text rounded-lg px-3 py-1.5 text-sm hover:bg-white/10">Reset to default (reowoTuna)</button>
         </div>
         <div class="text-sm mb-2" :class="localStatus.includes('failed') ? 'text-red-400' : 'text-lazer-dim'">{{ localStatus }}</div>
+        <div v-if="uploadQueue.length" class="mb-3 space-y-1">
+          <div v-for="(q, i) in uploadQueue" :key="i" class="text-xs flex items-center gap-2 bg-lazer-panel2 rounded-lg px-3 py-1.5">
+            <span>{{ q.status === 'importing' ? '⏳' : q.status === 'done' ? '✓' : q.status === 'failed' ? '✗' : '⏸' }}</span>
+            <span class="flex-1 truncate">{{ q.name }}</span>
+            <span class="text-lazer-dim">{{ q.status }}</span>
+          </div>
+        </div>
         <div v-if="localSkins.length" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">
           <div v-for="s in localSkins" :key="s.id" class="bg-[#1e1e2e] border rounded-xl p-3" :class="s.id===activeId ? 'border-lazer-pink/50 ring-1 ring-lazer-pink/20' : 'border-white/5'">
             <div class="font-bold text-lazer-text truncate">{{ s.name }}</div>
@@ -119,22 +156,6 @@ export default {
         </div>
         <div v-else class="text-sm text-lazer-dim">No local skins yet — import an .osk above. Only the selected skin is loaded at game start for best performance.</div>
       </div>
-
-      <!-- Remote shared -->
-      <h3 class="font-bold text-white mb-2">Shared skins (online)</h3>
-      <p class="text-lazer-dim text-sm mb-2">Share your .osk and apply others'. Downloads are cached locally when you import.</p>
-      <div class="flex gap-2 items-center mb-2 flex-wrap">
-        <label class="text-sm text-lazer-dim">Share: <input type="file" accept=".osk,.zip" @change="upload" class="ml-2" /></label>
-      </div>
-      <span class="text-sm text-lazer-dim ml-2">{{ status }}</span>
-      <div v-if="skins.length" class="grid gap-3 mt-4" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));">
-        <div v-for="s in skins" :key="s.id" class="bg-lazer-panel border border-white/8 rounded-xl p-3">
-          <div class="font-bold text-lazer-text">{{ s.name }}</div>
-          <div class="text-sm text-lazer-dim">by {{ s.author || '?' }} · {{ s.downloads || 0 }} dl</div>
-          <a :href="api.skinDownloadUrl(s.id)" class="text-lazer-pink text-sm">Download</a>
-        </div>
-      </div>
-      <div v-else class="text-lazer-dim p-4">No skins shared yet. Be the first to upload one!</div>
     </div>
   `
 };

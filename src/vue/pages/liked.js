@@ -1,15 +1,20 @@
 import { ref, onMounted } from "vue";
 import BeatmapList from "../components/BeatmapList.vue";
+import { getFavorites } from "../../shell/favorites.js";
 export default {
   components: { BeatmapList },
   setup() {
     const sids = ref([]);
     onMounted(async () => {
-      if (window.localforage) {
-        try {
+      try {
+        const set = await getFavorites();
+        sids.value = [...set];
+      } catch {
+        // fallback to local only
+        if (window.localforage) {
           const set = await new Promise(r => localforage.getItem("likedsidset", (e, v) => r(v)));
           if (set) sids.value = [...set];
-        } catch {}
+        }
       }
     });
     return { sids };

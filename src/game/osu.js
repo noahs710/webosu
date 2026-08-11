@@ -540,11 +540,12 @@ import CircumscribedCircle from "./curves/CircumscribedCircle.js";
             chains.push(newchain);
          }
       }
-      // stack offset
-      const stackScale =
-         (1.0 - (0.7 * (track.difficulty.CircleSize - 5)) / 5) / 2;
-      const scaleX = stackScale * 6.4;
-      const scaleY = stackScale * 6.4;
+      // stack offset — lazer uses a fixed 4px-per-stack-level offset (StackOffset = StackHeight * 4 * -1).
+      // The old stable-era formula was stackScale * 6.4 (CS-dependent); lazer's fixed 4 matches
+      // the current lazer OsuBeatmapProcessor. We apply it in the same direction as the old code
+      // (positive dep = down-right) which is the negative of lazer's StackOffset convention.
+      const scaleX = 4;
+      const scaleY = 4;
 
       function movehit(hit, dep) {
          hit.x += scaleX * dep;
