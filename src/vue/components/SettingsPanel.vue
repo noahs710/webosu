@@ -52,7 +52,32 @@ function set(key, val) {
 }
 function reset() { Object.assign(gamesettings, defaultsettings); gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
 async function savePfp(url) {
-  try { await api.saveMyProfile({ pfp_url: url }); pfpUrl.value = url; } catch (e) { /* ignore */ }
+  // PFP is a per-user setting; only the owner of the account can set it.
+  if (!api.isLoggedIn()) return;
+  // Block javascript:/data: URLs that could execute in the img src.
+  // Allow http(s):/relative-path only.
+  const safe = typeof url === "string" ? url.trim() : "";
+  if (safe && !/^(https?:|\/)/i.test(safe)) {
+    if (typeof window.__showErrorPopup === "function") {
+      window.__showErrorPopup("Only http(s) URLs or site-relative paths are allowed.", "Profile picture URL rejected");
+    }
+    return;
+  }
+  pfpUrlSaveStatus.value = "saving";
+  try {
+    await api.saveMyProfile({ pfp_url: safe });
+    pfpUrl.value = safe;
+    pfpUrlSaveStatus.value = "saved";
+    setTimeout(() => { if (pfpUrlSaveStatus.value === "saved") pfpUrlSaveStatus.value = ""; }, 1500);
+  } catch (e) {
+    pfpUrlSaveStatus.value = "error";
+    if (typeof window.__showErrorPopup === "function") {
+      window.__showErrorPopup("Could not save profile picture: " + (e.message || e), "Profile picture");
+    } else {
+      console.warn("[settings] PFP save failed", e);
+    }
+    setTimeout(() => { if (pfpUrlSaveStatus.value === "error") pfpUrlSaveStatus.value = ""; }, 3000);
+  }
 }
 function captureKey(ev, key) {
   ev.preventDefault();

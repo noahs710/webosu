@@ -918,8 +918,10 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
        this.flLastRadius = -1;
        this._flFollowingSlider = false;
        this._flDimAlpha = 0;
-       this.initFlashlight = function () {
-          if (!game.flashlight || this.flOverlay) return;
+       // Sync FL settings from the current ModRegistry instance. Used by init and
+       // also exposed as a public refresh() so toggling FL settings during play
+       // (e.g. via the in-game mod panel) updates the overlay without restarting.
+       this._readFlSettings = function () {
           const flMod = window.ModRegistry ? window.ModRegistry.get("FL") : null;
           const s = flMod ? flMod.settings : {};
           this._flSettings = {
@@ -928,6 +930,14 @@ import { log as glog, warn as gwarn, error as gerror, debug as gdebug } from "./
              sizeCombo200: s.sizeCombo200 || 250,
              sliderDim: s.sliderDim != null ? s.sliderDim : 0.3,
           };
+          // force next frame to redraw with the new radius
+          this.flLastCursorX = -9999; this.flLastCursorY = -9999; this.flLastRadius = -1;
+       };
+       this.refreshFlashlight = function () { this._readFlSettings(); };
+
+       this.initFlashlight = function () {
+          if (!game.flashlight || this.flOverlay) return;
+          this._readFlSettings();
           // main overlay: black rect with a circle hole
           this.flOverlay = new PIXI.Graphics();
           this.flOverlay.eventMode = 'none';

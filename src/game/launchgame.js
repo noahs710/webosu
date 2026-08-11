@@ -196,30 +196,32 @@ export async function launchOSU(osu, beatmapid, version) {
     window.quitGame = function () {
        window.removeEventListener("keydown", perfKey);
        document.removeEventListener("contextmenu", contextMenuHandler);
-      if (perfHUD && perfHUD.parentNode) perfHUD.parentNode.removeChild(perfHUD);
-      pGameArea.setAttribute("hidden", "");
-      pMainPage.removeAttribute("hidden");
-      pNav.removeAttribute("style");
-      document.body.classList.remove("gaming");
-      // restore page scroll position
-      document.body.scrollTop = scrollTop;
-      // restore alert function
-      window.alert = defaultAlert;
-      // cursor + trail are parented to cursorLayer; destroying the layer recursively destroys its children.
-      if (game.cursorLayer) {
-         game.stage.removeChild(game.cursorLayer);
-         game.cursorLayer.destroy({ children: true });
+       if (perfHUD && perfHUD.parentNode) perfHUD.parentNode.removeChild(perfHUD);
+       pGameArea.setAttribute("hidden", "");
+       pMainPage.removeAttribute("hidden");
+       pNav.removeAttribute("style");
+       document.body.classList.remove("gaming");
+       // restore page scroll position
+       document.body.scrollTop = scrollTop;
+       // restore alert function
+       window.alert = defaultAlert;
+       // cancel the render loop BEFORE destroying the app so the loop doesn't
+       // crash on a half-torn-down scene graph
+       if (gameLoop) gameLoop = null;
+       if (window.animationRequestID) { try { window.cancelAnimationFrame(window.animationRequestID); } catch {} window.animationRequestID = null; }
+       // cursor + trail are parented to cursorLayer; destroying the layer recursively destroys its children.
+       if (game.cursorLayer) {
+         try { game.stage.removeChild(game.cursorLayer); } catch {}
+         try { game.cursorLayer.destroy({ children: true }); } catch {}
          game.cursorLayer = null;
          game.cursor = null;
          game.cursorTrail = null;
          game.cursorTrailHead = 0;
-      }
-      // per pixijs-performance skill: must release global pools to avoid cross-app leakage
-      try { window.app.destroy({ removeView: true, releaseGlobalResources: true }); } catch { try { window.app.destroy(true); } catch {} }
-      window.app = null;
-      gameLoop = null;
-      window.cancelAnimationFrame(window.animationRequestID);
-   };
+       }
+       // per pixijs-performance skill: must release global pools to avoid cross-app leakage
+       try { window.app.destroy({ removeView: true, releaseGlobalResources: true }); } catch { try { window.app.destroy(true); } catch {} }
+       window.app = null;
+    };
 
    // load playback
    var playback = new Playback(window.game, osu, osu.tracks[trackid]);
@@ -474,7 +476,13 @@ export function launchGame(osublob, beatmapid, version) {
             const overlay = document.getElementById("beatmap-loading-overlay");
             if (overlay) overlay.remove();
             lerror("launchgame", "worker parse error", msg.message);
-            alert("Could not parse beatmap: " + msg.message);
+            // Use the foreground ErrorPopup when the Vue shell has wired it up;
+            // otherwise fall back to a browser alert so the error is never silent.
+            if (typeof window.__showErrorPopup === "function") {
+               window.__showErrorPopup("Could not parse beatmap: " + msg.message, "Beatmap failed to load");
+            } else {
+               alert("Could not parse beatmap: " + msg.message);
+            }
          }
       };
    } else {

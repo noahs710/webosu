@@ -70,17 +70,39 @@ function buildApp({ serveStatic = true } = {}) {
     }
   });
 
-  // per-IP in-memory rate limiter (Fly.io single process; no external store needed)
+  // per-IP in-memory rate limiter (Fly.io single process; no external store needed).
+  // A Map of `ip -> { arr: number[], lastSeen: number }` and a single interval
+  // that prunes idle IPs. Replaces the inline `for (const [...])` loop that
+  // could grow unbounded under attack (one stale IP per incoming unique IP).
   function makeRateLimit(windowMs, max) {
     const hits = new Map();
+    // sweep idle IPs every 60s (cap the map at 10k IPs)
+    if (!makeRateLimit._sweepStarted) {
+      makeRateLimit._sweepStarted = true;
+      const sweep = () => {
+        const now = Date.now();
+        for (const [k, v] of hits) {
+          if (!v || v.length === 0 || (v.lastSeen && now - v.lastSeen > windowMs * 2)) {
+            hits.delete(k);
+          }
+        }
+        if (hits.size > 10000) {
+          // hard cap: drop oldest 25%
+          const entries = Array.from(hits.entries()).sort((a, b) => (a[1].lastSeen || 0) - (b[1].lastSeen || 0));
+          for (let i = 0; i < entries.length / 4; i++) hits.delete(entries[i][0]);
+        }
+      };
+      setInterval(sweep, 60_000).unref();
+    }
     return async (req, reply) => {
       const ip = req.ip || "unknown";
       const now = Date.now();
-      let arr = (hits.get(ip) || []).filter((t) => now - t < windowMs);
-      arr.push(now);
-      hits.set(ip, arr);
-      if (hits.size > 2000) for (const [k, v] of hits) if (v.every((t) => now - t >= windowMs)) hits.delete(k);
-      if (arr.length > max) { reply.code(429).send({ error: "too many requests" }); return; }
+      let entry = hits.get(ip);
+      if (!entry) { entry = { arr: [], lastSeen: now }; hits.set(ip, entry); }
+      entry.arr = entry.arr.filter((t) => now - t < windowMs);
+      entry.arr.push(now);
+      entry.lastSeen = now;
+      if (entry.arr.length > max) { reply.code(429).send({ error: "too many requests" }); return; }
     };
   }
   const authRateLimit = makeRateLimit(60000, 12);
@@ -90,6 +112,46 @@ function buildApp({ serveStatic = true } = {}) {
   app.get("/api/health", async (_req, reply) =>
     reply.send({ ok: true, ts: Date.now(), version: "1.0.0" })
   );
+  // Version metadata — small payload, useful for the SPA to detect upgrades.
+  app.get("/api/version", async (_req, reply) =>
+    reply.send({
+      name: "webosu-server",
+      version: "1.0.0",
+      node: process.version,
+      uptime: Math.round(process.uptime()),
+      features: {
+        auth: true,
+        scores: true,
+        replays: true,
+        pp: true,
+        profiles: true,
+        rankings: true,
+        skins: true,
+        comments: true,
+        tournaments: true,
+        sse: true,
+        ws: true,
+        ranked: true,
+        lazer: true,
+      },
+    })
+  );
+  // HTTP CORS for /api/* — same-origin in prod, dev origin in dev (vite :5173).
+  // (Lazer-pwa same-origin requests don't need this, but it unblocks mobile
+  // apps and tools that hit the API from a different origin.)
+  app.addHook("onSend", async (req, reply) => {
+    const origin = req.headers.origin;
+    if (origin) {
+      reply.header("Access-Control-Allow-Origin", origin);
+      reply.header("Vary", "Origin");
+    }
+    if (req.method === "OPTIONS") {
+      reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+      reply.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+      reply.header("Access-Control-Max-Age", "86400");
+    }
+  });
+  app.options("/*", async (_req, reply) => reply.code(204).send(""));
 
   // ---------- auth ----------
   app.post("/api/auth/register", { preHandler: authRateLimit }, async (req, reply) => {
@@ -157,6 +219,14 @@ function buildApp({ serveStatic = true } = {}) {
       return reply.code(400).send({ error: "missing beatmap_id or score" });
     if (typeof s.beatmap_id !== "number" || typeof s.score !== "number" || !isFinite(s.beatmap_id) || !isFinite(s.score))
       return reply.code(400).send({ error: "invalid beatmap_id or score" });
+    if (s.beatmap_id <= 0 || s.score < 0)
+      return reply.code(400).send({ error: "beatmap_id or score out of range" });
+    // Cap input sizes so a malicious client can't cause OOM by sending a 5MB
+    // replay or 1MB mods_hash. The replay is stored as a BLOB in sqlite.
+    if (Array.isArray(s.replay) && s.replay.length > 300000)
+      return reply.code(413).send({ error: "replay too large" });
+    if (Array.isArray(s.mods_list) && s.mods_list.length > 32)
+      return reply.code(413).send({ error: "mods_list too large" });
     const v = validateReplay(s, s.beatmap, s.replay);
     // Reject unknown mods (v2 validation)
     if (v.mods_error) return reply.code(400).send({ error: v.mods_error });
@@ -276,6 +346,7 @@ function buildApp({ serveStatic = true } = {}) {
 
   app.get("/api/leaderboards/:beatmapId", async (req, reply) => {
     const beatmapId = parseInt(req.params.beatmapId, 10);
+    if (!isFinite(beatmapId) || beatmapId <= 0) return reply.code(400).send({ error: "invalid beatmapId" });
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const version = req.query.version || "v2";  // v2 = lazer-scaled (default), v1 = legacy
     const modsHash = req.query.mods_hash != null ? req.query.mods_hash : null;
@@ -292,17 +363,22 @@ function buildApp({ serveStatic = true } = {}) {
   // List distinct mod combinations played on a beatmap (for the UI selector)
   app.get("/api/leaderboards/:beatmapId/mods", async (req, reply) => {
     const beatmapId = parseInt(req.params.beatmapId, 10);
+    if (!isFinite(beatmapId) || beatmapId <= 0) return reply.code(400).send({ error: "invalid beatmapId" });
     reply.send(D.leaderboardModCombos(beatmapId));
   });
 
   app.get("/api/scores/:id", async (req, reply) => {
-    const row = D.getScore(parseInt(req.params.id, 10));
+    const id = parseInt(req.params.id, 10);
+    if (!isFinite(id) || id <= 0) return reply.code(400).send({ error: "invalid id" });
+    const row = D.getScore(id);
     if (!row) return reply.code(404).send({ error: "not found" });
     reply.send(row);
   });
 
   app.get("/api/replays/:id", async (req, reply) => {
-    const r = D.getReplay(parseInt(req.params.id, 10));
+    const id = parseInt(req.params.id, 10);
+    if (!isFinite(id) || id <= 0) return reply.code(400).send({ error: "invalid id" });
+    const r = D.getReplay(id);
     if (!r) return reply.code(404).send({ error: "not found" });
     reply.header("Content-Type", "application/json");
     reply.send(Buffer.from(r.data).toString("utf8"));
@@ -340,6 +416,22 @@ function buildApp({ serveStatic = true } = {}) {
     const limit = Math.min(parseInt(req.query.limit, 10) || 50, 100);
     const offset = parseInt(req.query.offset, 10) || 0;
     reply.send(D.rankingsByCountry(req.params.country, limit, offset));
+  });
+
+  // Convenience: the logged-in user''s own row + ranking + nearby rivals.
+  // Returns enough info for a profile page header without 4 round-trips.
+  app.get("/api/me", { preHandler: authRequired }, async (req, reply) => {
+    try {
+      const u = D.getUserById(req.user.id);
+      if (!u) return reply.code(404).send({ error: "user not found" });
+      const stats = D.userStats(u.id);
+      const achievements = D.achievements(u.id);
+      const globalRank = D.userRank(u.id);
+      const countryRank = D.userCountryRank(u.id);
+      reply.send({ user: u, stats, achievements, globalRank, countryRank });
+    } catch (e) {
+      return reply.code(500).send({ error: "internal" });
+    }
   });
 
   app.get("/api/profile/me", { preHandler: authRequired }, async (req, reply) => {
@@ -425,6 +517,11 @@ function buildApp({ serveStatic = true } = {}) {
       "X-Accel-Buffering": "no",
     });
     res.write(": connected\n\n");
+    // Detect client disconnect and remove from feed so a stalled client
+    // doesn't block broadcasts for everyone else.
+    const cleanup = () => { try { feed.clients.delete(res); } catch {} };
+    req.raw.on("close", cleanup);
+    req.raw.on("error", cleanup);
     feed.add(res);
   });
 

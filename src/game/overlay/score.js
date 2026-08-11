@@ -722,8 +722,55 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
                postBtn.textContent = "Posting...";
                postBtn.style.opacity = "0.7";
                postBtn.style.pointerEvents = "none";
-               try { doPost(); } catch (e) { if (import.meta.env.DEV) console.warn("post anyways failed", e); }
-               setTimeout(() => { postBtn.textContent = "Posted!"; failMsg.innerText = "Your fail is now public. Respect for owning it."; }, 600);
+               // Capture submitScore's promise so a real network failure surfaces
+               // through the foreground ErrorPopup rather than a silent console.warn.
+               // doPost() is fire-and-forget, so we re-issue submitScore here to get
+               // a promise, and call doPost() purely for the uploadScore side-effect.
+               try {
+                  if (window.WebosuAPI && WebosuAPI.isLoggedIn() && typeof WebosuAPI.submitScore === "function") {
+                     WebosuAPI.submitScore({
+                        beatmap_id: parseInt(summary.bid, 10) || 0,
+                        beatmap_set_id: parseInt(summary.sid, 10) || 0,
+                        title: summary.title,
+                        artist: summary.artist,
+                        version: summary.version,
+                        mods: summary.mods,
+                        modsNum: modsEnum(window.game),
+                        mods_list: (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize() : null,
+                        ruleset_version: "v2",
+                        score: parseInt(summary.score, 10) || 0,
+                        combo: parseInt(summary.combo, 10) || 0,
+                        acc: parseFloat(summary.acc) || 0,
+                        grade: summary.grade,
+                        count300: summary.count300,
+                        count100: summary.count100,
+                        count50: summary.count50,
+                        miss: summary.misses,
+                     }).then(() => {
+                        postBtn.textContent = "Posted!";
+                        failMsg.innerText = "Your fail is now public. Respect for owning it.";
+                     }).catch((err) => {
+                        postBtn.textContent = "Post anyways";
+                        postBtn.style.opacity = "1";
+                        postBtn.style.pointerEvents = "auto";
+                        posted = false;
+                        if (typeof window.__showErrorPopup === "function") {
+                           window.__showErrorPopup("Score submission failed: " + (err.message || err), "Could not post score");
+                        }
+                     });
+                  }
+                  // Also run the legacy uploadScore() path for playHistory / replay.
+                  try { doPost(); } catch (e) { if (import.meta.env.DEV) console.warn("post anyways inner failed", e); }
+               } catch (e) {
+                  if (import.meta.env.DEV) console.warn("post anyways failed", e);
+                  if (typeof window.__showErrorPopup === "function") {
+                     window.__showErrorPopup("Score submission failed: " + (e.message || e), "Could not post score");
+                  }
+                  postBtn.textContent = "Post anyways";
+                  postBtn.style.opacity = "1";
+                  postBtn.style.pointerEvents = "auto";
+                  posted = false;
+               }
             };
          }
          // show history best

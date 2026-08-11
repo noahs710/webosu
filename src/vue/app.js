@@ -4,6 +4,7 @@ import { router } from "./router.js";
 import Nav from "./components/Nav.vue";
 import ModSelectPanel from "./components/ModSelectPanel.vue";
 import HealthCheckPopup from "./components/HealthCheckPopup.vue";
+import ErrorPopup from "./components/ErrorPopup.vue";
 import { ensureGame } from "./game-loader.js";
 import "../shell/api.js"; // side effect: sets window.WebosuAPI for game score submission
 window.__ensureGame = ensureGame;
@@ -59,10 +60,21 @@ const gameAreaHTML = `
   </div>`;
 
 const app = createApp({
-  components: { Nav, ModSelectPanel, HealthCheckPopup },
+  components: { Nav, ModSelectPanel, HealthCheckPopup, ErrorPopup },
   setup() {
     const showModSidebar = ref(false);
     const healthIssue = ref(null);
+    // Foreground error popup — survives map failures by sitting at z-index 11000
+    // (above the difficulty-box at 10000 and the loading/grading overlays) and
+    // is independent of `window.alert`, which launchgame.js silences during play.
+    const errorPopup = ref(null);
+    function showError(message, title) {
+      errorPopup.value = { message: String(message || ""), title: title || "Something went wrong", id: Date.now() };
+    }
+    function dismissError() { errorPopup.value = null; }
+    // Expose a non-Vue entry point so launchgame.js (and other game modules) can
+    // surface critical errors without depending on the silenced window.alert.
+    window.__showErrorPopup = (message, title) => showError(message, title);
     function toggleModSidebar() { showModSidebar.value = !showModSidebar.value; }
     function closeModSidebar() { showModSidebar.value = false; }
     window.__toggleModSidebar = toggleModSidebar;
@@ -123,36 +135,36 @@ const app = createApp({
              const overlay = document.getElementById("beatmap-loading-overlay");
              if (overlay) overlay.remove();
             if (import.meta.env.DEV) console.warn("launch failed:", err);
-            alert("Could not start: " + (err.message || err));
-         }
-      });
+            showError("Could not start: " + (err.message || err));
+          }
+       });
 
-      // replay watch: ?watch=<replayId>&bid=<beatmapId>&sid=<setId>&v=<version>
-      const q = new URLSearchParams(location.search);
-      const watch = q.get("watch");
-      if (watch) {
-        ensureGame();
-        const replayOverlay = showLoadingOverlay("Loading replay...", "");
-        const checkReady = () => {
-          if (window.Osu && window.scriptReady && window.skinReady && window.soundReady && typeof window.launchReplay === "function") {
-            fetch("/api/replays/" + watch)
-              .then((r) => r.json())
-              .then((frames) => {
-                if (!Array.isArray(frames) || !frames.length) { replayOverlay.remove(); alert("Replay unavailable for this score."); return; }
-                replayOverlay.setText("Downloading beatmap...");
-                const suffix = "n";
-                return fetch("https://catboy.best/d/" + q.get("sid") + suffix)
-                  .then((r) => r.arrayBuffer())
-                  .then((ab) => { window.launchReplay(new Blob([ab]), parseInt(q.get("bid") || "0"), q.get("v") || "", frames); });
-              })
-              .catch((e) => { replayOverlay.remove(); alert("Could not start replay: " + (e.message || e)); });
-          } else setTimeout(checkReady, 200);
-        };
-        checkReady();
-      }
+       // replay watch: ?watch=<replayId>&bid=<beatmapId>&sid=<setId>&v=<version>
+       const q = new URLSearchParams(location.search);
+       const watch = q.get("watch");
+       if (watch) {
+         ensureGame();
+         const replayOverlay = showLoadingOverlay("Loading replay...", "");
+         const checkReady = () => {
+           if (window.Osu && window.scriptReady && window.skinReady && window.soundReady && typeof window.launchReplay === "function") {
+             fetch("/api/replays/" + watch)
+               .then((r) => r.json())
+               .then((frames) => {
+                 if (!Array.isArray(frames) || !frames.length) { replayOverlay.remove(); showError("Replay unavailable for this score."); return; }
+                 replayOverlay.setText("Downloading beatmap...");
+                 const suffix = "n";
+                 return fetch("https://catboy.best/d/" + q.get("sid") + suffix)
+                   .then((r) => r.arrayBuffer())
+                   .then((ab) => { window.launchReplay(new Blob([ab]), parseInt(q.get("bid") || "0"), q.get("v") || "", frames); });
+               })
+               .catch((e) => { replayOverlay.remove(); showError("Could not start replay: " + (e.message || e)); });
+           } else setTimeout(checkReady, 200);
+         };
+         checkReady();
+       }
     });
     onUnmounted(() => { window.removeEventListener("keydown", onKey); window.removeEventListener("skin-health-issue", onHealthIssue); });
-    return { showModSidebar, toggleModSidebar, closeModSidebar, healthIssue, repairSkin, resetDefault, dismissHealth };
+    return { showModSidebar, toggleModSidebar, closeModSidebar, healthIssue, repairSkin, resetDefault, dismissHealth, errorPopup, dismissError };
   },
   template: `
     <div id="main-page">
@@ -181,6 +193,16 @@ const app = createApp({
           @repair="repairSkin"
           @reset="resetDefault"
           @dismiss="dismissHealth"
+        />
+      </teleport>
+      <!-- Foreground error popup — z-index 2147483647 (max int) keeps it above
+           the game canvas, loading overlay, grading screen, and difficulty popup. -->
+      <teleport to="body">
+        <ErrorPopup v-if="errorPopup"
+          :key="errorPopup.id"
+          :message="errorPopup.message"
+          :title="errorPopup.title"
+          @dismiss="dismissError"
         />
       </teleport>
     </div>

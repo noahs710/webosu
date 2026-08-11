@@ -5,19 +5,24 @@ export default {
   components: { BeatmapList },
   setup() {
     const sids = ref([]);
+    const loading = ref(true);
+    const loadError = ref("");
     onMounted(async () => {
       try {
         const set = await getFavorites();
-        sids.value = [...set];
-      } catch {
+        sids.value = Array.from(set || []);
+      } catch (e) {
+        loadError.value = String(e && (e.message || e));
         // fallback to local only
         if (window.localforage) {
           const set = await new Promise(r => localforage.getItem("likedsidset", (e, v) => r(v)));
-          if (set) sids.value = [...set];
+          if (set) sids.value = Array.from(set);
         }
+      } finally {
+        loading.value = false;
       }
     });
-    return { sids };
+    return { sids, loading, loadError };
   },
   template: `
     <div class="max-w-[1400px] mx-auto px-4 pt-4">

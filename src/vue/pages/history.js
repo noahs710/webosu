@@ -4,6 +4,7 @@ export default {
   components: { BeatmapList },
   setup() {
     const sids = ref([]);
+    const loadError = ref("");
     onMounted(async () => {
       if (window.localforage) {
         try {
@@ -11,10 +12,12 @@ export default {
           if (hist && hist.length) {
             sids.value = [...new Set(hist.map(h => h.sid).filter(Boolean))];
           }
-        } catch {}
+        } catch (e) {
+          loadError.value = String(e && (e.message || e));
+        }
       }
     });
-    return { sids };
+    return { sids, loadError };
   },
   template: `
     <div class="max-w-[1400px] mx-auto px-4 pt-4">

@@ -44,11 +44,10 @@ function stars(rating) { return (Math.round(rating * 100) / 100).toFixed(2); }
 async function load(force = false) {
   if (!props.src && !props.sids) return;
   // empty sids array means no favorites/history — show empty without fetching
-  if (props.sids && !props.sids.length) {
-    if (Array.isArray(props.sids) && props.sids.length === 0) {
-      sets.value = []; loading.value = false; return;
-    }
+  if (Array.isArray(props.sids) && props.sids.length === 0) {
+    sets.value = []; loading.value = false; error.value = ""; return;
   }
+
   const cacheKey = { src: props.src, sids: props.sids, limit: props.limit };
   if (!force) {
     const cached = getCachedBeatmaps(cacheKey);
