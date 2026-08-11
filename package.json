@@ -17,7 +17,8 @@
     "test:crash": "node scripts/headless-quit.js && node scripts/headless-fail-retry.js && node scripts/headless-slider-destroy.js",
     "test:settings": "node scripts/headless-settings.js && node scripts/headless-settings-page.js",
     "test:mods": "node scripts/headless-mod-flashlight.js && node scripts/headless-mod-adaptive-speed.js && node scripts/headless-mod-transform.js && node scripts/headless-mod-incompatible.js && node scripts/headless-mod-fun-all.js",
-    "test:all": "npm test && npm run test:realtime && npm run test:game && npm run test:build && npm run test:shell && npm run test:touch && npm run test:crash && npm run test:settings && npm run test:mods && npm run test:perf"
+    "test:all": "npm test && npm run test:realtime && npm run test:game && npm run test:build && npm run test:shell && npm run test:touch && npm run test:crash && npm run test:settings && npm run test:mods && npm run test:perf && npm run test:gamestate",
+    "test:gamestate": "node scripts/headless-gamestate.js"
   },
   "dependencies": {
     "fflate": "^0.8.3",

@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { gamesettings, saveToLocal } from "../../shell/gamesettings.js";
+import GameState from "../../shell/gamestate.js";
 
 // Mod definitions grouped by type (matches lazer mod-select panel layout).
 // Each mod: { acronym, name, type, color, hasSettings }
@@ -135,11 +136,14 @@ function daSettingsFromGamesettings() {
 }
 
 function applyToGamesettings() {
-  // Write active mods back to the gamesettings flat flags
+  // Route every mod flag through GameState so the registry and legacy game
+  // flags stay in sync. GameState.setBatch takes the path-keyed API.
+  const updates = {};
   for (const [acronym, flag] of Object.entries(MOD_FLAG)) {
-    gamesettings[flag] = activeMods.value.has(acronym);
+    updates["mods." + flag] = activeMods.value.has(acronym);
   }
-  gamesettings.loadToGame();
+  GameState.setBatch(updates);
+  GameState.syncLegacy();
   saveToLocal();
   gs.value = { ...gamesettings };
 }
@@ -155,8 +159,13 @@ function resetToDefault() {
 }
 
 function setModSetting(key, val) {
-  gamesettings[key] = val;
-  gamesettings.loadToGame();
+  // Per-mod customization settings (flSize0, customAR, …) live under the
+  // "settings.<key>" namespace in GameState; the mod flag itself will be
+  // re-applied next time the registry activates.
+  GameState.set("settings." + key, val);
+  if (activeMods.value.has("FL") || activeMods.value.has("DA") || activeMods.value.has("TP") || activeMods.value.has("AS") || activeMods.value.has("TF")) {
+    GameState.syncLegacy();
+  }
   saveToLocal();
   gs.value = { ...gamesettings };
 }

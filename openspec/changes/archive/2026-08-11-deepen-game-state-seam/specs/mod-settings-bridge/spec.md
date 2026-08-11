@@ -1,4 +1,4 @@
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: Flashlight settings propagate to the active mod
 The system SHALL pass the user-configured Flashlight size settings from `gamesettings` into the active `ModFlashlight` instance via `GameState` so the Flashlight overlay uses the configured radius curve.
@@ -50,6 +50,8 @@ The system SHALL preserve the existing Difficulty Adjust bridge so that `gameset
 #### Scenario: Difficulty Adjust overrides are preserved
 - **WHEN** `gamesettings.difficultyAdjust` is true and `customAR` = 10, `customCS` = 2, `customOD` = 8, `customHP` = 5
 - **THEN** the active `ModDifficultyAdjust` instance has `settings.ar` = 10, `settings.cs` = 2, `settings.od` = 8, `settings.hp` = 5
+
+## ADDED Requirements
 
 ### Requirement: Mod toggles are routed through GameState
 The system SHALL ensure that the mod-selection UI toggles mods by calling `GameState.set("mods.<acronym>", bool)` rather than directly mutating `gamesettings` or `window.game`.

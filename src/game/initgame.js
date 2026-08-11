@@ -4,6 +4,7 @@ import { validateSkin, validateHitsounds } from "./skin-loader.js";
 import Playback from "./playback.js";
 import { log as ilog, warn as iwarn, error as ierror } from "./logger.js";
 import { gamesettings } from "../shell/gamesettings.js";
+import GameState from "../shell/gamestate.js";
 import { ModRegistry } from "./mods/index.js";
 // Register all mods with the registry (side-effect import)
 import "./mods/register.js";
@@ -90,7 +91,14 @@ import "./mods/register.js";
    };
    window.currentFrameInterval = 16;
    window.game = game;
-   try { gamesettings.loadToGame(); ilog("initgame", "applied gamesettings to game", { autoplay: game.autoplay, hidden: game.hidden }); } catch (e) { iwarn("initgame", "gamesettings loadToGame failed", e); }
+   // Bind GameState now that window.game exists; loadToGame() below routes
+   // gamesettings through GameState.setBatch and then GameState.syncLegacy to
+   // populate the legacy flags and ModRegistry active set.
+   try {
+      GameState.bind(window.game);
+      gamesettings.loadToGame();
+      ilog("initgame", "applied gamesettings to game", { autoplay: game.autoplay, hidden: game.hidden });
+   } catch (e) { iwarn("initgame", "gamesettings loadToGame failed", e); }
    // keep window.gamesettings in sync for legacy checks
    window.gamesettings = gamesettings;
    window.skinReady = false;

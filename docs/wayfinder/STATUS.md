@@ -95,3 +95,13 @@ Gameplay, mods, scoring, HP drain, slider judgement, spinner formula, stacking, 
 1. **Phase 6 benchmark** — deploy to Fly.io, open `/?perf=1` on 2015 laptop, play a dense map, press F4, paste p95. ≤16.6ms → lock v8, goal complete. >16.6ms → optimize SliderMesh.
 2. **Integration test** — 10/11 (1 failure: replay anti-cheat rejects fast-forwarded replay — test limitation, not a game bug)
 3. **Light-mode palette** — user's design call
+
+## GameState seam (deepen-game-state-seam change)
+
+All non-engine callers now read/write settings through a single, observable `GameState` API. The game engine keeps using `window.game` during the deprecation window.
+
+- **`src/shell/gamestate.js`** — central seam. Path-based API: `get(path)`, `set(path, value)`, `setBatch(updates)`, `subscribe(path, cb)`, `syncLegacy()`, `bind(game)`. Mod flags are routed through `ModRegistry`; flat flags are derived aliases. Dev-only direct-write guard warns when code mutates managed `window.game` keys, but suppresses warnings during GameState's own writes.
+- **Paths** — `display.<key>`, `audio.<key>`, `input.<key>` cross the gamesettings → window.game bridge with normalization (e.g. `dim/100`, `!sysdpi`). `mods.<flag>` activates via `ModRegistry.setActive` and writes the resolved flag (`game.hardrock`, `game.flashlight`, …). `settings.<key>` is gamesettings-only (e.g. `flSize0`, `customAR`).
+- **Shell+engine wiring** — `src/game/initgame.js` calls `GameState.bind(window.game)` and then `gamesettings.loadToGame()`. `gamesettings.loadToGame()` is now a single `GameState.setBatch(...)` + `GameState.syncLegacy()` call.
+- **Vue components** — `ModSelectPanel.vue` toggles mods via `GameState.set("mods.<flag>", bool)` and writes per-mod settings via `GameState.set("settings.<key>", value)`. `SettingsPanel.vue` routes display/audio/input/mods sliders through `GameState.set(...)` with a `PATH_NAMESPACE` map. `Nav.vue` does not read settings directly.
+- **Headless test** — `scripts/headless-gamestate.js` exercises: settings normalization, mod round-trip (FL settings + activation), batched writes + subscribe, idempotent set, deactivation, and the direct-write guard. Add to CI via `npm run test:gamestate`.

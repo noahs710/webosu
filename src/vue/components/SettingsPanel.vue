@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { gamesettings, defaultsettings, saveToLocal } from "../../shell/gamesettings.js";
+import GameState from "../../shell/gamestate.js";
 import { api } from "../../shell/api.js";
 
 const pfpUrl = ref("");
@@ -16,9 +17,39 @@ const MOD_TOGGLES = ["autoplay","easy","hardrock","nightcore","daycore","hidden"
 const KEYS = [["K1name","K1"],["K2name","K2"],["Kpausename","Pause"],["Kpause2name","Pause 2"],["Kskipname","Skip"]];
 const TOGGLE_LABELS = { autoplay:"Autoplay", easy:"Easy", hardrock:"Hard Rock", nightcore:"Nightcore", daycore:"Daycore", hidden:"Hidden", nofail:"No Fail", suddendeath:"Sudden Death", perfect:"Perfect", spunout:"Spun Out", classic:"Classic", difficultyAdjust:"Difficulty Adjust", hideNumbers:"Hide numbers", hideGreat:"Hide 300s", hideFollowPoints:"Hide follow points", snakein:"Snake-in", snakeout:"Snake-out", showhwmouse:"Hardware cursor", autofullscreen:"Auto fullscreen", sysdpi:"Use system resolution", beatmapHitsound:"Beatmap hitsounds" };
 
+// Map raw gamesettings keys to their GameState path namespace.
+const PATH_NAMESPACE = {
+  dim: "display.dim", blur: "display.blur", cursorsize: "display.cursorsize",
+  dpiscale: "display.dpiscale", mastervolume: "audio.mastervolume",
+  effectvolume: "audio.effectvolume", musicvolume: "audio.musicvolume",
+  audiooffset: "audio.audiooffset",
+  hideNumbers: "display.hideNumbers", hideGreat: "display.hideGreat",
+  hideFollowPoints: "display.hideFollowPoints", snakein: "display.snakein",
+  snakeout: "display.snakeout", showhwmouse: "display.showhwmouse",
+  autofullscreen: "display.autofullscreen", sysdpi: "display.sysdpi",
+  beatmapHitsound: "audio.beatmapHitsound",
+  disableWheel: "input.disableWheel", disableButton: "input.disableButton",
+  K1name: "input.K1name", K2name: "input.K2name",
+  Kpausename: "input.Kpausename", Kpause2name: "input.Kpause2name",
+  Kskipname: "input.Kskipname", K1keycode: "input.K1keycode",
+  K2keycode: "input.K2keycode", Kpausekeycode: "input.Kpausekeycode",
+  Kpause2keycode: "input.Kpause2keycode", Kskipkeycode: "input.Kskipkeycode",
+  // mod flat flags
+  autoplay: "mods.autoplay", easy: "mods.easy", hardrock: "mods.hardrock",
+  nightcore: "mods.nightcore", daycore: "mods.daycore", hidden: "mods.hidden",
+  nofail: "mods.nofail", suddendeath: "mods.suddendeath", perfect: "mods.perfect",
+  spunout: "mods.spunout", classic: "mods.classic", difficultyAdjust: "mods.difficultyAdjust",
+};
+
 const gs = ref(gamesettings);
 
-function set(key, val) { gamesettings[key] = val; gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
+function set(key, val) {
+  gamesettings[key] = val;
+  const path = PATH_NAMESPACE[key] || ("settings." + key);
+  GameState.set(path, val);
+  saveToLocal();
+  gs.value = { ...gamesettings };
+}
 function reset() { Object.assign(gamesettings, defaultsettings); gamesettings.loadToGame(); saveToLocal(); gs.value = { ...gamesettings }; }
 async function savePfp(url) {
   try { await api.saveMyProfile({ pfp_url: url }); pfpUrl.value = url; } catch (e) { /* ignore */ }
@@ -32,7 +63,11 @@ function captureKey(ev, key) {
     // also update the corresponding keycode field (e.g. K1name → K1keycode)
     const keycodeKey = key.replace("name", "keycode");
     if (keycodeKey !== key && keycodeKey in gamesettings) gamesettings[keycodeKey] = e.keyCode;
-    gamesettings.loadToGame(); saveToLocal();
+    GameState.set(PATH_NAMESPACE[key] || ("settings." + key), name);
+    if (keycodeKey !== key && keycodeKey in gamesettings) {
+      GameState.set(PATH_NAMESPACE[keycodeKey] || ("settings." + keycodeKey), e.keyCode);
+    }
+    saveToLocal();
     gs.value = { ...gamesettings };
     window.removeEventListener("keydown", handler, true);
   };

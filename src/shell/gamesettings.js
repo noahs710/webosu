@@ -1,6 +1,7 @@
 // Phase 3: ESM gamesettings system (shared between the settings page and the game).
 import { api } from "./api.js";
-// Ports the core of classic settings.js: defaults + loadToGame (settings -> window.game)
+import GameState from "./gamestate.js";
+// Ports the core of classic settings.js: defaults + loadToGame (settings -> GameState -> window.game)
 // + localStorage ("osugamesettings") + optional backend sync via WebosuAPI. Sets
 // window.gamesettings so the ESM game (initgame) applies user settings on launch.
 const defaultsettings = {
@@ -15,7 +16,7 @@ const defaultsettings = {
   nofail: false, suddendeath: false, perfect: false, spunout: false, classic: false,
   difficultyAdjust: false, customAR: 0, customCS: 0, customOD: 0, customHP: 0,
   flashlight: false,
-  // New lazer mods (driven by ModSelectPanel → ModRegistry)
+  // New lazer mods (driven by ModSelectPanel -> ModRegistry)
   relax: false, autopilot: false, targetpractice: false, adaptiveSpeed: false,
   magnetised: false, wobble: false, windup: false, traceable: false,
   approachDifferent: false, bubbles: false, repel: false, depth: false,
@@ -27,7 +28,7 @@ const defaultsettings = {
 
 // DT/NC settings migration: old settings have nightcore=true meaning "1.5x + pitch" (= NC).
 // New settings split this into doubletime (1.5x speed) + nightcore (NC pitch on top of DT).
-// NC implies DT, so old nightcore=true → doubletime=true + nightcore=true.
+// NC implies DT, so old nightcore=true -> doubletime=true + nightcore=true.
 function migrateSettings(str) {
   try {
     const s = JSON.parse(str);
@@ -105,110 +106,78 @@ async function syncFromServer() {
 
 gamesettings.loadToGame = function () {
   if (!window.game) return;
-  const g = window.game;
-  g.backgroundDimRate = this.dim / 100;
-  g.backgroundBlurRate = this.blur / 100;
-  g.cursorSize = parseFloat(this.cursorsize);
-  g.showhwmouse = this.showhwmouse;
-  g.snakein = this.snakein; g.snakeout = this.snakeout;
-  g.autofullscreen = this.autofullscreen;
-  g.overridedpi = !this.sysdpi; g.dpiscale = this.dpiscale;
-  g.allowMouseScroll = !this.disableWheel; g.allowMouseButton = !this.disableButton;
-  g.K1keycode = this.K1keycode; g.K2keycode = this.K2keycode;
-  g.ESCkeycode = this.Kpausekeycode; g.ESC2keycode = this.Kpause2keycode; g.CTRLkeycode = this.Kskipkeycode;
-  g.masterVolume = this.mastervolume / 100; g.effectVolume = this.effectvolume / 100; g.musicVolume = this.musicvolume / 100;
-  g.beatmapHitsound = this.beatmapHitsound; g.globalOffset = parseFloat(this.audiooffset);
-  g.easy = this.easy; g.daycore = this.daycore; g.hardrock = this.hardrock; g.nightcore = this.nightcore;
-  g.hidden = this.hidden; g.autoplay = this.autoplay;
-  g.nofail = this.nofail; g.suddendeath = this.suddendeath; g.perfect = this.perfect; g.spunout = this.spunout;
-  g.classic = this.classic; g.difficultyAdjust = this.difficultyAdjust;
-  g.customAR = parseFloat(this.customAR); g.customCS = parseFloat(this.customCS);
-  g.customOD = parseFloat(this.customOD); g.customHP = parseFloat(this.customHP);
-  g.hideNumbers = this.hideNumbers; g.hideGreat = this.hideGreat; g.hideFollowPoints = this.hideFollowPoints;
-  g.flashlight = this.flashlight;
-  // New lazer mod flags
-  g.relax = this.relax; g.autopilot = this.autopilot; g.targetpractice = this.targetpractice;
-  g.adaptiveSpeed = this.adaptiveSpeed; g.magnetised = this.magnetised; g.wobble = this.wobble;
-  g.windup = this.windup; g.traceable = this.traceable; g.approachDifferent = this.approachDifferent;
-  g.bubbles = this.bubbles; g.repel = this.repel; g.depth = this.depth;
-  g.transform = this.transform; g.noscope = this.noscope;
-
-  // Build the ModRegistry active set from the flat flags (migration bridge).
-  // The new mod-select UI (Task 13) will eventually drive this directly with
-  // a mod-spec list + per-mod settings; until then, the flat flags are the source.
-  if (window.ModRegistry) {
-    const mods = [];
-    if (this.easy) mods.push("EZ");
-    if (this.hardrock) mods.push("HR");
-    // DT/NC split: nightcore implies doubletime (NC = DT + pitch).
-    // Old settings have nightcore=true meaning "1.5x + pitch" = NC.
-    // New settings have separate doubletime + nightcore flags.
-    if (this.doubletime) mods.push("DT");
-    if (this.nightcore) mods.push("NC");
-    if (this.daycore) mods.push("HT");
-    if (this.hidden) mods.push("HD");
-    if (this.nofail) mods.push("NF");
-    if (this.suddendeath) mods.push("SD");
-    if (this.perfect) mods.push("PF");
-    if (this.spunout) mods.push("SO");
-    if (this.classic) mods.push("CL");
-    if (this.autoplay) mods.push("AT");
-    if (this.flashlight) {
-      // Bridge UI settings (flSize0/flSize200) to the mod's native curve keys.
-      const size0 = parseFloat(this.flSize0) || 400;
-      const size200 = parseFloat(this.flSize200) || 250;
-      mods.push({ acronym: "FL", settings: {
-        sizeCombo0: size0,
-        sizeCombo100: Math.round(size0 + (size200 - size0) * 0.5),
-        sizeCombo200: size200,
-        sliderDim: 0.3,
-      }});
-    }
-    if (this.relax) mods.push("RX");
-    if (this.autopilot) mods.push("AP");
-    if (this.targetpractice) {
-      mods.push({ acronym: "TP", settings: {
-        targetSize: parseFloat(this.tpSize) || 1.0,
-        spawnRate: 1000,
-      }});
-    }
-    if (this.adaptiveSpeed) {
-      mods.push({ acronym: "AS", settings: {
-        maxRate: parseFloat(this.asMaxRate) || 1.05,
-        adjustStep: 0.01,
-        streakRequired: 5,
-      }});
-    }
-    if (this.magnetised) mods.push("MG");
-    if (this.wobble) mods.push("WO");
-    if (this.windup) mods.push("WU");
-    if (this.traceable) mods.push("TR");
-    if (this.approachDifferent) mods.push("AD");
-    if (this.bubbles) mods.push("BU");
-    if (this.repel) mods.push("RP");
-    if (this.depth) mods.push("DP");
-    if (this.transform) {
-      mods.push({ acronym: "TF", settings: {
-        rotate: parseFloat(this.tfRotate) || 0,
-        translateX: 0,
-        translateY: 0,
-        scale: 1.0,
-      }});
-    }
-    if (this.noscope) mods.push("NS");
-    if (this.difficultyAdjust) {
-      mods.push({ acronym: "DA", settings: {
-        ar: parseFloat(this.customAR) || 0,
-        cs: parseFloat(this.customCS) || 0,
-        od: parseFloat(this.customOD) || 0,
-        hp: parseFloat(this.customHP) || 0,
-      }});
-    }
-    window.ModRegistry.setActive(mods);
-    g.mods = window.ModRegistry.getActive();
-    // apply mod effects to the game object (flags, playbackRate hints, etc.)
-    window.ModRegistry.applyToGame(g);
-  }
+  GameState.bind(window.game);
+  // Push all current gamesettings into GameState using the raw gamesettings keys.
+  // GameState normalizes values when writing to the runtime window.game object.
+  GameState.setBatch({
+    "display.dim": this.dim,
+    "display.blur": this.blur,
+    "display.cursorsize": this.cursorsize,
+    "display.showhwmouse": this.showhwmouse,
+    "display.snakein": this.snakein,
+    "display.snakeout": this.snakeout,
+    "display.autofullscreen": this.autofullscreen,
+    "display.sysdpi": this.sysdpi,
+    "display.dpiscale": this.dpiscale,
+    "display.hideNumbers": this.hideNumbers,
+    "display.hideGreat": this.hideGreat,
+    "display.hideFollowPoints": this.hideFollowPoints,
+    "audio.mastervolume": this.mastervolume,
+    "audio.effectvolume": this.effectvolume,
+    "audio.musicvolume": this.musicvolume,
+    "audio.audiooffset": this.audiooffset,
+    "audio.beatmapHitsound": this.beatmapHitsound,
+    "input.disableWheel": this.disableWheel,
+    "input.disableButton": this.disableButton,
+    "input.K1name": this.K1name,
+    "input.K2name": this.K2name,
+    "input.Kpausename": this.Kpausename,
+    "input.Kpause2name": this.Kpause2name,
+    "input.Kskipname": this.Kskipname,
+    "input.K1keycode": this.K1keycode,
+    "input.K2keycode": this.K2keycode,
+    "input.Kpausekeycode": this.Kpausekeycode,
+    "input.Kpause2keycode": this.Kpause2keycode,
+    "input.Kskipkeycode": this.Kskipkeycode,
+    "settings.flSize0": this.flSize0,
+    "settings.flSize200": this.flSize200,
+    "settings.tpSize": this.tpSize,
+    "settings.asMaxRate": this.asMaxRate,
+    "settings.tfRotate": this.tfRotate,
+    "mods.hardrock": this.hardrock,
+    "mods.easy": this.easy,
+    "mods.doubletime": this.doubletime,
+    "mods.nightcore": this.nightcore,
+    "mods.daycore": this.daycore,
+    "mods.hidden": this.hidden,
+    "mods.autoplay": this.autoplay,
+    "mods.nofail": this.nofail,
+    "mods.suddendeath": this.suddendeath,
+    "mods.perfect": this.perfect,
+    "mods.spunout": this.spunout,
+    "mods.classic": this.classic,
+    "mods.flashlight": this.flashlight,
+    "mods.relax": this.relax,
+    "mods.autopilot": this.autopilot,
+    "mods.targetpractice": this.targetpractice,
+    "mods.adaptiveSpeed": this.adaptiveSpeed,
+    "mods.magnetised": this.magnetised,
+    "mods.wobble": this.wobble,
+    "mods.windup": this.windup,
+    "mods.traceable": this.traceable,
+    "mods.approachDifferent": this.approachDifferent,
+    "mods.bubbles": this.bubbles,
+    "mods.repel": this.repel,
+    "mods.depth": this.depth,
+    "mods.transform": this.transform,
+    "mods.noscope": this.noscope,
+    "mods.difficultyAdjust": this.difficultyAdjust,
+    "mods.customAR": this.customAR,
+    "mods.customCS": this.customCS,
+    "mods.customOD": this.customOD,
+    "mods.customHP": this.customHP,
+  });
+  GameState.syncLegacy();
 };
 gamesettings.refresh = loadFromLocal;
 gamesettings.save = saveToLocal;
@@ -218,4 +187,6 @@ loadFromLocal();
 window.gamesettings = gamesettings;
 // if game already exists (initgame loaded first), push settings immediately
 try { if (window.game) gamesettings.loadToGame(); } catch {}
-export { gamesettings, defaultsettings, loadFromLocal, saveToLocal, syncFromServer };
+
+export { gamesettings, defaultsettings, saveToLocal, loadFromLocal, syncFromServer };
+export default gamesettings;
