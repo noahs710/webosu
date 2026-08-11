@@ -188,5 +188,12 @@ window.gamesettings = gamesettings;
 // if game already exists (initgame loaded first), push settings immediately
 try { if (window.game) gamesettings.loadToGame(); } catch {}
 
+// Sync server-side mods when the user logs in (mods are per-user, not device).
+if (typeof window !== 'undefined') {
+  window.addEventListener('webosu-auth', () => {
+    if (api.isLoggedIn()) syncFromServer();
+  });
+}
+
 export { gamesettings, defaultsettings, saveToLocal, loadFromLocal, syncFromServer };
 export default gamesettings;

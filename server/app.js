@@ -397,12 +397,16 @@ function buildApp({ serveStatic = true } = {}) {
     reply.send({ user: u, stats, achievements, globalRank, countryRank });
   });
 
-  // Recent plays for a specific user
+  // Recent plays for a specific user (paginated)
   app.get("/api/profiles/:username/recent", async (req, reply) => {
     const u = D.getUserByName(req.params.username);
     if (!u) return reply.code(404).send({ error: "not found" });
-    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
-    reply.send(D.userScoresRecent(u.id, limit));
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    // Cap total window at 500 to avoid OOM on huge pages
+    const total = D.userScoresCount(u.id);
+    const items = D.userScoresRecent(u.id, limit, offset);
+    reply.send({ items, total, limit, offset });
   });
 
   // ---------- rankings ----------
@@ -440,6 +444,15 @@ function buildApp({ serveStatic = true } = {}) {
       settings: prof.settings ? JSON.parse(prof.settings) : null,
       favorites: prof.favorites ? JSON.parse(prof.favorites) : null,
     });
+  });
+
+  // Current user's own scores (paginated, newest first)
+  app.get("/api/me/scores", { preHandler: authRequired }, async (req, reply) => {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 20, 100);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const total = D.userScoresCount(req.user.id);
+    const items = D.userScoresRecent(req.user.id, limit, offset);
+    reply.send({ items, total, limit, offset });
   });
 
   app.put("/api/profile/me", { preHandler: authRequired }, async (req, reply) => {

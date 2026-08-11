@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, onMounted, onUnmounted } from "vue";
 import { ensureGame } from "../game-loader.js";
 import { getCachedBeatmaps, setCachedBeatmaps, clearCachedBeatmaps } from "../../shell/beatmapCache.js";
 import { addFavorite, removeFavorite, getFavorites } from "../../shell/favorites.js";
@@ -107,6 +107,8 @@ function reload() { load(true); }
 
 watch(() => [props.src, props.sids], () => load(false));
 // expose reload for parent pages / manual reload button
+const canLoadMore = computed(() => !props.sids && (props.src || '').includes('limit='));
+
 defineExpose({ reload, load });
 
 let previewAudio = null;
@@ -210,7 +212,7 @@ onUnmounted(() => {
   <div v-if="error" class="text-red-400 p-4">Failed to load: {{ error }} <button @click="reload" class="ml-2 text-lazer-pink hover:underline">Retry</button></div>
   <div v-else-if="!loading && !sets.length && emptyMessage" class="text-lazer-dim p-4">{{ emptyMessage }}</div>
   <div v-else>
-    <div v-if="sets.length" class="flex justify-end mb-2">
+    <div v-if="sets.length && canLoadMore" class="flex justify-end mb-2">
       <button @click="load(true)" :disabled="loading" class="text-xs text-lazer-dim hover:text-white disabled:opacity-50 flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5">
         {{ loading ? 'Loading...' : 'More' }}
       </button>

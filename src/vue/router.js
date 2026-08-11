@@ -9,7 +9,13 @@ const routes = [
   { path: "/leaderboard", name: "leaderboard", component: () => import("./pages/leaderboard.js") },
   { path: "/u/:username", name: "profile", component: () => import("./pages/profile.js") },
   { path: "/profile", redirect: (to) => {
-    const u = to.query.u || localStorage.getItem("username") || "";
+    // Read the logged-in user from the webosu_user blob (the only place login writes it).
+    // Falls back to legacy localStorage.username for back-compat with older sessions.
+    let u = to.query.u || "";
+    if (!u) {
+      try { const raw = localStorage.getItem("webosu_user"); if (raw) { const p = JSON.parse(raw); u = (p && p.username) || ""; } } catch {}
+    }
+    if (!u) u = localStorage.getItem("username") || "";
     return u ? `/u/${encodeURIComponent(u)}` : "/u/";
   }},
   { path: "/settings", name: "settings", component: () => import("./pages/settings.js") },

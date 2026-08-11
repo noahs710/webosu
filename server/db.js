@@ -278,11 +278,16 @@ module.exports = {
     return Math.round(total * 100) / 100;
   },
   // Recent scores for a specific user (with beatmap info stored on the score row)
-  userScoresRecent(userId, limit) {
+  userScoresRecent(userId, limit, offset) {
+    const lim = Math.max(parseInt(limit, 10) || 0, 1);
+    const off = Math.max(parseInt(offset, 10) || 0, 0);
     return db.prepare(`
       SELECT id, beatmap_id, title, artist, version, score, acc, grade, mods, pp, miss, count300, count100, count50, max_combo, created_at
       FROM scores WHERE user_id = ?
-      ORDER BY created_at DESC LIMIT ?`).all(userId, limit);
+      ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(userId, lim, off);
+  },
+  userScoresCount(userId) {
+    return db.prepare("SELECT COUNT(*) as c FROM scores WHERE user_id = ?").get(userId).c;
   },
   // Global rankings (sorted by total_pp desc)
   rankings(limit, offset) {
