@@ -384,17 +384,38 @@ export async function applySkin(skinData) {
                tex = PIXI.Texture.from(url);
             }
             if (tex && tex.source) {
-               tex.source.autoGenerateMipmaps = false;
-               tex.source.scaleMode = "linear";
-               if (skinData.textures[key].is2x) {
-                  try {
-                     tex.source.resolution = 2;
-                  } catch {}
-               } else {
-                  try {
-                     if (tex.source.resolution !== 1) tex.source.resolution = 1;
-                  } catch {}
-               }
+                tex.source.autoGenerateMipmaps = false;
+                tex.source.scaleMode = "linear";
+                if (skinData.textures[key].is2x) {
+                   try {
+                      tex.source.resolution = 2;
+                   } catch {}
+                } else {
+                   try {
+                      if (tex.source.resolution !== 1) tex.source.resolution = 1;
+                   } catch {}
+                }
+                // Normalize texture size: if default texture was 128px and custom is 256px,
+                // set resolution = 256/128 = 2 so the sprite renders at the same on-screen size.
+                // This ensures all skins show circles, cursor, etc. at the same visual size.
+                try {
+                   const defaultSizes = window._defaultTexSizes;
+                   if (defaultSizes && defaultSizes[key]) {
+                      const dw = defaultSizes[key].w;
+                      const dh = defaultSizes[key].h;
+                      const tw = tex.orig?.width || tex.source?.width || tex.width || 0;
+                      const th = tex.orig?.height || tex.source?.height || tex.height || 0;
+                      if (dw > 0 && tw > 0) {
+                         const ratio = tw / dw;
+                         // Only adjust if ratio differs from current resolution (avoid redundant sets)
+                         const currentRes = tex.source.resolution || 1;
+                         const targetRes = skinData.textures[key].is2x ? 2 : ratio;
+                         if (Math.abs(targetRes - currentRes) > 0.01) {
+                            tex.source.resolution = targetRes;
+                         }
+                      }
+                   }
+                } catch {}
                const doRevoke = () => {
                   try {
                      URL.revokeObjectURL(url);
@@ -504,19 +525,21 @@ export async function applySkin(skinData) {
    }
 
    // Update hitRadius and hitSpriteScale based on actual disc.png texture size
-   // so the judgement area matches the visual circle diameter.
-   // osu! default skin disc.png is 128px (radius 64). Custom skins may be 256px.
-   // hitSpriteScale = circleRadius / (textureWidth / 2) makes visual diameter = textureWidth * scale = 2*circleRadius
-   // hitRadius = circleRadius (matches visual) — but if texture is bigger, scale adjusts so visual still = 2*circleRadius
+   // After texture normalization (resolution = customW/defaultW), the effective
+   // on-screen size of disc.png is always the default size (e.g. 128px for sprites.json).
+   // So hitSpriteScale should be based on the DEFAULT texture size, not the custom one.
    if (window.Skin && window.Skin["disc.png"] && window.game) {
       try {
          const tex = window.Skin["disc.png"];
-         const texW = tex.orig?.width || tex.source?.width || tex.width || 128;
-         const halfW = texW / 2;
+         // Use the default texture size (stored at initgame time) for scale calculation
+         // If no default sizes stored, use the texture's effective size after resolution normalization
+         const defaultSizes = window._defaultTexSizes;
+         const defaultW = defaultSizes?.["disc.png"]?.w || 128;
+         const halfW = defaultW / 2;
          if (halfW > 0 && window.game.circleRadius) {
             window.game.hitSpriteScale = window.game.circleRadius / halfW;
             window.game.hitRadius = window.game.circleRadius;
-            clog("skin-loader", "hitSpriteScale updated", window.game.hitSpriteScale, "from texture", texW, "hitRadius", window.game.hitRadius);
+            clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "from default texture", defaultW, "hitRadius", window.game.hitRadius);
          }
       } catch (e) { cwarn("skin-loader", "hitRadius update failed", e); }
    }

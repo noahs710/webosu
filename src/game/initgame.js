@@ -137,6 +137,13 @@ async function loadDefaultSkin() {
          await applySkin(cached);
          try {
             window._defaultSkin = { ...window.Skin };
+            window._defaultTexSizes = {};
+            for (const k in window.Skin) {
+               const t = window.Skin[k];
+               const w = t.orig?.width || t.source?.width || t.width || 0;
+               const h = t.orig?.height || t.source?.height || t.height || 0;
+               if (w > 0 && h > 0) window._defaultTexSizes[k] = { w, h };
+            }
          } catch {}
          ilog("initgame", "cached skin applied");
          return true;
@@ -169,10 +176,18 @@ async function loadDefaultSkin() {
       } catch (e) {
          iwarn("initgame", "saveLocalSkin failed", e);
       }
-      await applySkin(data);
-      try {
-         window._defaultSkin = { ...window.Skin };
-      } catch {}
+       await applySkin(data);
+       try {
+          window._defaultSkin = { ...window.Skin };
+          // Store default texture sizes for normalization
+          window._defaultTexSizes = {};
+          for (const k in window.Skin) {
+             const t = window.Skin[k];
+             const w = t.orig?.width || t.source?.width || t.width || 0;
+             const h = t.orig?.height || t.source?.height || t.height || 0;
+             if (w > 0 && h > 0) window._defaultTexSizes[k] = { w, h };
+          }
+       } catch {}
       ilog("initgame", "default .osk applied");
       return true;
    } catch (e) {
@@ -182,13 +197,21 @@ async function loadDefaultSkin() {
          e,
       );
    }
-   // fallback: load sprites.json (legacy default spritesheet)
-   try {
-      const sheet = await PIXI.Assets.load("/sprites.json");
-      window.Skin = sheet.textures;
-      try {
-         window._defaultSkin = { ...window.Skin };
-      } catch {}
+    // fallback: load sprites.json (legacy default spritesheet)
+    try {
+       const sheet = await PIXI.Assets.load("/sprites.json");
+       window.Skin = sheet.textures;
+       try {
+          window._defaultSkin = { ...window.Skin };
+          // Store default texture sizes for normalization when custom skins are applied
+          window._defaultTexSizes = {};
+          for (const k in window.Skin) {
+             const t = window.Skin[k];
+             const w = t.orig?.width || t.source?.width || t.width || 0;
+             const h = t.orig?.height || t.source?.height || t.height || 0;
+             if (w > 0 && h > 0) window._defaultTexSizes[k] = { w, h };
+          }
+       } catch {}
       ilog(
          "initgame",
          "sprites.json fallback loaded",
