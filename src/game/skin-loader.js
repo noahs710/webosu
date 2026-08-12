@@ -524,24 +524,14 @@ export async function applySkin(skinData) {
       window.game.allowSliderBallTint = !!c.allowSliderBallTint;
    }
 
-   // Update hitRadius and hitSpriteScale based on actual disc.png texture size
-   // After texture normalization (resolution = customW/defaultW), the effective
-   // on-screen size of disc.png is always the default size (e.g. 128px for sprites.json).
-   // So hitSpriteScale should be based on the DEFAULT texture size, not the custom one.
-   if (window.Skin && window.Skin["disc.png"] && window.game) {
-      try {
-         const tex = window.Skin["disc.png"];
-         // Use the default texture size (stored at initgame time) for scale calculation
-         // If no default sizes stored, use the texture's effective size after resolution normalization
-         const defaultSizes = window._defaultTexSizes;
-         const defaultW = defaultSizes?.["disc.png"]?.w || 128;
-         const halfW = defaultW / 2;
-         if (halfW > 0 && window.game.circleRadius) {
-            window.game.hitSpriteScale = window.game.circleRadius / halfW;
-            window.game.hitRadius = window.game.circleRadius;
-            clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "from default texture", defaultW, "hitRadius", window.game.hitRadius);
-         }
-      } catch (e) { cwarn("skin-loader", "hitRadius update failed", e); }
+   // Update hitSpriteScale based on default texture size.
+   // Original webosu used circleRadius/60 (visible radius of default 128px texture).
+   // Texture normalization via source.resolution ensures custom skins render at
+   // the same on-screen size, so /60 stays correct for all skins.
+   if (window.game && window.game.circleRadius) {
+      window.game.hitSpriteScale = window.game.circleRadius / 60;
+      window.game.hitRadius = window.game.circleRadius;
+      clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "hitRadius", window.game.hitRadius);
    }
 }
 

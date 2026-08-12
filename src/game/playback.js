@@ -408,16 +408,14 @@ function Playback(game, osu, track) {
       }
    };
    self.circleRadius = (109 - 9 * this.CS) / 2; // unit: osu! pixel
-   // hitRadius: the actual judgement radius in osu! pixels.
-   // The visual circle is drawn from skin textures (disc.png etc.) at hitSpriteScale.
-   // osu! default textures are 128px (radius 64), so hitSpriteScale = circleRadius/64
-   // and the visual diameter = 128 * (circleRadius/64) = 2*circleRadius — matches.
-   // But custom skins may have larger textures (256px), making the visual bigger.
-   // The judgement radius should match the VISUAL radius so taps land where the player sees.
-   // We use the actual texture width of disc.png to compute the real visual radius.
-   self.hitSpriteScale = self.circleRadius / 64;
-   // Default hitRadius = circleRadius (matches 128px textures).
-   // Updated after skin load to match actual texture size.
+   // Original webosu (Pixi 6) used circleRadius/60 for hitSpriteScale.
+   // The default skin's hitcircle texture is 128px but the visible circle
+   // within it is ~120px diameter (60px radius). Using /60 makes the visual
+   // circle match the judgement radius exactly. Using /64 (texture/2) would
+   // make the circle 7% too big because it counts transparent padding.
+   // For custom skins, texture normalization via source.resolution handles
+   // size differences so /60 stays correct for all skins.
+   self.hitSpriteScale = self.circleRadius / 60;
    self.hitRadius = self.circleRadius;
    self.MehTime = 200 - 10 * this.OD;
    self.GoodTime = 140 - 8 * this.OD;
