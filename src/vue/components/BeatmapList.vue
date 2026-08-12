@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from "vue";
+import { RouterLink } from "vue-router";
 import { ensureGame } from "../game-loader.js";
 import { getCachedBeatmaps, setCachedBeatmaps, clearCachedBeatmaps } from "../../shell/beatmapCache.js";
 import { addFavorite, removeFavorite, getFavorites } from "../../shell/favorites.js";
@@ -9,6 +10,7 @@ const props = defineProps({
   sids: { default: null },
   limit: { default: 12 },
   emptyMessage: { default: "" },
+    browseMode: { default: false },
 });
 // beatmap-launch is dispatched as a DOM CustomEvent (caught by app.js)
 const sets = ref([]);
@@ -212,20 +214,20 @@ onUnmounted(() => {
   <div v-if="error" class="text-red-400 p-4">Failed to load: {{ error }} <button @click="reload" class="ml-2 text-lazer-pink hover:underline">Retry</button></div>
   <div v-else-if="!loading && !sets.length && emptyMessage" class="text-lazer-dim p-4">{{ emptyMessage }}</div>
   <div v-else>
-    <div v-if="sets.length && canLoadMore" class="flex justify-end mb-2">
-      <button @click="load(true)" :disabled="loading" class="text-xs text-lazer-dim hover:text-white disabled:opacity-50 flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5">
-        {{ loading ? 'Loading...' : 'More' }}
-      </button>
+    <div v-if="sets.length && canLoadMore && !browseMode" class="flex justify-end mb-2">
+      <RouterLink to="/browse" class="text-xs text-lazer-dim hover:text-white flex items-center gap-1 px-2 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/5">
+        Browse all →
+      </RouterLink>
     </div>
     <div class="flex flex-wrap gap-3">
     <article v-for="s in sets" :key="s.id"
-      class="beatmap-card beatmapbox group relative cursor-pointer overflow-hidden w-auto max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
+      class="beatmap-card beatmapbox group relative cursor-pointer overflow-hidden w-full sm:w-[calc(50%-0.375rem)] lg:w-[calc(33.333%-0.5rem)] xl:w-[calc(25%-0.563rem)] max-w-[420px] rounded-xl border border-white/5 shadow-lg transition-all hover:-translate-y-1 hover:shadow-2xl hover:border-lazer-pink/35"
       style="background: var(--lazer-panel);"
       @click="openModal(s, $event)">
-      <div class="overflow-hidden rounded-t-xl relative">
+      <div class="overflow-hidden rounded-t-xl relative h-[140px] bg-white/5">
         <img :src="'https://assets.ppy.sh/beatmaps/' + s.id + '/covers/card@2x.jpg'"
              alt="" loading="lazy"
-             class="w-full h-[140px] object-cover rounded-t-xl transition-transform duration-200 ease-out group-hover:scale-105"
+             class="absolute inset-0 w-full h-full object-cover rounded-t-xl transition-transform duration-200 ease-out group-hover:scale-105"
              @error="$event.target.style.display='none'" />
         <button @click="toggleFav(s.id, $event)"
           class="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-lg hover:bg-black/70 transition"

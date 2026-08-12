@@ -7,6 +7,7 @@ import HealthCheckPopup from "./components/HealthCheckPopup.vue";
 import ErrorPopup from "./components/ErrorPopup.vue";
 import { ensureGame } from "./game-loader.js";
 import "../shell/api.js"; // side effect: sets window.WebosuAPI for game score submission
+import "../game/mods/register.js"; // side effect: registers all mods + window.ModRegistry
 window.__ensureGame = ensureGame;
 
 // Loading overlay for beatmap launch — visible during download + unzip + parse
@@ -17,10 +18,17 @@ function showLoadingOverlay(title, artist) {
    const el = document.createElement("div");
    el.id = "beatmap-loading-overlay";
    Object.assign(el.style, {
-      position: "fixed", inset: "0", zIndex: "9999",
-      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-      background: "rgba(12,12,20,0.92)", backdropFilter: "blur(8px)",
-      color: "#ececf4", fontFamily: "Comfortaa, sans-serif",
+      position: "fixed",
+      inset: "0",
+      zIndex: "9999",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "center",
+      background: "rgba(12,12,20,0.92)",
+      backdropFilter: "blur(8px)",
+      color: "#ececf4",
+      fontFamily: "Comfortaa, sans-serif",
       transition: "opacity 0.2s",
    });
    el.innerHTML = `
@@ -40,8 +48,14 @@ function showLoadingOverlay(title, artist) {
    }
    document.body.appendChild(el);
    return {
-      setText(t) { const e = document.getElementById("beatmap-loading-text"); if (e) e.textContent = t; },
-      remove() { el.style.opacity = "0"; setTimeout(() => el.remove(), 200); },
+      setText(t) {
+         const e = document.getElementById("beatmap-loading-text");
+         if (e) e.textContent = t;
+      },
+      remove() {
+         el.style.opacity = "0";
+         setTimeout(() => el.remove(), 200);
+      },
    };
 }
 
@@ -60,113 +74,197 @@ const gameAreaHTML = `
   </div>`;
 
 const app = createApp({
-  components: { Nav, ModSelectPanel, HealthCheckPopup, ErrorPopup },
-  setup() {
-    const showModSidebar = ref(false);
-    const healthIssue = ref(null);
-    // Foreground error popup — survives map failures by sitting at z-index 11000
-    // (above the difficulty-box at 10000 and the loading/grading overlays) and
-    // is independent of `window.alert`, which launchgame.js silences during play.
-    const errorPopup = ref(null);
-    function showError(message, title) {
-      errorPopup.value = { message: String(message || ""), title: title || "Something went wrong", id: Date.now() };
-    }
-    function dismissError() { errorPopup.value = null; }
-    // Expose a non-Vue entry point so launchgame.js (and other game modules) can
-    // surface critical errors without depending on the silenced window.alert.
-    window.__showErrorPopup = (message, title) => showError(message, title);
-    function toggleModSidebar() { showModSidebar.value = !showModSidebar.value; }
-    function closeModSidebar() { showModSidebar.value = false; }
-    window.__toggleModSidebar = toggleModSidebar;
-    function onKey(e) {
-      if (e.key === "F1") { e.preventDefault(); toggleModSidebar(); }
-      if (e.key === "Escape" && showModSidebar.value) closeModSidebar();
-    }
-    function onHealthIssue(e) { healthIssue.value = e.detail; }
-    function repairSkin() {
-      // trigger a file picker for re-import
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = ".osk,.zip";
-      input.onchange = () => {
-        if (input.files[0]) {
-          import("./game-loader.js").then(({ }) => {
-            // re-import the skin — dispatch to the skins page logic
-            window.location.href = "/skins";
-          });
-        }
-      };
-      input.click();
-      healthIssue.value = null;
-    }
-    function resetDefault() {
-      // clear the skin cache and reload
-      try { localStorage.removeItem("webosu_active_skin"); } catch {}
-      if (window.localforage) localforage.removeItem("skinTextures", () => location.reload());
-      else location.reload();
-      healthIssue.value = null;
-    }
-    function dismissHealth() { healthIssue.value = null; }
-    onMounted(() => {
-      window.addEventListener("keydown", onKey);
-      window.addEventListener("skin-health-issue", onHealthIssue);
-      // inject game-area + pause-menu into the DOM (outside Vue's control)
-      document.body.insertAdjacentHTML("beforeend", gameAreaHTML);
-
-      // global beatmap-launch handler — always no-video for 0 download impact (video scrapped)
-      document.addEventListener("beatmap-launch", async (e) => {
-         const { setId, beatmapId, version, title, artist } = e.detail;
-         // show loading overlay immediately so the user sees progress
-         const overlay = showLoadingOverlay(title, artist);
-         try {
-            await ensureGame();
-            overlay.setText("Downloading beatmap...");
-            const suffix = "n"; // always no-video for speed
-            if (import.meta.env.DEV) console.log("[app] launch beatmap", { setId, beatmapId, version, url: "https://catboy.best/d/" + setId + suffix });
-            const r = await fetch("https://catboy.best/d/" + setId + suffix);
-            if (!r.ok) throw new Error("download " + r.status);
-            const ab = await r.arrayBuffer();
-            overlay.setText("Unzipping & parsing...");
-            // let the overlay paint before the sync unzip/parse
-             await new Promise(requestAnimationFrame);
-             window.launchGame(new Blob([ab]), beatmapId, version);
-             // overlay is removed by the worker's onmessage handler (on result/error)
-          } catch (err) {
-             const overlay = document.getElementById("beatmap-loading-overlay");
-             if (overlay) overlay.remove();
-            if (import.meta.env.DEV) console.warn("launch failed:", err);
-            showError("Could not start: " + (err.message || err));
-          }
-       });
-
-       // replay watch: ?watch=<replayId>&bid=<beatmapId>&sid=<setId>&v=<version>
-       const q = new URLSearchParams(location.search);
-       const watch = q.get("watch");
-       if (watch) {
-         ensureGame();
-         const replayOverlay = showLoadingOverlay("Loading replay...", "");
-         const checkReady = () => {
-           if (window.Osu && window.scriptReady && window.skinReady && window.soundReady && typeof window.launchReplay === "function") {
-             fetch("/api/replays/" + watch)
-               .then((r) => r.json())
-               .then((frames) => {
-                 if (!Array.isArray(frames) || !frames.length) { replayOverlay.remove(); showError("Replay unavailable for this score."); return; }
-                 replayOverlay.setText("Downloading beatmap...");
-                 const suffix = "n";
-                 return fetch("https://catboy.best/d/" + q.get("sid") + suffix)
-                   .then((r) => r.arrayBuffer())
-                   .then((ab) => { window.launchReplay(new Blob([ab]), parseInt(q.get("bid") || "0"), q.get("v") || "", frames); });
-               })
-               .catch((e) => { replayOverlay.remove(); showError("Could not start replay: " + (e.message || e)); });
-           } else setTimeout(checkReady, 200);
+   components: { Nav, ModSelectPanel, HealthCheckPopup, ErrorPopup },
+   setup() {
+      const showModSidebar = ref(false);
+      const healthIssue = ref(null);
+      // Foreground error popup — survives map failures by sitting at z-index 11000
+      // (above the difficulty-box at 10000 and the loading/grading overlays) and
+      // is independent of `window.alert`, which launchgame.js silences during play.
+      const errorPopup = ref(null);
+      function showError(message, title) {
+         errorPopup.value = {
+            message: String(message || ""),
+            title: title || "Something went wrong",
+            id: Date.now(),
          };
-         checkReady();
-       }
-    });
-    onUnmounted(() => { window.removeEventListener("keydown", onKey); window.removeEventListener("skin-health-issue", onHealthIssue); });
-    return { showModSidebar, toggleModSidebar, closeModSidebar, healthIssue, repairSkin, resetDefault, dismissHealth, errorPopup, dismissError };
-  },
-  template: `
+      }
+      function dismissError() {
+         errorPopup.value = null;
+      }
+      // Expose a non-Vue entry point so launchgame.js (and other game modules) can
+      // surface critical errors without depending on the silenced window.alert.
+      window.__showErrorPopup = (message, title) => showError(message, title);
+      function toggleModSidebar() {
+         showModSidebar.value = !showModSidebar.value;
+      }
+      function closeModSidebar() {
+         showModSidebar.value = false;
+      }
+      window.__toggleModSidebar = toggleModSidebar;
+      function onKey(e) {
+         if (e.key === "F1") {
+            e.preventDefault();
+            toggleModSidebar();
+         }
+         if (e.key === "Escape" && showModSidebar.value) closeModSidebar();
+      }
+      function onHealthIssue(e) {
+         healthIssue.value = e.detail;
+      }
+      function repairSkin() {
+         // trigger a file picker for re-import
+         const input = document.createElement("input");
+         input.type = "file";
+         input.accept = ".osk,.zip";
+         input.onchange = () => {
+            if (input.files[0]) {
+               import("./game-loader.js").then(({}) => {
+                  // re-import the skin — dispatch to the skins page logic
+                  window.location.href = "/skins";
+               });
+            }
+         };
+         input.click();
+         healthIssue.value = null;
+      }
+      function resetDefault() {
+         // clear the skin cache and reload
+         try {
+            localStorage.removeItem("webosu_active_skin");
+         } catch {}
+         if (window.localforage)
+            localforage.removeItem("skinTextures", () => location.reload());
+         else location.reload();
+         healthIssue.value = null;
+      }
+      function dismissHealth() {
+         healthIssue.value = null;
+      }
+      onMounted(() => {
+         window.addEventListener("keydown", onKey);
+         window.addEventListener("skin-health-issue", onHealthIssue);
+         // inject game-area + pause-menu into the DOM (outside Vue's control)
+         document.body.insertAdjacentHTML("beforeend", gameAreaHTML);
+
+         // Eager-load the game so skin textures + ModRegistry are available globally
+         // before the user clicks a beatmap.  This makes the home page's mod
+         // sidebar immediately list every registered mod (not 0) and lets any code
+         // that introspects window.Skin at runtime see real textures.  Safe to
+         // ignore errors here — the actual beatmap launch re-runs ensureGame.
+         try {
+            ensureGame();
+         } catch (e) {
+            /* swallowed — fall back to lazy */
+         }
+
+         // global beatmap-launch handler — always no-video for 0 download impact (video scrapped)
+         document.addEventListener("beatmap-launch", async (e) => {
+            const { setId, beatmapId, version, title, artist } = e.detail;
+            // show loading overlay immediately so the user sees progress
+            const overlay = showLoadingOverlay(title, artist);
+            try {
+               await ensureGame();
+               overlay.setText("Downloading beatmap...");
+               const suffix = "n"; // always no-video for speed
+               if (import.meta.env.DEV)
+                  console.log("[app] launch beatmap", {
+                     setId,
+                     beatmapId,
+                     version,
+                     url: "https://catboy.best/d/" + setId + suffix,
+                  });
+               const benchBundle = new URLSearchParams(location.search).get(
+                  "benchBundle",
+               );
+               const url = benchBundle
+                  ? "/bench-bundle/" +
+                    benchBundle +
+                    (/\.(osu|osz)$/.test(benchBundle) ? "" : ".osz")
+                  : "https://catboy.best/d/" + setId + suffix;
+               const r = await fetch(url);
+               if (!r.ok) throw new Error("download " + r.status);
+               const ab = await r.arrayBuffer();
+               overlay.setText("Unzipping & parsing...");
+               // let the overlay paint before the sync unzip/parse
+               await new Promise(requestAnimationFrame);
+               window.launchGame(new Blob([ab]), beatmapId, version);
+               // overlay is removed by the worker's onmessage handler (on result/error)
+            } catch (err) {
+               const overlay = document.getElementById(
+                  "beatmap-loading-overlay",
+               );
+               if (overlay) overlay.remove();
+               if (import.meta.env.DEV) console.warn("launch failed:", err);
+               showError("Could not start: " + (err.message || err));
+            }
+         });
+
+         // replay watch: ?watch=<replayId>&bid=<beatmapId>&sid=<setId>&v=<version>
+         const q = new URLSearchParams(location.search);
+         const watch = q.get("watch");
+         if (watch) {
+            ensureGame();
+            const replayOverlay = showLoadingOverlay("Loading replay...", "");
+            const checkReady = () => {
+               if (
+                  window.Osu &&
+                  window.scriptReady &&
+                  window.skinReady &&
+                  window.soundReady &&
+                  typeof window.launchReplay === "function"
+               ) {
+                  fetch("/api/replays/" + watch)
+                     .then((r) => r.json())
+                     .then((frames) => {
+                        if (!Array.isArray(frames) || !frames.length) {
+                           replayOverlay.remove();
+                           showError("Replay unavailable for this score.");
+                           return;
+                        }
+                        replayOverlay.setText("Downloading beatmap...");
+                        const suffix = "n";
+                        return fetch(
+                           "https://catboy.best/d/" + q.get("sid") + suffix,
+                        )
+                           .then((r) => r.arrayBuffer())
+                           .then((ab) => {
+                              window.launchReplay(
+                                 new Blob([ab]),
+                                 parseInt(q.get("bid") || "0"),
+                                 q.get("v") || "",
+                                 frames,
+                              );
+                           });
+                     })
+                     .catch((e) => {
+                        replayOverlay.remove();
+                        showError(
+                           "Could not start replay: " + (e.message || e),
+                        );
+                     });
+               } else setTimeout(checkReady, 200);
+            };
+            checkReady();
+         }
+      });
+      onUnmounted(() => {
+         window.removeEventListener("keydown", onKey);
+         window.removeEventListener("skin-health-issue", onHealthIssue);
+      });
+      return {
+         showModSidebar,
+         toggleModSidebar,
+         closeModSidebar,
+         healthIssue,
+         repairSkin,
+         resetDefault,
+         dismissHealth,
+         errorPopup,
+         dismissError,
+      };
+   },
+   template: `
     <div id="main-page">
       <Nav @toggle-mods="toggleModSidebar" />
       <router-view />
@@ -211,3 +309,4 @@ const app = createApp({
 
 app.use(router);
 app.mount("#vue-app");
+

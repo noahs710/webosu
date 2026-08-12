@@ -1,0 +1,25 @@
+bootstrap: API on 8080, preview on 5180
+SPA ready: window.Skin has 40 textures
+Playback created with 4 hits
+screenshot: C:\Users\Gabrielle Monlea\Documents\Projects\webosu\scripts\visual-bench.png
+report: C:\Users\Gabrielle Monlea\Documents\Projects\webosu\scripts\visual-bench.json
+=== checks ===
+PASS hitCount >= 1 :: 4 hits
+PASS hitSpriteScale > 0 :: scale=0.5333333333333333
+PASS hitSpriteScale == circleRadius / 60 :: radius=32
+FAIL first hit object has source :: {"ctor":"e","scaleX":0.26666666666666666,"textureValid":false}
+FAIL first hit number has source :: {"ctor":"e","scaleX":0.21333333333333335,"textureValid":false}
+FAIL followPointsCount >= 1 :: followPoints=0
+PASS judgement sprite constructed :: {"ctor":"e","fontSize":null,"scaleX":0.4533333333333333,"scaleY":0.4533333333333333,"textureValid":false,"text":null}
+PASS bg present :: bg=true
+PASS skinKeys >= 5 :: 40 textures
+PASS mods registered >= 10 :: 28 mods
+PASS mobile == false (host UA) :: mobile=false
+PASS no touch pause btn on desktop :: btn=false
+PASS mod-panel z-index 10 :: z=10
+PASS touch-pause gate uses (pointer: coarse) + ontouchstart :: src/game/launchgame.js:178
+PASS default-background fallback uses PIXI.Texture.WHITE :: src/game/playback.js fallback chain
+=== pageerrors (1, fatal=1) ===
+  TypeError: this.gain.connect is not a function
+    at new k (http://localhost:5180/assets/main-BvhcJfM4.js:2:39075)
+    at n.onload (http://localhost:5180/assets/main-BvhcJfM4.js:3:121074)

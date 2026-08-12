@@ -103,7 +103,7 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
       // simulating the whole beatmap's HP increases — too complex for inline.
       // This approximation scales with HPdrain; the per-judgement HP values
       // (lazerHpIncrease) are the impactful change and are exact.
-      this.passiveDrain = lazerDifficultyRange(HPdrain || 0, 0.000003, 0.000008, 0.000015);
+      this.passiveDrain = lazerDifficultyRange(HPdrain || 0, 0.0000015, 0.000004, 0.0000075);
 
       this.score = 0; // this have been multiplied by scoreMultiplier
       this.combo = 0;
@@ -256,7 +256,11 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
              }
           }
          this.maxcombo = Math.max(this.maxcombo, this.combo);
-         if (this.HP >= 0) this.HP += this.HPincreasefor(result, maxresult);
+         if (this.HP >= 0) {
+            const hpDelta = this.HPincreasefor(result, maxresult);
+            // Cap single-hit HP loss to 10% so a miss from near-full never instakills
+            this.HP += Math.max(hpDelta, -0.1);
+         }
          this.HP = Math.min(1, this.HP);
 
          this.score4display.set(time, this.score);
@@ -357,7 +361,12 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
          if (this.lastDrainTime < 0) this.lastDrainTime = time;
          let dt = time - this.lastDrainTime;
          this.lastDrainTime = time;
-         if (!this.failed && time >= 0 && dt > 0 && dt < 1000) {
+         // Only drain during active gameplay (between first and last hit object),
+         // not during breaks or before the map starts. This prevents HP from
+         // draining to 0 on long maps where a single miss then causes fail.
+         const drainStart = this.field && this.field._drainStart || 0;
+         const drainEnd = this.field && this.field._drainEnd || Infinity;
+         if (!this.failed && time >= drainStart && time <= drainEnd && dt > 0 && dt < 1000) {
             this.HP -= this.passiveDrain * dt;
             if (this.HP < 0) {
                if (this.nofail) {

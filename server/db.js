@@ -43,7 +43,6 @@ CREATE TABLE IF NOT EXISTS scores (
   created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_scores_beatmap ON scores(beatmap_id, mods_num);
-CREATE INDEX IF NOT EXISTS idx_scores_beatmap_v2 ON scores(beatmap_id, mods_hash, ranked);
 CREATE INDEX IF NOT EXISTS idx_scores_user ON scores(user_id);
 
 CREATE TABLE IF NOT EXISTS replays (

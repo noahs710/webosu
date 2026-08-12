@@ -1,0 +1,51 @@
+{
+  "hitCount": 240,
+  "CS": 5,
+  "AR": 5,
+  "HP": 5,
+  "circleRadius": 32,
+  "hitSpriteScale": 0.5,
+  "firstHitType": "slider",
+  "firstHitPos": {
+    "x": 256,
+    "y": 192
+  },
+  "firstHitObjCount": 12,
+  "firstHitNumberCount": 1,
+  "firstHitFirstObj": {
+    "ctor": "G",
+    "scaleX": 1,
+    "hasSource": false
+  },
+  "firstHitNumberSprite": {
+    "ctor": "e",
+    "scaleX": 0.16,
+    "hasSource": true
+  },
+  "firstHitJudgement": {
+    "ctor": "e",
+    "fontSize": null,
+    "scaleX": 0.425,
+    "scaleY": 0.425,
+    "hasSource": true
+  },
+  "followPointsCount": 0,
+  "bgPresent": true,
+  "skinKeys": 40,
+  "modsRegistered": 28,
+  "isMobile": false,
+  "touchPauseBtn": false,
+  "modPanelZ": "10",
+  "oomHook": true,
+  "showTapIndicator": true,
+  "frameCount": 593,
+  "avgFrameTime": 16.95244519392415,
+  "p50FrameTime": 16.5,
+  "p95FrameTime": 17.600000001490116,
+  "p99FrameTime": 18.100000001490116,
+  "maxFrameTime": 124.39999999850988,
+  "minFrameTime": 14.400000005960464,
+  "fps": 58.98854050614513,
+  "autoplay": true,
+  "currentHitIndex": 240
+}

@@ -1,0 +1,43 @@
+
+> test:visual-bench
+> node scripts/headless-visual-bench.js
+
+bootstrap: API on 8080, preview on 5180
+Playback created with 4 hits
+screenshot: C:\Users\Gabrielle Monlea\Documents\Projects\webosu\scripts\visual-bench.png
+report: C:\Users\Gabrielle Monlea\Documents\Projects\webosu\scripts\visual-bench.json
+=== checks ===
+PASS hitCount >= 1 :: 4 hits
+PASS hitSpriteScale > 0 :: scale=0.5818181818181818
+PASS hitSpriteScale normalized to disc texture :: scale=0.5818181818181818, r=32
+PASS first hit object has source :: {"ctor":"e","scaleX":0.2909090909090909,"hasSource":true}
+PASS first hit number has source :: {"ctor":"e","scaleX":0.5,"hasSource":true}
+PASS judgement has source :: {"ctor":"e","fontSize":null,"scaleX":0.4945454545454545,"scaleY":0.4945454545454545,"hasSource":true}
+PASS bg present :: bg=true
+PASS skinKeys >= 5 :: 40 textures
+PASS mods registered >= 10 :: 28 mods
+PASS mobile == false :: mobile=false
+PASS no touch pause btn :: btn=false
+PASS mod-panel z-index 10 :: z=10
+PASS OOM hook installed :: oom=true
+PASS showTapIndicator is true :: tap=true
+PASS AT mod active (autoplay) :: autoplay=true
+PASS frametime p95 < 33ms (30fps) :: p95=17.600000001490116ms
+PASS frametime p50 < 20ms (50fps) :: p50=16.600000001490116ms
+PASS touch-pause gate uses (pointer: coarse) :: launchgame.js
+PASS default-bg fallback uses WHITE :: playback.js
+PASS hitSpriteScale normalized to disc texture :: playback.js
+PASS number anchorY = 0.5 (centered) :: playback.js
+PASS scrub-frame guard in updateJudgement :: playback.js
+PASS burst-miss cap in updateJudgement :: playback.js
+=== performance ===
+  frames: 175, fps: 58.0
+  p50: 16.60ms, p95: 17.60ms, p99: 20.60ms
+  min: 13.50ms, max: 125.10ms
+=== pageerrors (3) ===
+  Audio decode failed (retry 0)
+  TypeError: Cannot perform Construct on a detached ArrayBuffer
+    at new Uint8Array (<anonymous>)
+    at T (http://localhost:5180/assets/main-DfpkqfGu.js:2:37351)
+    at AudioContext.<anonymous> (http://localhost:5180/assets/main-DfpkqfGu.js:2:39439)
+  EncodingError: Unable to decode audio data

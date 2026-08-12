@@ -1,0 +1,22 @@
+﻿#osu file format v14
+[General]
+AudioFilename: audio.mp3
+AudioLeadIn: 0
+PreviewTime: 0
+Countdown: 0
+[Metadata]
+Title:VisualBench
+Artist:Webosu
+Creator:tester
+Version:Insane
+BeatmapID:99999
+BeatmapSetID:99999
+[Events]
+0,0,"bg.jpg",0,0
+[TimingPoints]
+0,500,4,1,0,100,1,0
+[HitObjects]
+256,192,0,1,0,0:0:0:0:
+480,192,500,1,0,0:0:0:0:
+256,192,1000,1,0,0:0:0:0:
+192,192,1500,1,0,0:0:0:0:

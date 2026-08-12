@@ -173,7 +173,9 @@ export async function launchOSU(osu, beatmapid, version) {
    // (removed by quitGame on game teardown).
    var touchPauseBtn = null;
    try {
-      var isTouch = ("ontouchstart" in window) || ((navigator.maxTouchPoints || 0) > 0);
+      // Treat as touch only if the PRIMARY input is coarse (tablet/phone). Laptops with touchscreens
+      // still report maxTouchPoints>0 but their primary pointer is fine — no on-screen pause button.
+      var isTouch = (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) || ("ontouchstart" in window && (navigator.maxTouchPoints || 0) > 0 && /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || ""));
    } catch (e) { var isTouch = false; }
    if (isTouch) {
       touchPauseBtn = document.createElement("button");

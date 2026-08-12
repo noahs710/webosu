@@ -39,7 +39,8 @@ onMounted(checkLogin);
 </script>
 
 <template>
-  <nav id="main-nav" class="flex items-center justify-between max-w-[1400px] mx-auto h-[50px] px-4 box-border"
+  <div id="nav-root">
+    <nav id="main-nav" class="flex items-center justify-between max-w-[1400px] mx-auto h-[50px] px-4 box-border"
        style="background: linear-gradient(180deg,#1c1c28,#14141e); border-bottom: 1px solid rgba(255,255,255,0.06); box-shadow: 0 2px 14px rgba(0,0,0,0.4);">
     <div class="flex items-center gap-1 flex-shrink-0">
       <router-link to="/" class="text-lazer-pink font-extrabold px-3 py-2" active-class="">webosu!</router-link>
@@ -99,5 +100,6 @@ onMounted(checkLogin);
         <button @click="doRegister" class="flex-1 border border-white/12 text-lazer-text rounded-lg py-2 text-sm hover:bg-white/5">Register</button>
       </div>
     </div>
+  </div>
   </div>
 </template>

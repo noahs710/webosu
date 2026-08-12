@@ -10,6 +10,7 @@
 </head>
 <body>
   <div id="vue-app"></div>
-  <script type="module" src="/src/vue/app.js"></script>
+  <script>if("serviceWorker" in navigator){navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(sw){sw.unregister();console.log("[dev] unregistered stale service worker:",sw.scope)})})}</script>
+<script type="module" src="/src/vue/app.js"></script>
 </body>
 </html>

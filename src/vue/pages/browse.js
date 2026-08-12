@@ -25,7 +25,7 @@ export default {
             class="px-3 py-1 rounded-full text-sm border transition-all">{{ t.label }}</button>
         </div>
       </div>
-      <BeatmapList :src="src" :limit="24" :key="tab" />
+      <BeatmapList :src="src" :limit="24" :key="tab" browse-mode />
     </div>
   `
 };

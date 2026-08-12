@@ -1,3 +1,4 @@
+import * as PIXI from "pixi.js";
 // ponytail: SliderMesh was 200 LOC shader — Graphics polyline with dirty-flag, 2 strokes (border+fill), no GL leaks, bug free
 import { log, warn } from "./logger.js";
 

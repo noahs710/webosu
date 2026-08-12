@@ -13,6 +13,7 @@ const D = require("./db");
 const A = require("./auth");
 const { estimatePP } = require("./pp");
 const { validate: validateReplay } = require("./validate");
+const apiCatalog = require("./routes/catalog");
 
 const ROOT = path.join(__dirname, "..");
 const DIST = path.join(ROOT, "dist"); // vite build output (production)
@@ -171,7 +172,8 @@ function buildApp({ serveStatic = true } = {}) {
       } catch (e) {}
     });
   }
-  app.options("/*", async (_req, reply) => reply.code(204).send(""));
+  apiCatalog.register(app);
+app.options("/*", async (_req, reply) => reply.code(204).send(""));
 
   // ---------- auth ----------
   app.post("/api/auth/register", { preHandler: authRateLimit }, async (req, reply) => {
