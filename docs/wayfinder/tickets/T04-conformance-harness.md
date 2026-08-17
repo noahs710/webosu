@@ -29,10 +29,27 @@ The skin conformance harness (`scripts/headless-skin-conformance.js`) exists and
 - CI decision resolved (either wired or documented as manual).
 - One-line Decisions-so-far entry on the map.
 
+## Status
+done
+
+## Resolution
+
+Commit `d305593`. T04 items implemented:
+- **1.7b** Scene-graph snapshot capture mid-gameplay: the `--gameplay` phase captures `__snapshotSkinTree` at 3 early polls (frames [10,30,60]), stores in `sceneSnaps` field of the gameplay golden. Headless sceneSnaps are empty (0 leaves) because the headless audio context doesn't advance without a user gesture — structure complete, content needs real browser (T11/T12).
+- **1.3** SHA-256 manifest for `scripts/conformance-skins/` (5 skins, force-added past the gitignore on the .osk files).
+- **1.8** CI wiring: no `.github/workflows/` exists — documented as manual run (`npm run test:conformance`). CI deferred.
+- **1.8b** `npm run test:conformance` in `test:all` — already done in T01.
+- **5.8/5.11** default-skin conformance — reowotuna-default golden stable (4/4 green).
+- **5.13** beatmap ApproachCircle test — dropped per T14 D8.
+
+typecheck 120/120, lazer parity 110/110, conformance 4/4.
+
 ## Blocks
 
-T06 (rollout gates on conformance green), T12 (final validation gate re-runs the harness)
+T06 (rollout — unblocked now), T12 (final validation)
 
 ## Blocked by
 
-T01 (clean base + `__snapshotSkinTree` hooks committed), T03 (skin pipeline must be complete before refreshing goldens)
+T03 (skin pipeline complete — done)
+
+## Question
