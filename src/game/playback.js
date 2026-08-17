@@ -390,7 +390,13 @@ function Playback(game, osu, track) {
       if (!self.ended) {
          self.ended = true;
          self.pause = function () {};
-         if (self.osu.audio) self.osu.audio.pause();
+         // Hard-stop the audio: pause() may return false if the source is already
+         // null, but the audio context might still be playing. Try pause first,
+         // then disconnect the gain node as a fallback.
+         if (self.osu && self.osu.audio) {
+            try { self.osu.audio.pause(); } catch (e) {}
+            try { if (self.osu.audio.gain) self.osu.audio.gain.gain.value = 0; } catch (e) {}
+         }
          self.game.paused = true;
          self.scoreOverlay.visible = false;
          self.scoreOverlay.showSummary(
@@ -3264,16 +3270,16 @@ function Playback(game, osu, track) {
          self._scrubFrame = false;
       }
       if (typeof time !== "undefined") {
-         if (this.started && this.replayFrames && !this.replayMode) {
-            this.replayFrames.push({
-               t: time,
-               x: this.game.mouseX,
-               y: this.game.mouseY,
-               d: this.game.down,
-            });
-            if (this.replayFrames.length > 201000)
-               this.replayFrames = this.replayFrames.slice(-200000);
-         }
+          if (this.started && this.replayFrames && !this.replayMode && !this.ended) {
+             this.replayFrames.push({
+                t: time,
+                x: this.game.mouseX,
+                y: this.game.mouseY,
+                d: this.game.down,
+             });
+             if (this.replayFrames.length > 201000)
+                this.replayFrames = this.replayFrames.slice(-200000);
+          }
          let nextapproachtime =
             waitinghitid < this.hits.length &&
             this.hits[waitinghitid].time -
@@ -3282,38 +3288,49 @@ function Playback(game, osu, track) {
                ? this.hits[waitinghitid].time -
                  (this.hits[waitinghitid].approachTime || this.approachTime)
                : -1;
-         try {
-            this.breakOverlay.countdown(nextapproachtime, time);
-         } catch (e) {}
-         this.updateBackground(time);
-         try {
-            this.updateHitObjects(time);
-         } catch (e) {
-            if (import.meta.env.DEV) console.warn("updateHitObjects failed", e);
-         }
-         try {
-            this.updateEffects(time);
-         } catch (e) {}
-         if (this._bubbles.length)
-            try {
-               this.updateBubbles(time);
-            } catch (e) {}
-         try {
-            this.scoreOverlay.update(time);
-         } catch (e) {}
-         try {
-            this.game.updatePlayerActions(time);
-         } catch (e) {}
-         try {
-            this.progressOverlay.update(time);
-         } catch (e) {}
-         try {
-            this.errorMeter.update(time);
-         } catch (e) {}
-         if (this.flOverlay)
-            try {
-               this.updateFlashlight(time);
-            } catch (e) {}
+          try {
+             if (nextapproachtime >= 0) {
+                this.breakOverlay.countdown(nextapproachtime, time);
+             } else {
+                this.updateBackground(-100000);
+             }
+          } catch (e) {}
+          // After the game ends (fail or clear), skip the heavy per-hit updates
+          // to avoid saturating the main thread. The results screen is DOM-based
+          // (showSummary), so the PIXI render only needs the cursor + background.
+          if (!this.ended) {
+             try {
+                this.updateBackground(time);
+             } catch (e) {}
+             try {
+                this.updateHitObjects(time);
+             } catch (e) {
+                if (import.meta.env.DEV) console.warn("updateHitObjects failed", e);
+             }
+             try {
+                this.updateEffects(time);
+             } catch (e) {}
+             if (this._bubbles.length)
+                try {
+                   this.updateBubbles(time);
+                } catch (e) {}
+             try {
+                this.scoreOverlay.update(time);
+             } catch (e) {}
+             try {
+                this.game.updatePlayerActions(time);
+             } catch (e) {}
+          }
+          try {
+             this.progressOverlay.update(time);
+          } catch (e) {}
+          try {
+             this.errorMeter.update(time);
+          } catch (e) {}
+          if (this.flOverlay)
+             try {
+                this.updateFlashlight(time);
+             } catch (e) {}
          // Adaptive Speed: adjust playback rate based on recent accuracy
          if (this.game.adaptiveSpeed && this.osu && this.osu.audio) {
             try {
