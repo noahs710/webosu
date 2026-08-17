@@ -2666,17 +2666,19 @@ function Playback(game, osu, track) {
        // update approach circle
        let approachFullAppear = this.approachTime - this.approachFadeInTime; // duration of opaque approach circle when approaching
        // Mark the hit as visible once the approach circle starts showing
-       // (diff <= approachTime). Before this, the note is not rendered to the
-       // player and cannot be judged (hit or miss). If the clock jumps past
-       // the approach window, _wasVisible stays false → miss is skipped.
-        if (diff <= this.approachTime) {
-           if (!hit._wasVisible) {
-              hit._wasVisible = true;
-              for (let ji = 0; ji < hit.judgements.length; ji++)
-                 hit.judgements[ji]._wasVisible = true;
-              jlog.approach(hit, time);
-           }
-        }
+       // (diff <= approachTime) AND the note is still within its hit window
+       // (diff >= -MehTime). If diff < -MehTime, the entire approach + hit
+       // window has passed — the note was never visible to the player and
+       // cannot be judged. This handles the case where the clock jumps past
+       // multiple notes' windows on the first frame.
+       if (diff <= this.approachTime && diff >= -this.MehTime) {
+          if (!hit._wasVisible) {
+             hit._wasVisible = true;
+             for (let ji = 0; ji < hit.judgements.length; ji++)
+                hit.judgements[ji]._wasVisible = true;
+             jlog.approach(hit, time);
+          }
+       }
         if (diff <= this.approachTime && diff > 0) {
           // approaching — approach circle shrinks from 4x to 1x the disc scale.
           // The disc is at hitSpriteScale * 1.0, so the approach circle at
