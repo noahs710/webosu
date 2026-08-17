@@ -847,17 +847,8 @@ function Playback(game, osu, track) {
        time, // set transform of judgement text
     ) {
        if (judge.points < 0 && time >= judge.finalTime) {
-          // A note can only miss if it was rendered (approach circle appeared)
-          // and its hit window expired. Notes that were never visible (lead-in
-          // seek, resume, scrub) are skipped — the player never saw them.
-          if (!judge._wasVisible) {
-             jlog.miss(judge, null, time, "not-visible-skip");
-             judge.points = 0; // mark as processed; won't re-enter
-             judge.visible = false;
-             return;
-          }
-          // miss — fire immediately
-          jlog.miss(judge, null, time, "visible-miss");
+          // miss
+          jlog.miss(judge, null, time, "miss");
           this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
           this.invokeJudgement(judge, judge.defaultScore, time);
           return;
@@ -1984,18 +1975,6 @@ function Playback(game, osu, track) {
              this.createJudgement(x, y, hit.time + i * hit.sliderTime),
           );
        }
-       // Extend ALL slider judgements' finalTime to hit.endTime + MehTime so
-       // miss checks don't fire while the slider is still active. The slider
-       // head is judged by checkClickdown; repeats/tail are judged by the
-       // slider tick/edge logic in updateSlider. None of these should miss
-       // via updateJudgement while the slider is in progress. This MUST run
-       // AFTER the repeat judgements are created above.
-       if (hit.judgements && hit.judgements.length) {
-          const extendedFinal = hit.endTime + this.MehTime;
-          for (let ji = 0; ji < hit.judgements.length; ji++) {
-             hit.judgements[ji].finalTime = extendedFinal;
-          }
-       }
    };
 
    this.createSpinner = function (hit) {
@@ -2527,8 +2506,8 @@ function Playback(game, osu, track) {
                self.errorMeter.hit(time - hit.time, time);
             }
             if (hit.type == "slider") {
-               // Lazer: the slider end is judged by the SliderJudge accumulator,
-               // not the "missing end → 50" special case. No defaultScore override here.
+               // special rule: only missing slider end will not result in a miss
+               hit.judgements[hit.judgements.length - 1].defaultScore = 50;
             }
          } catch (e) {
             if (import.meta.env.DEV) console.warn("playHitsound failed", e);
@@ -2569,13 +2548,6 @@ function Playback(game, osu, track) {
             self.gamefield.addChild(hit.objects[i]);
          }
           self.upcomingHits.push(hit);
-          // Note: _wasVisible is NOT set here — it's set in updateHitCircle/
-          // updateSlider when the approach circle actually starts showing
-          // (diff <= approachTime). A note that's in upcomingHits but whose
-          // approach hasn't started is not visible to the player and cannot
-          // be judged (hit or miss). If the clock jumps past the approach
-          // window, the note was never rendered → _wasVisible stays false →
-          // the miss check skips it.
           if (hit.time > futuremost) {
              futuremost = hit.time;
           }
@@ -2667,21 +2639,7 @@ function Playback(game, osu, track) {
       if (hit.followPoints) this.updateFollowPoints(hit.followPoints, time);
       let diff = hit.time - time; // milliseconds before time of circle
        // update approach circle
-       let approachFullAppear = this.approachTime - this.approachFadeInTime; // duration of opaque approach circle when approaching
-       // Mark the hit as visible once the approach circle starts showing
-       // (diff <= approachTime) AND the note is still within its hit window
-       // (diff >= -MehTime). If diff < -MehTime, the entire approach + hit
-       // window has passed — the note was never visible to the player and
-       // cannot be judged. This handles the case where the clock jumps past
-       // multiple notes' windows on the first frame.
-       if (diff <= this.approachTime && diff >= -this.MehTime) {
-          if (!hit._wasVisible) {
-             hit._wasVisible = true;
-             for (let ji = 0; ji < hit.judgements.length; ji++)
-                hit.judgements[ji]._wasVisible = true;
-             jlog.approach(hit, time);
-          }
-       }
+       let approachFullAppear = this.approachTime - this.approachFadeInTime;
         if (diff <= this.approachTime && diff > 0) {
           // approaching — approach circle shrinks from 4x to 1x the disc scale.
           // The disc is at hitSpriteScale * 1.0, so the approach circle at
@@ -2924,16 +2882,8 @@ function Playback(game, osu, track) {
             } catch (e) {}
           }
 
-          // (SliderScorer render-loop path removed — the legacy tick/edge
-          // path below handles slider scoring. The SliderScorer class is kept
-          // for tests but not called in the render loop. The degenerate-slider
-          // hack is also removed — the _wasVisible gate handles unseen sliders.)
-
-          // slider tick judgement — immediate scoring (legacy, flag-off)
-          // Only fire if the slider was rendered (_wasVisible). Ticks from a
-          // slider that was never seen (lead-in seek) are skipped, not missed.
+          // slider tick judgement — immediate scoring (legacy)
           if (
-             hit._wasVisible &&
              hit.nexttick < hit.ticks.length &&
              time >= hit.ticks[hit.nexttick].time
           ) {
@@ -2948,9 +2898,8 @@ function Playback(game, osu, track) {
              hit.nexttick++;
           }
 
-          // slider edge judgement — immediate scoring (legacy, flag-off)
-          // Note: being tolerant if follow circle hasn't shrinked to minimum
-          if (hit._wasVisible && atEnd && activated) {
+          // slider edge judgement — immediate scoring (legacy)
+          if (atEnd && activated) {
             let prevEdgeCombo = self.scoreOverlay.combo;
             hit.sliderJudge.recordEdge(hit, time);
             self.invokeJudgement(hit.judgements[hit.lastrep], 300, time);
@@ -2974,7 +2923,7 @@ function Playback(game, osu, track) {
                   hit.time + hit.lastrep * hit.sliderTime,
                );
             } catch (e) {}
-           } else if (hit._wasVisible && atEnd && !activated) {
+           } else if (atEnd && !activated) {
              // edge missed — record to accumulator (legacy)
             hit.sliderJudge.recordEdgeMiss(time);
          }
@@ -3316,12 +3265,6 @@ function Playback(game, osu, track) {
              try {
                 this.updateBackground(time);
              } catch (e) {}
-             // CRITICAL: updatePlayerActions MUST run BEFORE updateHitObjects.
-             // In autoplay, the auto-click logic in playerActions.js needs to
-             // click hit objects before the miss check in updateJudgement fires.
-             try {
-                this.game.updatePlayerActions(time);
-             } catch (e) {}
              try {
                 this.updateHitObjects(time);
              } catch (e) {
@@ -3336,6 +3279,9 @@ function Playback(game, osu, track) {
                 } catch (e) {}
              try {
                 this.scoreOverlay.update(time);
+             } catch (e) {}
+             try {
+                this.game.updatePlayerActions(time);
              } catch (e) {}
           }
           try {
