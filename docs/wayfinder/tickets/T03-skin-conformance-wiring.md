@@ -32,10 +32,17 @@ Track B of the mega-change is ~40% done. The remaining skin-wiring work is well-
 - `headless-play.js` 0 pageerrors with a real `.osk` that exercises `@2x` variants (e.g. WhiteCat from `scripts/conformance-skins/`).
 - One-line Decisions-so-far entry on the map.
 
+## Status
+done
+
+## Resolution
+
+Commit `4f45ea1`. D7 @2x whitelist extended to full lazer-legal set in `skin-filter.js`: added hit100k, hit*-N animation frames, cursor-ripple/star2/cursor-smoke, sliderstartcircle(+overlay), sliderpoint30/10, particle50/100/300, scorebar-ki(+kidanger/+kidanger2). Beatmap-skin @2x disable is implicitly enforced (webosu doesn't load beatmap-skin textures). tasks.md updated (5.1 done, 5.2 superseded by T15 D5, 5.4 moved to T16). Conformance goldens regenerated (texture counts up: whitecat 87→88, reowotuna 85→92, aristia 76→82, vaxei 60→66). typecheck 120/120, lazer parity 110/110, conformance 4/4, headless-play 0 pageerrors.
+
 ## Blocks
 
-T04 (conformance harness needs the complete skin pipeline to snapshot), T06 (rollout flips `skinConformance` flag only after Track B is done), T16 (animated judgements need the @2x whitelist landed first)
+T04 (conformance harness — unblocked now), T16 (animated judgements — unblocked now)
 
 ## Blocked by
 
-T15 (D8 removal was originally in T03's scope; moved to T15 so T03 can focus on D7 @2x extend + the remaining tasks.md §5 items)
+T15 (D8 moved out of T03 — done)
