@@ -110,4 +110,9 @@ skins/default.osk
 # Served from public/skins/aspect-ratios/ at runtime; not committed — fetch or
 # regenerate via the skin pipeline. See src/game/skin-loader.js applyAspectRatioOverlay.
 public/skins/
+
+# Conformance reference skins (~129MB total, 5 .osk files).
+# Fetch via scripts/fetch-conformance-skins.mjs (TBD) or manually place in
+# scripts/conformance-skins/ before running `npm run test:conformance`.
+scripts/conformance-skins/
 .empryo
