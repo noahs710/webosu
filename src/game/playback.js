@@ -1085,8 +1085,8 @@ function Playback(game, osu, track) {
             gdebug("playback", "bg texture load failed", (e && e.message) || e);
             bgTexture = null;
          }
-         const isValid = (t) =>
-            !!(t && (t.valid || (t.source && t.source.valid)));
+          const isValid = (t) =>
+             !!(t && t.source && (t.source.valid || t.valid || (t.source.width && t.source.width > 0)));
          if (!isValid(bgTexture)) {
             gwarn("playback", "bgTexture invalid, using default background");
             try {
@@ -2562,13 +2562,13 @@ function Playback(game, osu, track) {
             self.gamefield.addChild(hit.objects[i]);
          }
           self.upcomingHits.push(hit);
-          // Mark the hit as rendered/visible — the miss check in updateJudgement
-          // only fires for hits that were _wasVisible (rendered to the player).
-          // Notes that are past their time but were never rendered (lead-in seek,
-          // resume) are skipped, not missed.
-          hit._wasVisible = true;
-          for (let ji = 0; ji < hit.judgements.length; ji++)
-             hit.judgements[ji]._wasVisible = true;
+          // Note: _wasVisible is NOT set here — it's set in updateHitCircle/
+          // updateSlider when the approach circle actually starts showing
+          // (diff <= approachTime). A note that's in upcomingHits but whose
+          // approach hasn't started is not visible to the player and cannot
+          // be judged (hit or miss). If the clock jumps past the approach
+          // window, the note was never rendered → _wasVisible stays false →
+          // the miss check skips it.
           if (hit.time > futuremost) {
              futuremost = hit.time;
           }
@@ -2659,9 +2659,20 @@ function Playback(game, osu, track) {
    this.updateHitCircle = function (hit, time) {
       if (hit.followPoints) this.updateFollowPoints(hit.followPoints, time);
       let diff = hit.time - time; // milliseconds before time of circle
-      // update approach circle
-      let approachFullAppear = this.approachTime - this.approachFadeInTime; // duration of opaque approach circle when approaching
-       if (diff <= this.approachTime && diff > 0) {
+       // update approach circle
+       let approachFullAppear = this.approachTime - this.approachFadeInTime; // duration of opaque approach circle when approaching
+       // Mark the hit as visible once the approach circle starts showing
+       // (diff <= approachTime). Before this, the note is not rendered to the
+       // player and cannot be judged (hit or miss). If the clock jumps past
+       // the approach window, _wasVisible stays false → miss is skipped.
+       if (diff <= this.approachTime) {
+          if (!hit._wasVisible) {
+             hit._wasVisible = true;
+             for (let ji = 0; ji < hit.judgements.length; ji++)
+                hit.judgements[ji]._wasVisible = true;
+          }
+       }
+        if (diff <= this.approachTime && diff > 0) {
           // approaching — approach circle shrinks from 4x to 1x the disc scale.
           // The disc is at hitSpriteScale * 1.0, so the approach circle at
           // contact (diff=0) is also at hitSpriteScale * 1.0 — its ring aligns
