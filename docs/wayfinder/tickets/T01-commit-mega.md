@@ -7,7 +7,48 @@ task (AFK)
 webosu-agent (2026-08-17 session)
 
 ## Status
-in_progress
+done
+
+## Resolution
+
+4 commits landed on `main`:
+- `d673293` — `feat: lazer-parity-mega core (Track A judging/scoring/HP + Track B skin + harness)` — 24 files, +5515/−214 lines. Core code (slider-scorer.js, score-math.js, features.js, playback.js, score.js, SliderMesh.js, skin-loader.js, skin-filter.js, main.js, osu-audio.js, styles.css, db.js, package.json) + harness (headless-skin-conformance.js, test-lazer-parity.js, headless-burst-miss.js, headless-latency-probe.js) + goldens + docs/lazer-feel-deltas.md + .gitignore.
+- `c70594e` — `chore: openspec lazer-parity-mega change + archived fix-burst-miss + hit-judging spec` — 19 files. The OpenSpec change artifacts + archived predecessor + synced hit-judging spec.
+- `14f77fa` — `docs: wayfinder map lazer-perfect-parity + 14 tickets + 2 research findings` — 17 files. The planning map + tickets + research docs + STATUS.md update.
+- `b0996c0` — `chore: gitignore scripts/conformance-skins/ (129MB of .osk reference skins)` — follow-up to keep the 129MB of binary skins out of git.
+
+### Verification (all green)
+- typecheck 121/121
+- backend smoke 53/53
+- lazer parity property tests 87/87
+- conformance harness 4/4 (goldens regenerated after fixing a harness crash — fresh page per skin; `--update-golden` separated from `--gameplay`)
+- headless-play 0 pageerrors, 1301 hits parsed
+- headless-mod-flashlight 0 pageerrors, FL overlay + slider dim working
+- headless-settings + headless-settings-page 0 pageerrors
+- headless-error-popup 0 pageerrors, popup z-index 2147483647 > grading 9000
+- headless-quit + headless-fail-retry + headless-slider-destroy 0 fatal
+
+### Audit findings (flagged for T13/T14, NOT fixed in T01)
+- **D4**: `playback.js:396` circle radius formula `32 * (1 - 0.7 * (CS-5)/5)` is wrong for CS≠5 (the comment "matches lazer exactly" is incorrect). T13 fixes.
+- **D1**: `score.js:235-243` Score V2 production formula is `1000000 * acc * scoreMultiplier` (accuracy portion only); the correct `score-math.js` mirror is unused. T13 wires it.
+- **D2**: `score.js:262` HP loss cap `Math.max(hpDelta, -0.1)` still present. T13 removes.
+- **D3**: `LAZER_LAST_COMBO_BONUS` imported at `score.js:2` but never used. T13 applies.
+- **D5–D9**: webosu-extension-or-fix decisions. T14 grills the user.
+- **Scope-creep flagged for T14**: the aspect-ratio overlay in `skin-loader.js` (`applyAspectRatioOverlay`, ~100 lines for Default Reforged skin) is beyond the mega-change's stated Track B and not in tasks.md.
+- **Degenerate-slider hack**: `playback.js` has a hardcoded `(hit.x === 0 && hit.y === 318)` band-aid for a specific reported slider — flagged for T13 to replace with a general fix.
+
+### tasks.md reconciled
+- 3.1 → `[ ]` (production Score V2 formula not wired — D1)
+- 3.3 → `[ ]` (HP cap still present — D2)
+- 3.4 → `[ ]` (last-combo bonus not applied — D3)
+- 2.0 added (circle radius formula fix — D4)
+
+### Cleanup
+- Stray runtime artifacts (`tmp-smoke.err`, `tmp-smoke.out`, `t_target`, `tmp-api.log`, `tmp-dev.log`) gitignored.
+- `public/skins/` (~92MB aspect-ratio assets) gitignored.
+- `scripts/conformance-skins/` (~129MB reference skins) gitignored.
+- `scripts/_patch-hit-note.js` (1-line placeholder scratch file) deleted.
+- Conformance harness crash fixed (fresh page per skin; `--update-golden` no longer forces `--gameplay`).
 
 ## Question
 
