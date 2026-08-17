@@ -215,7 +215,10 @@
                0
             );
          } else {
-            self.source.start(0, self.position);
+            // Clamp offset to 0 — Web Audio throws if offset is negative (can happen
+            // when resuming from a very early pause where position is slightly <0
+            // due to audio clock drift).
+            self.source.start(0, Math.max(0, self.position));
          }
          self.playing = true;
       };

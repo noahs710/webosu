@@ -16,7 +16,7 @@ import {
 // ── Name mapping, texture filter, and hitsound names imported from skin-filter.js ──
 
 // ── skin.ini parser ──
-const SKIN_CACHE_VERSION = "v2-2026"; // bump when cache schema changes
+const SKIN_CACHE_VERSION = "v4-2026-reforged-fix"; // bump when cache schema changes — v4 fixes 85→145 texture count for Default Reforged
 export function parseSkinIni(iniText) {
    const config = {
       cursorSize: null,
@@ -176,21 +176,24 @@ export async function loadOsk(file) {
    const usedFiles = new Set();
    let loadedCount = 0;
    // (no per-OSK cap — OOM is handled by the onerror hook at the bottom of this file)
-   for (const name in files) {
-      if (!name.endsWith(".png")) continue;
-      if (name.includes("@2x")) continue;
-      // skip non-gameplay (menu/ranking) to save GPU memory
-      if (!isGameplayTexture(name)) continue;
-      // (no low-end pre-skip — all textures are loaded; OOM is handled reactively below)
-      // skip numbered hit variants like hit0-0.png (60 variants per hit) — only need base hit0.png
-      if (name.match(/^hit(0|50|100|300)[k]?-\d+\.png$/)) continue;
-      if (name.match(/^followpoint-\d+\.png$/)) {
-         const idx = parseInt(name.match(/followpoint-(\d+)\.png/)[1], 10);
-         if (idx > 9) continue; // only 0-9 needed for animation, skin has 0-60
-      }
-      // (intentionally uncapped — OOM is handled via the onerror hook below)
+    for (const name in files) {
+       if (!name.endsWith(".png")) continue;
+       if (name.includes("@2x")) continue;
+       // Flatten subdir paths BEFORE whitening: "assets/default/default-5.png" → "default-5.png".
+       // The whitelist must see the flattened name for the check to pass.
+       const flattened = name.split("/").pop().toLowerCase();
+       // skip non-gameplay (menu/ranking) to save GPU memory
+       if (!isGameplayTexture(flattened)) continue;
+       // (no low-end pre-skip — all textures are loaded; OOM is handled reactively below)
+       // skip numbered hit variants like hit0-0.png (60 variants per hit) — only need base hit0.png
+       if (flattened.match(/^hit(0|50|100|300)[k]?-\d+\.png$/)) continue;
+       if (flattened.match(/^followpoint-\d+\.png$/)) {
+          const idx = parseInt(flattened.match(/followpoint-(\d+)\.png/)[1], 10);
+          if (idx > 9) continue; // only 0-9 needed for animation, skin has 0-60
+       }
+       // (intentionally uncapped — OOM is handled via the onerror hook below)
 
-      const resolvedName = resolveTextureName(name);
+       const resolvedName = resolveTextureName(flattened);
       if (!resolvedName) continue;
 
       const bestName = pickBestResolution(files, name);
@@ -362,18 +365,10 @@ export async function applySkin(skinData) {
                   tex = PIXI.Assets.cache.get(url);
                   _activeSkinKeys.add(url);
                } else {
-                  try {
-                     tex = await PIXI.Assets.load({
-                        src: url,
-                        parser: "texture",
-                        data: {
-                           scaleMode: "linear",
-                           autoGenerateMipmaps: false,
-                        },
-                     });
-                  } catch {
-                     tex = PIXI.Texture.from(url);
-                  }
+                  // Use Texture.from for blob URLs — suppress the noisy "was not found in the Cache"
+                  // warning that Pixi logs when a blob URL isn't yet in Assets cache (expected).
+                  const _warn = console.warn; let _muted = false;
+                  try { console.warn = () => {}; _muted = true; tex = PIXI.Texture.from(url); } catch { tex = PIXI.Texture.WHITE; } finally { if (_muted) console.warn = _warn; }
                   try {
                      if (PIXI.Assets && PIXI.Assets.cache)
                         PIXI.Assets.cache.set(url, tex);
@@ -381,7 +376,8 @@ export async function applySkin(skinData) {
                   _activeSkinKeys.add(url);
                }
             } catch (e) {
-               tex = PIXI.Texture.from(url);
+               const _w3=console.warn; let _m3=false;
+               try { console.warn=()=>{}; _m3=true; tex = PIXI.Texture.from(url); } catch { tex=PIXI.Texture.WHITE; } finally { if(_m3) console.warn=_w3; }
             }
             if (tex && tex.source) {
                 tex.source.autoGenerateMipmaps = false;
@@ -524,14 +520,113 @@ export async function applySkin(skinData) {
       window.game.allowSliderBallTint = !!c.allowSliderBallTint;
    }
 
-   // Update hitSpriteScale based on default texture size.
-   // Original webosu used circleRadius/60 (visible radius of default 128px texture).
-   // Texture normalization via source.resolution ensures custom skins render at
-   // the same on-screen size, so /60 stays correct for all skins.
+    // Update hitSpriteScale based on default texture size.
+    // Original webosu used circleRadius/60 (visible radius of default 128px texture).
+    // Texture normalization via source.resolution ensures custom skins render at
+    // the same on-screen size, so /60 stays correct for all skins.
+    if (window.game && window.game.circleRadius) {
+       window.game.hitSpriteScale = window.game.circleRadius / 60;
+       window.game.hitRadius = window.game.circleRadius;
+       clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "hitRadius", window.game.hitRadius);
+    }
+
+    // Apply aspect-ratio specific overrides (Default Reforged v1.2)
+    // The skin ships 6 variants (4x3, 16x10, 16x9, 21x9, 32x9, 43x18). Detect
+    // current window aspect and overlay the closest match on top of base skin.
+    try { await applyAspectRatioOverlay(); } catch (e) { cwarn("skin-loader", "aspect overlay failed", e); }
+}
+
+// ── Aspect-ratio overlay for Default Reforged (Argon 2022) ──
+const ASPECT_RATIOS = {
+   "4x3": 4/3,
+   "16x10": 16/10,
+   "16x9": 16/9,
+   "43x18": 43/18,
+   "21x9": 21/9,
+   "32x9": 32/9,
+};
+
+function getClosestAspect() {
+   const w = window.innerWidth || 1920;
+   const h = window.innerHeight || 1080;
+   const cur = w / h;
+   let best = "16x9", bestDiff = Infinity;
+   for (const [k, v] of Object.entries(ASPECT_RATIOS)) {
+      const diff = Math.abs(cur - v);
+      if (diff < bestDiff) { bestDiff = diff; best = k; }
+   }
+   return best;
+}
+
+export async function applyAspectRatioOverlay() {
+   const aspect = getClosestAspect();
+   clog("skin-loader", "aspect", aspect, `ratio=${(window.innerWidth/window.innerHeight).toFixed(3)}`);
+   let manifest = null;
+   try {
+      const res = await fetch("/skins/aspect-ratios/manifest.json");
+      if (!res.ok) return;
+      manifest = await res.json();
+   } catch { return; }
+   const files = manifest[aspect];
+   if (!files || !files.length) return;
+
+   // Load each aspect-specific file as texture override
+   const CONCURRENCY = 4;
+   const loadOne = async (relPath) => {
+      try {
+         // relPath like "hit100k.png" or "Assets/mania-hit100.png"
+         const url = `/skins/aspect-ratios/${aspect}/${relPath}`;
+         const res = await fetch(url);
+         if (!res.ok) return;
+         const buf = new Uint8Array(await res.arrayBuffer());
+         // Determine webosu key (basename lowercased)
+         const baseName = relPath.split("/").pop().toLowerCase();
+         const { isGameplayTexture } = await import("./skin-filter.js");
+         // Allow aspect textures even if isGameplayTexture would filter them
+         // (aspect variants are intentional overrides for UI)
+         const webosuKey = baseName; // aspect files are already webosu-named
+         const blob = new Blob([buf], { type: "image/png" });
+         const blobUrl = URL.createObjectURL(blob);
+         let tex;
+         // Suppress noisy cache miss warning for blob URLs
+         const _w2 = console.warn; let _m2=false;
+         try { console.warn=()=>{}; _m2=true; tex = PIXI.Texture.from(blobUrl); } catch { tex = PIXI.Texture.WHITE; } finally { if(_m2) console.warn=_w2; }
+         if (tex && tex.source) {
+            tex.source.scaleMode = "linear";
+            tex.source.autoGenerateMipmaps = false;
+         }
+         if (window.Skin) window.Skin[webosuKey] = tex;
+         // Also store is2x variant handling
+         if (relPath.includes("@2x")) {
+            const baseKey = webosuKey.replace("@2x.png", ".png");
+            if (tex && tex.source) try { tex.source.resolution = 2; } catch {}
+            if (window.Skin) window.Skin[baseKey] = tex;
+         }
+         setTimeout(() => { try { URL.revokeObjectURL(blobUrl); } catch {} }, 2000);
+      } catch (e) { cwarn("skin-loader", "aspect file failed", relPath, e); }
+   };
+
+   for (let i = 0; i < files.length; i += CONCURRENCY) {
+      await Promise.all(files.slice(i, i + CONCURRENCY).map(loadOne));
+   }
+   clog("skin-loader", "aspect overlay applied", aspect, files.length + " files");
+
+   // Re-apply hitSpriteScale if aspect changed anything
    if (window.game && window.game.circleRadius) {
       window.game.hitSpriteScale = window.game.circleRadius / 60;
-      window.game.hitRadius = window.game.circleRadius;
-      clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "hitRadius", window.game.hitRadius);
+   }
+
+   // Listen for resize to re-apply on aspect change
+   if (!window._aspectListener) {
+      window._aspectListener = true;
+      let lastAspect = aspect;
+      window.addEventListener("resize", () => {
+         const cur = getClosestAspect();
+         if (cur !== lastAspect) {
+            lastAspect = cur;
+            applyAspectRatioOverlay().catch(()=>{});
+         }
+      });
    }
 }
 
@@ -775,6 +870,13 @@ export async function loadCachedSkin() {
             // Invalidate stale cache: version mismatch means old schema
             const cachedVer = results.config && results.config.cacheVersion;
             if (cachedVer !== SKIN_CACHE_VERSION) {
+               resolve(null);
+               return;
+            }
+            // Also invalidate if cached texture count is suspiciously low for Default Reforged
+            // (old cache had 85, new should have 145+)
+            if (texCount > 0 && texCount < 100) {
+               clog("skin-loader", "cached skin has too few textures", texCount, "— invalidating");
                resolve(null);
                return;
             }

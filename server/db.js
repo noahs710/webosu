@@ -168,7 +168,7 @@ module.exports = {
       n(s.mods), s.mods_num || 0, s.score, s.max_combo || 0, s.acc || 0, n(s.grade),
       s.count300 || 0, s.count100 || 0, s.count50 || 0, s.miss || 0, s.replay_id || null,
       s.approved ? 1 : 0,
-      n(s.ruleset_version) || "v1", n(s.mods_hash), s.ranked != null ? (s.ranked ? 1 : 0) : 1,
+      n(s.ruleset_version) || "lazer-v1", n(s.mods_hash), s.ranked != null ? (s.ranked ? 1 : 0) : 1,
       s.pp || 0,
       now()
     );
@@ -210,7 +210,7 @@ module.exports = {
   // If modsHash is provided, filters to that exact mod combo; else returns the
   // "no mods" (mods_hash = NULL or empty) leaderboard by default.
   leaderboardV2(beatmapId, modsHash, limit, opts) {
-    const versionFilter = (opts && opts.version) || "v2";
+    const versionFilter = (opts && opts.version) || "lazer-v1";
     const rankedOnly = (opts && opts.ranked === false) ? 0 : 1;
     if (modsHash != null) {
       // specific mod combination
@@ -237,7 +237,7 @@ module.exports = {
     return db.prepare(`
       SELECT mods_hash, COUNT(*) as count, MAX(score) as top_score
       FROM scores
-      WHERE beatmap_id = ? AND ruleset_version = 'v2' AND ranked = 1 AND approved = 1 AND mods_hash IS NOT NULL AND mods_hash != ''
+      WHERE beatmap_id = ? AND ruleset_version IN ('v2', 'lazer-v1') AND ranked = 1 AND approved = 1 AND mods_hash IS NOT NULL AND mods_hash != ''
       GROUP BY mods_hash ORDER BY count DESC`).all(beatmapId);
   },
   userBest(userId, beatmapId) {

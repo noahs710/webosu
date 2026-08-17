@@ -97,6 +97,17 @@ scripts/*.png
 
 tmp/
 
+# Runtime scratch files from local test runs (not for commit)
+tmp-smoke.err
+tmp-smoke.out
+tmp-api.log
+tmp-dev.log
+t_target
+
 # Large default skin — download via scripts/fetch-default-skin.mjs instead of committing 40MB
 skins/default.osk
+# Aspect-ratio overlay assets for Default Reforged skin (~92MB, 1058 files).
+# Served from public/skins/aspect-ratios/ at runtime; not committed — fetch or
+# regenerate via the skin pipeline. See src/game/skin-loader.js applyAspectRatioOverlay.
+public/skins/
 .empryo

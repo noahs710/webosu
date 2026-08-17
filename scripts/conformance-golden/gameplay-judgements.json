@@ -1,0 +1,25 @@
+{
+  "invariants": {
+    "largeTickHits": 0,
+    "largeTickMisses": 0,
+    "sliderTailHits": 0,
+    "sliderIgnoreMisses": 0,
+    "sliderDisplays": 0,
+    "greats": 0,
+    "oks": 0,
+    "mehs": 0,
+    "misses": 0
+  },
+  "summary": {
+    "score": 0,
+    "combo": 0,
+    "acc": 0,
+    "jc": {
+      "great": 0,
+      "good": 0,
+      "meh": 0,
+      "miss": 27
+    }
+  },
+  "note": "sequence-form golden removed; invariants are the deterministic gate"
+}

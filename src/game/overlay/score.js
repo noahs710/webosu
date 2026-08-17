@@ -296,8 +296,11 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
          if (arr._lastStr === str) { arr.width = arr._lastWidth; return; }
          arr._lastStr = str;
          let width = 0;
-         if (str.length > arr.length) console.error("displaying string failed");
-         let prefix = (window.game && window.game.skinConfig && window.game.skinConfig.scorePrefix) || "score";
+         // Truncate over-long strings instead of erroring
+         const displayStr = str.length > arr.length ? str.slice(-arr.length) : str;
+         let rawPrefix = (window.game && window.game.skinConfig && window.game.skinConfig.scorePrefix) || "score";
+         const prefixBase = rawPrefix.split("/").pop() || rawPrefix;
+         let prefix = prefixBase;
          const overlap = (window.game && window.game.skinConfig && window.game.skinConfig.scoreOverlap) || 0;
          // keep charspacing 12, respect ScoreOverlap exactly (osu! spec), no forced score-0
          const baseEff = this.charspacing - overlap;
@@ -307,8 +310,8 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
             if (t.source?.width) return t.source.width / (t.source.resolution || 1);
             return t.width || null;
          };
-         for (let i = 0; i < str.length; ++i) {
-            let ch = str[i];
+         for (let i = 0; i < displayStr.length; ++i) {
+            let ch = displayStr[i];
             if (ch == "%") ch = "percent";
             let cand = prefix === "default" ? ch + ".png" : prefix + "-" + ch + ".png";
             let textname = (window.Skin && window.Skin[cand]) ? cand : "score-" + ch + ".png";
@@ -329,12 +332,12 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
             arr[i].visible = true;
             width += arr[i].knownwidth;
          }
-         for (let i = str.length; i < arr.length; ++i) {
+         for (let i = displayStr.length; i < arr.length; ++i) {
             arr[i].visible = false;
          }
          arr.width = width;
          arr._lastWidth = width;
-         arr.useLength = str.length;
+         arr.useLength = displayStr.length;
       };
 
       this.setSpriteArrayPos = function (arr, x, y) {
@@ -716,9 +719,9 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
                       version: summary.version,
                       mods: summary.mods,
                       modsNum: modsEnum(window.game),
-                      mods_list: (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize() : null,
-                      ruleset_version: "v2",
-                      score: parseInt(summary.score, 10) || 0,
+                     mods_list: (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize() : null,
+                     ruleset_version: "lazer-v1",
+                     score: parseInt(summary.score, 10) || 0,
                      combo: parseInt(summary.combo, 10) || 0,
                      acc: parseFloat(summary.acc) || 0,
                      grade: summary.grade,
@@ -786,7 +789,7 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
                         mods: summary.mods,
                         modsNum: modsEnum(window.game),
                         mods_list: (window.ModRegistry && window.ModRegistry.serialize) ? window.ModRegistry.serialize() : null,
-                        ruleset_version: "v2",
+                        ruleset_version: "lazer-v1",
                         score: parseInt(summary.score, 10) || 0,
                         combo: parseInt(summary.combo, 10) || 0,
                         acc: parseFloat(summary.acc) || 0,

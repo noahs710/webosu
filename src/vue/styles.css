@@ -176,8 +176,10 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 360px;
-      max-width: 90vw;
+      width: 320px;
+      max-width: 85vw;
+      max-height: 90vh;
+      top: 5vh;
       z-index: 400;
       background: var(--lazer-panel, #1c1c28);
       border-left: 1px solid rgba(255, 255, 255, 0.08);

@@ -19,13 +19,18 @@ import { log, warn } from "./logger.js";
          this._g.eventMode = 'none';
          this._g.cullable = false;
          this.addChild(this._g);
-         // Pixi v8: container.render no longer ticks every frame — use onRender per skill
-         this.onRender = () => {
-            if (this._dirty) {
-               this._draw();
-               this._dirty = false;
-            }
-         };
+      // Pixi v8: ensure snake animates at full framerate — draw every frame when visible
+      this.onRender = () => {
+         // Always draw when visible to keep snake in sync with ticker; dirty flag still
+         // optimizes static sliders but active snakes must not skip frames.
+         if (this.visible && (this._dirty || this._startt !== this._endt)) {
+            this._draw();
+            this._dirty = false;
+         } else if (this._dirty) {
+            this._draw();
+            this._dirty = false;
+         }
+      };
       }
       get startt() { return this._startt; }
       set startt(v) { if (v !== this._startt) { this._startt = v; this._dirty = true; } }
@@ -40,20 +45,16 @@ import { log, warn } from "./logger.js";
          this._fillCol = SliderTrackOverride ?? (this._colors ? this._colors[this.tintid % this._colors.length] : 0xffffff);
          this._transform = transform;
          this._dirty = true;
-         try {
-            const qp = new URLSearchParams(window.location.search).get('gradient');
-            this._gradientMode = qp === 'linear' || qp === 'textured' ? qp : 'flat';
-            const sp = new URLSearchParams(window.location.search).get('slider');
-            this._sliderMode = sp === 'a' || sp === 'b' || sp === 'c' ? sp : null;
-            const cp = new URLSearchParams(window.location.search).get('cull');
-            this._cullMode = cp === 'true' ? true : cp === 'false' ? false : null;
-            if (this._cullMode !== null) {
-               this.cullable = this._cullMode;
-               this._g.cullable = this._cullMode;
-               if (this._cullMode) this.cullArea = new PIXI.Rectangle(0, 0, 512, 384);
-            }
-         } catch { this._gradientMode = 'flat'; this._sliderMode = null; this._cullMode = null; }
-         log("SliderMesh", "init", colors?.length, "radius", radius, "gradient", this._gradientMode, "slider", this._sliderMode, "cull", this._cullMode);
+         // Slider style from skin.ini (lazer parity): 1 = gradient, 2 = textured with sliderb.png
+         const skinStyle = window.game && window.game.skinConfig && window.game.skinConfig.sliderStyle;
+         this._sliderStyle = skinStyle != null ? skinStyle : 1;
+         // Gradient mode: linear for style 1, flat otherwise; textured only for style 2
+         this._gradientMode = this._sliderStyle === 1 ? 'linear' : 'flat';
+         this._sliderMode = null;
+         this._cullMode = null;
+         try { this.cullable = false; } catch {}
+         try { if (this._g) this._g.cullable = false; } catch {}
+         log("SliderMesh", "init", colors?.length, "radius", radius, "sliderStyle", this._sliderStyle, "gradient", this._gradientMode);
          if (import.meta.env.DEV && !this._cullLogged) {
             try {
                const b0 = this.getBounds?.() || this._g?.getBounds?.();
@@ -79,55 +80,8 @@ import { log, warn } from "./logger.js";
          for (let i=0;i<pts.length;i++) if (pts[i].t < t0) i0=i;
          for (let i=pts.length-1;i>=0;i--) if (pts[i].t > t1) i1=i;
          if (i0 >= i1) return;
-         // slider-shader-ab spike: ?slider=a|b|c takes precedence over ?gradient
-         const sliderMode = this._sliderMode;
-         if (sliderMode === 'a') {
-            // A: 2-stroke border+fill (no shadow) — see-through baseline
-            g.moveTo(pts[i0].x, pts[i0].y);
-            for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
-            g.stroke({ width: w + 6, color: borderCol, alpha: 0.95, cap: "round", join: "round" });
-            g.moveTo(pts[i0].x, pts[i0].y);
-            for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
-            g.stroke({ width: w, color: finalCol, alpha: 0.9, cap: "round", join: "round" });
-            this._g.visible = true;
-            if (this._rope) { try { this.removeChild(this._rope); this._rope.destroy(); } catch {} this._rope = null; }
-            return;
-         }
-         if (sliderMode === 'c' && PIXI?.MeshRope) {
-            try {
-               const tex = PIXI.Texture.WHITE;
-               const slice = [];
-               for (let i=i0;i<=i1;i++) slice.push(new PIXI.Point(pts[i].x, pts[i].y));
-               if (slice.length >= 2) {
-                  // 2 ropes: border w+6 + fill w, textureScale:0, tint
-                  if (!this._rope || !this._borderRope) {
-                     if (this._rope) try { this.removeChild(this._rope); this._rope.destroy(); } catch {}
-                     if (this._borderRope) try { this.removeChild(this._borderRope); this._borderRope.destroy(); } catch {}
-                     this._rope = new PIXI.MeshRope({ texture: tex, points: slice.slice(), width: w, textureScale: 0 });
-                     this._borderRope = new PIXI.MeshRope({ texture: tex, points: slice.slice(), width: w + 6, textureScale: 0 });
-                     this._rope.eventMode = 'none'; this._rope.cullable = false; this._borderRope.eventMode = 'none'; this._borderRope.cullable = false;
-                     try { this._rope.tint = finalCol; } catch {}
-                     try { this._borderRope.tint = borderCol; } catch {}
-                     this.addChild(this._borderRope); this.addChild(this._rope);
-                     this._g.visible = false;
-                  } else {
-                     this._rope.points = slice.slice(); this._borderRope.points = slice.slice();
-                     if (this._rope.geometry?.update) try { this._rope.geometry.update(); } catch {}
-                     if (this._borderRope.geometry?.update) try { this._borderRope.geometry.update(); } catch {}
-                     try { this._rope.tint = finalCol; } catch {}
-                     try { this._borderRope.tint = borderCol; } catch {}
-                  }
-                  this._g.visible = false;
-                  return;
-               }
-            } catch {}
-         } else if (this._borderRope) {
-            try { this.removeChild(this._borderRope); this._borderRope.destroy(); } catch {}
-            this._borderRope = null;
-         }
-         const mode = this._gradientMode || 'flat';
-         // textured spike: MeshRope with sliderb.png repeating (if available)
-         if (mode === 'textured' && window.Skin?.['sliderb.png'] && PIXI?.MeshRope) {
+         // Textured slider body for sliderStyle 2: MeshRope with sliderb.png
+         if (this._sliderStyle === 2 && window.Skin?.['sliderb.png'] && PIXI?.MeshRope) {
             try {
                const tex = window.Skin['sliderb.png'];
                const slice = [];
@@ -165,8 +119,9 @@ import { log, warn } from "./logger.js";
          g.moveTo(pts[i0].x, pts[i0].y);
          for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
          g.stroke({ width: w + 6, color: borderCol, alpha: 1, cap: "round", join: "round" });
-         // fill: flat vs linear gradient
+         // fill: flat vs linear gradient (driven by sliderStyle)
          let fillColor = finalCol;
+         const mode = this._gradientMode || 'flat';
          if (mode === 'linear' && PIXI?.FillGradient) {
             try {
                const lighten = (c, amt) => {

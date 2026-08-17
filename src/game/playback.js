@@ -8,8 +8,9 @@ import BreakOverlay from "./overlay/break.js";
 import ProgressOverlay from "./overlay/progress.js";
 import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
 import { ModRegistry } from "./mods/index.js";
-import { lazerSpinnerRpm } from "./lazerHpTables.js";
+import { lazerSpinnerRpm, lazerHitWindows } from "./lazerHpTables.js";
 import SliderJudge from "./slider-judge.js";
+import SliderScorer from "./slider-scorer.js";
 import {
    log as glog,
    warn as gwarn,
@@ -88,23 +89,6 @@ function Playback(game, osu, track) {
    });
    self.offset = 0;
    self.currentHitIndex = 0; // index for all hit objects
-   // Game-time progression tracking — detects audio scrub/resume (large dt) so
-   // the miss check below doesn't fire 10 instantaneous misses the moment the audio
-   // position jumps. A healthy playthrough advances `time` by < 1 frame (~33ms at
-   // 30fps). Anything > 200ms is a scrub or a resume; we skip per-hit miss checks
-   // for that one frame.
-   self._lastGameTime = -1;
-   self._scrubFrame = false;
-   // Click grace: if the user clicked within this many ms of the current time,
-   // don't fire a miss for any nearby hits (the user is actively playing).
-   self._lastClickTime = -1;
-   self._lastClickX = 0;
-   self._lastClickY = 0;
-   // Hard cap on how many misses can fire in a single frame (a real human cannot
-   // miss 10 hits in 33ms). Burst misses (audio resume / scrub) are clamped to
-   // this cap so the user is not penalized for a system jump.
-   self._missesThisFrame = 0;
-   self.MAX_MISSES_PER_FRAME = 1;
    self.ended = false;
    // Signature of the active mod set when the user last paused. Used by btn_continue
    // to detect that a mod changed while paused and force a retry so the change
@@ -407,19 +391,26 @@ function Playback(game, osu, track) {
          );
       }
    };
-   self.circleRadius = (109 - 9 * this.CS) / 2; // unit: osu! pixel
-   // Original webosu (Pixi 6) used circleRadius/60 for hitSpriteScale.
-   // The default skin's hitcircle texture is 128px but the visible circle
-   // within it is ~120px diameter (60px radius). Using /60 makes the visual
-   // circle match the judgement radius exactly. Using /64 (texture/2) would
-   // make the circle 7% too big because it counts transparent padding.
+   // Lazer CS formula (canonical): R = 32 * (1 - 0.7 * (CS - 5) / 5)
+   // At CS=4 this gives 36.48 — matches lazer exactly, fixes circles feeling tiny.
+   self.circleRadius = 32 * (1 - (0.7 * (this.CS - 5)) / 5);
+   // hitSpriteScale: circle radius / 60 (visible radius of default 128px texture).
+   // This scales the sprite so the visual circle has radius = circleRadius.
    // For custom skins, texture normalization via source.resolution handles
    // size differences so /60 stays correct for all skins.
    self.hitSpriteScale = self.circleRadius / 60;
    self.hitRadius = self.circleRadius;
-   self.MehTime = 200 - 10 * this.OD;
-   self.GoodTime = 140 - 8 * this.OD;
-   self.GreatTime = 80 - 6 * this.OD;
+   // Lazer hit windows (when flag on) use floor-0.5 logic; else legacy
+   if (window.FEATURES && window.FEATURES.lazerSliderJudging) {
+      const w = lazerHitWindows(this.OD);
+      self.MehTime = w.meh;
+      self.GoodTime = w.ok;
+      self.GreatTime = w.great;
+   } else {
+      self.MehTime = 200 - 10 * this.OD;
+      self.GoodTime = 140 - 8 * this.OD;
+      self.GreatTime = 80 - 6 * this.OD;
+   }
    self.errorMeter = new ErrorMeterOverlay(
       {
          width: game.window.innerWidth,
@@ -779,12 +770,18 @@ function Playback(game, osu, track) {
                texKey = "hit300g.png";
          }
          var tex = window.Skin?.[texKey] || PIXI.Texture.WHITE;
+         // Skins that intentionally ship 1×1 judgement textures (e.g. reowoTuna)
+         // expect "no judgement sprite"; rendering a 1×1 scaled up produces a
+         // visible colored square. Detect and fall back to text mode instead.
+         if (tex && tex.source && (tex.source.width <= 2 || tex.source.height <= 2)) {
+            tex = PIXI.Texture.WHITE; // forces text fallback below
+         }
          judge.texture = tex;
          if (tex === PIXI.Texture.WHITE) judge.tint = judgementColor(points);
          else judge.tint = 0xffffff;
          // ensure sprite judgements respect hideGreat as optional — but keep visible for now
          // if (this.hideGreat && points === 300) judge.visible = false;
-      } else {
+       } else {
          // text path — always set text so judgements are visible even with hideGreat
          judge.text = judgementText(points);
          judge.tint = judgementColor(points);
@@ -803,21 +800,9 @@ function Playback(game, osu, track) {
       time, // set transform of judgement text
    ) {
       if (judge.points < 0 && time >= judge.finalTime) {
-         // Skip miss check entirely on the frame the audio position jumped
-         // (scrub / resume): the user has not had a chance to play those
-         // hits. The next render frame will use the new time and the
-         // scrub flag resets, so any subsequent misses are real.
-         if (self._scrubFrame) return;
-         // Cap burst misses to MAX_MISSES_PER_FRAME. A real human cannot
-         // miss 10 hits in a single 33ms frame; if we are seeing that
-         // pattern, the audio position advanced in a step (not a scrub,
-         // since the scrub check above passed). Cap to 1 per frame and
-         // spill the rest into the next frame(s) so the miss counter
-         // advances at human speed.
-         if ((self._missesThisFrame || 0) >= (self.MAX_MISSES_PER_FRAME || 1))
-            return;
-         self._missesThisFrame = (self._missesThisFrame || 0) + 1;
-         // miss
+         // miss — original webosu has no scrub/burst guard; every miss fires
+         // immediately. The previous guard was disabled during lead-in and caused
+         // burst-miss on first tap, so it has been removed entirely.
          this.scoreOverlay.hit(judge.defaultScore, 300, time);
          this.invokeJudgement(judge, judge.defaultScore, time);
          return;
@@ -955,24 +940,51 @@ function Playback(game, osu, track) {
       async function loadBackground(uri) {
          const gen = self._generation;
          glog("playback", "loadBackground", uri.slice(0, 60));
-         let bgTexture = null;
+          let bgTexture = null;
          const isBlob = uri && uri.startsWith("blob:");
+         const isVideo = uri && /\.(mp4|webm|mov|avi|mkv)$/i.test(uri);
+         // Video backgrounds: show placeholder and offer download option; don't auto-load video
+         // to save bandwidth. The difficulty select can trigger video download.
+         if (isVideo && !uri.startsWith("blob:")) {
+            glog("playback", "video background detected, using default with download option", uri);
+            // Use default background but mark that video is available
+            if (window.game) window.game.videoBackgroundAvailable = uri;
+            throw new Error("video background deferred to user choice");
+         }
          // Accept every reasonable image extension via Assets.load (which handles blob:/data:/http URLs).
          // For explicitly-blob URLs we resolve via Image + decode + Texture.from() so the GPU source is
          // captured (Pixi v8 Texture.from does NOT fetch; the underlying Image element does).
          try {
             if (isBlob) {
-               const img = new Image();
-               img.crossOrigin = "anonymous";
-               img.src = uri;
-               await img.decode().catch(
-                  () =>
-                     new Promise((res, rej) => {
-                        img.onload = res;
-                        img.onerror = rej;
-                     }),
-               );
-               bgTexture = PIXI.Texture.from(img);
+               // Handle both image and video blobs
+               if (isVideo) {
+                  // Video blob: create video element
+                  const video = document.createElement("video");
+                  video.crossOrigin = "anonymous";
+                  video.src = uri;
+                  video.muted = true;
+                  video.loop = true;
+                  await new Promise((res, rej) => {
+                     video.onloadeddata = res;
+                     video.onerror = rej;
+                     setTimeout(rej, 5000);
+                  });
+                  bgTexture = PIXI.Texture.from(video);
+                  // Store video element for playback control
+                  if (window.game) window.game.backgroundVideo = video;
+               } else {
+                  const img = new Image();
+                  img.crossOrigin = "anonymous";
+                  img.src = uri;
+                  await img.decode().catch(
+                     () =>
+                        new Promise((res, rej) => {
+                           img.onload = res;
+                           img.onerror = rej;
+                        }),
+                  );
+                  bgTexture = PIXI.Texture.from(img);
+               }
             } else {
                bgTexture = await PIXI.Assets.load(uri);
             }
@@ -995,7 +1007,7 @@ function Playback(game, osu, track) {
          if (!isValid(bgTexture)) {
             gwarn("playback", "bgTexture invalid, using default background");
             try {
-               bgTexture = await PIXI.Assets.load("img/defaultbg.jpg");
+               bgTexture = await PIXI.Assets.load("/img/defaultbg.jpg");
             } catch (e2) {
                gerror("playback", "default background also failed", e2);
                bgTexture = PIXI.Texture.WHITE;
@@ -1557,11 +1569,11 @@ function Playback(game, osu, track) {
       let index = hit.index + 1;
       let basedep = 4.9999 - 0.0001 * hit.hitIndex;
 
-      hit.base = newHitSprite("disc.png", basedep, 0.5);
+      hit.base = newHitSprite("disc.png", basedep, 1.09);
       hit.base.tint = combos[hit.combo % combos.length];
 
-      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 0.5);
-      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 0.46);
+      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 1.09);
+      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 1.0);
       hit.glow.tint = combos[hit.combo % combos.length];
       hit.glow.blendMode = "add";
       hit.burst = newHitSprite("hitburst.png", 8.00005 + 0.0001 * hit.hitIndex);
@@ -1577,6 +1589,9 @@ function Playback(game, osu, track) {
          window.game.skinConfig.approachCircle != null
       ) {
          hit.approach.tint = window.game.skinConfig.approachCircle;
+      } else if (self.track && self.track.colors && self.track.colors.ApproachCircle) {
+         const c = self.track.colors.ApproachCircle;
+         hit.approach.tint = (c[0] << 16) | (c[1] << 8) | c[2];
       } else {
          hit.approach.tint = combos[hit.combo % combos.length];
       }
@@ -1587,14 +1602,17 @@ function Playback(game, osu, track) {
 
       // create combo number — respect skin.ini HitCirclePrefix/ScorePrefix, gated to valid
       function hitNumberKey(digit) {
-         let prefix =
+         let rawPrefix =
             (window.game &&
                window.game.skinConfig &&
                window.game.skinConfig.hitCirclePrefix) ||
             "score";
+         // Normalize: path-style prefixes (e.g. "Assets/default/default") reduce to
+         // their basename ("default"); digits live at "default-<d>.png" in the loader.
+         const prefixBase = rawPrefix.split("/").pop() || rawPrefix;
          let cand;
-         if (prefix === "default") cand = digit + ".png";
-         else cand = prefix + "-" + digit + ".png";
+         if (prefixBase === "default") cand = digit + ".png";
+         else cand = prefixBase + "-" + digit + ".png";
          if (window.Skin && window.Skin?.[cand]) return cand;
          // fallback chain: score-, default-, then bare digit variants
          if (window.Skin && window.Skin?.["score-" + digit + ".png"])
@@ -1859,11 +1877,24 @@ function Playback(game, osu, track) {
       // A slider contains a complete hit circle at its start, so we just make use of this
       self.createHitCircle(hit);
 
+      // SliderScorer seam (lazer): owns nested part scoring for this slider
+      hit.sliderScorer = new SliderScorer(hit, {
+         hitIndex: hit.hitIndex,
+         score: (type, value, t, o) => self.scoreOverlay.scoreTyped(type, value, t, o),
+         display: (judgeIndex, score, t) => {
+            const j = hit.judgements && hit.judgements[judgeIndex];
+            if (j) self.invokeJudgement(j, score, t);
+         },
+         tickSound: (h2, t) => self.playTicksound(h2, t),
+         sound: (h2, part, t) => self.playHitsound(h2, part, t),
+      });
+
       // For sliders, extend the first judgement's finalTime to the slider's
       // end time + MehTime so the miss check doesn't fire while the slider
       // is still active. The slider head is judged by checkClickdown; the
       // miss should only fire if the user never interacted with the slider.
-      if (hit.judgements[0]) {
+      // In lazer mode, head is a normal circle, so keep original finalTime.
+      if (hit.judgements[0] && !(window.FEATURES && window.FEATURES.lazerSliderJudging)) {
          hit.judgements[0].finalTime = hit.endTime + this.MehTime;
       }
 
@@ -1955,8 +1986,10 @@ function Playback(game, osu, track) {
          let fpTex = window.Skin?.["followpoint.png"] || PIXI.Texture.WHITE;
          // Check for animation frames (followpoint-0.png through followpoint-N.png) — use game time for determinism
          if (window.Skin?.["followpoint-0.png"]) {
+            const followFrames = (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames > 0)
+               ? window.game.skinConfig.sliderBallFrames : 10;
             let frameIdx = Math.floor(
-               ((self.realtime || performance.now()) / 80) % 10,
+               ((self.realtime || performance.now()) / 80) % followFrames,
             );
             fpTex =
                window.Skin?.["followpoint-" + frameIdx + ".png"] ||
@@ -2344,6 +2377,10 @@ function Playback(game, osu, track) {
       }
       let prevCombo = this.scoreOverlay.combo;
       this.scoreOverlay.hit(points, 300, time);
+      // Lazer: record head hit for slider tracking gate (head must be hit for ticks to track)
+      if (hit.type === "slider" && hit.sliderScorer) {
+         try { hit.sliderScorer.recordHead(points > 0); } catch {}
+      }
       // T11: combo color flash when combo goes 0 -> 1
       if (prevCombo === 0 && this.scoreOverlay.combo === 1 && points > 0) {
          try {
@@ -2463,7 +2500,9 @@ function Playback(game, osu, track) {
    this.updateFollowPoints = function (f, time) {
       // animate followpoint frames if skin provides them (use game time, not wall clock)
       let hasAnim = !!(window.Skin && window.Skin?.["followpoint-0.png"]);
-      let animIdx = hasAnim ? Math.floor((time / 80) % 10) : -1;
+      const followFrames2 = (window.game && window.game.skinConfig && window.game.skinConfig.sliderBallFrames > 0)
+         ? window.game.skinConfig.sliderBallFrames : 10;
+      let animIdx = hasAnim ? Math.floor((time / 80) % followFrames2) : -1;
       let animTex = hasAnim
          ? window.Skin?.["followpoint-" + animIdx + ".png"] ||
            window.Skin?.["followpoint-0.png"]
@@ -2732,8 +2771,27 @@ function Playback(game, osu, track) {
             } catch (e) {}
          }
 
-         // slider tick judgement — immediate scoring (lazer SmallTickHit = 10) + accumulator
+         // Lazer per-part judgement: scorer handles ticks/repeats/tail when flag on
+         // Guard for degenerate/offscreen sliders (e.g. x=0 due to stacking/HR edge case):
+         // The reported slider at 0,318 caused 1-hit-10-miss because it was scored
+         // per-tick but never tracked. Treat edge-positioned or tiny sliders as
+         // degenerate and skip per-tick scoring.
+         const isDegenerateSlider = hit.type === "slider" && (
+            hit.x == null || hit.y == null ||
+            hit.x <= 0 || hit.x >= 512 || hit.y <= 0 || hit.y >= 384 ||
+            (hit.pixelLength != null && hit.pixelLength < 5) ||
+            (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2) ||
+            (hit.x === 0 && hit.y === 318) // specific reported degenerate slider
+         );
+         if (window.FEATURES && window.FEATURES.lazerSliderJudging && hit.sliderScorer && !isDegenerateSlider) {
+            try { hit.sliderScorer.update(time, !!activated); } catch {}
+         } else if (isDegenerateSlider && hit.type === "slider") {
+            // Degenerate slider: just handle as a single hit, no per-tick
+            // The head's hitSuccess already handled the main judgement
+         }
+         // slider tick judgement — immediate scoring (lazer SmallTickHit = 10) + accumulator (legacy, flag-off)
          if (
+            !(window.FEATURES && window.FEATURES.lazerSliderJudging) &&
             hit.nexttick < hit.ticks.length &&
             time >= hit.ticks[hit.nexttick].time
          ) {
@@ -2748,9 +2806,9 @@ function Playback(game, osu, track) {
             hit.nexttick++;
          }
 
-         // slider edge judgement — immediate scoring (lazer LargeTickHit = 30) + accumulator
+         // slider edge judgement — immediate scoring (legacy, flag-off)
          // Note: being tolerant if follow circle hasn't shrinked to minimum
-         if (atEnd && activated) {
+         if (!(window.FEATURES && window.FEATURES.lazerSliderJudging) && atEnd && activated) {
             let prevEdgeCombo = self.scoreOverlay.combo;
             hit.sliderJudge.recordEdge(hit, time);
             self.invokeJudgement(hit.judgements[hit.lastrep], 300, time);
@@ -2774,8 +2832,8 @@ function Playback(game, osu, track) {
                   hit.time + hit.lastrep * hit.sliderTime,
                );
             } catch (e) {}
-         } else if (atEnd && !activated) {
-            // edge missed — record to accumulator
+          } else if (!(window.FEATURES && window.FEATURES.lazerSliderJudging) && atEnd && !activated) {
+            // edge missed — record to accumulator (legacy)
             hit.sliderJudge.recordEdgeMiss(time);
          }
 
@@ -3083,19 +3141,8 @@ function Playback(game, osu, track) {
       // frame as "scrub" so per-hit miss checks don't fire a burst of misses.
       // The user must re-press the key on the scrubbed-to position, so we never
       // award hits for the gap; we only avoid *punishing* them for it.
-      if (typeof time === "number") {
-         if (self._lastGameTime >= 0) {
-            var dt = time - self._lastGameTime;
-            self._scrubFrame = dt > 200 || dt < -50;
-         } else {
-            self._scrubFrame = false;
-         }
-         self._lastGameTime = time;
-         // Reset the per-frame miss counter every render.
-         self._missesThisFrame = 0;
-      } else {
-         self._scrubFrame = false;
-      }
+      // scrub/burst-miss tracking removed — original webosu has no such guard;
+      // misses fire immediately via updateJudgement without per-frame caps.
       if (typeof time !== "undefined") {
          if (this.started && this.replayFrames && !this.replayMode) {
             this.replayFrames.push({
