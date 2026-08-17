@@ -31,7 +31,7 @@ export function parseSkinIni(iniText) {
       sliderTrackOverride: null,
       approachCircle: null,
       hitCirclePrefix: "default",
-      hitCircleOverlap: 0,
+      hitCircleOverlap: -2, // lazer default (T14 D6): slightly widened; was 0
       scorePrefix: "score",
       scoreOverlap: 0,
       name: "",

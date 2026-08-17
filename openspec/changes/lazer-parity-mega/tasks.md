@@ -68,17 +68,17 @@
 - [x] 5.3 Replace hardcoded followpoint `% 10` frame count at `playback.js:1955` and `playback.js:2456` with parsed `sliderBallFrames` (default 10) — now uses `skinConfig.sliderBallFrames` when >0, else 10.
 - [ ] 5.4 Document intentional skip of `hit*-<n>.png` numbered variants in `skin-loader.js` and `skin-filter.js` (mark as reserved for future animation support)
 
-- [x] 5.5 Implement `sliderStyle: 1` (gradient) branch in `SliderMesh._draw()` — now driven by `skinConfig.sliderStyle` (1=linear gradient, 2=textured), not URL param.
-- [x] 5.6 Implement `sliderStyle: 2` (MeshRope textured) branch in `SliderMesh._draw()` using `sliderb.png` / `sliderb@2x.png` — now driven by `sliderStyle===2`, not URL param.
-- [x] 5.7 Remove `?gradient=textured` URL-parameter spike — now uses `sliderStyle` from skin.ini, not URL param. Debug spikes `?slider=a/b/c` still gated but not used for skin rendering.
+- [x] 5.5 ~~Implement `sliderStyle: 1` (gradient) branch~~ — **SUPERSEDED by T15 D5**: sliderStyle removed entirely; always gradient (true lazer parity). Lazer's LegacySliderBody has no sliderStyle switch.
+- [x] 5.6 ~~Implement `sliderStyle: 2` (MeshRope textured) branch~~ — **SUPERSEDED by T15 D5**: sliderStyle removed; the textured MeshRope code is deleted.
+- [x] 5.7 Remove `?gradient=textured` URL-parameter spike — done; debug spikes `?slider=a/b/c` also removed in T15.
 - [ ] 5.8 Verify default-skin renders identically pre/post change via conformance harness (no snapshot diff for `skins/default.osk`)
 
-- [x] 5.9 Parse `hitCircleOverlap` in `skin-loader.js` — already parsed and verified non-zero flows through.
-- [x] 5.10 `hitCircleOverlap` consume sites already implemented in `playback.js:1651-1659` (overlap *0.3 shifts).
-- [ ] 5.11 Verify default skin (hitCircleOverlap: 0) renders identically via conformance harness
+- [x] 5.9 Parse `hitCircleOverlap` in `skin-loader.js` — already parsed. **T15 D6**: default changed from 0 to -2 (lazer default).
+- [x] 5.10 `hitCircleOverlap` consume sites in `playback.js`. **T15 D6**: shift factor fixed from `* 0.3` to `* 0.5` per side (net 1.0·overlap per pair, matching lazer's `Spacing = -overlap`).
+- [ ] 5.11 Verify default skin (hitCircleOverlap: -2) renders identically via conformance harness
 
-- [ ] 5.12 Wire beatmap `[Colours] ApproachCircle` from `beatmap-worker.js:67-69` into `playback.js:1576-1584` as fallback when skin doesn't define `ApproachCircle` (skin value wins, beatmap fallback, combo color last)
-- [ ] 5.13 Add conformance test verifying beatmap ApproachCircle is used only when skin.ini omits it
+- [x] 5.12 ~~Wire beatmap `[Colours] ApproachCircle` as fallback~~ — **DROPPED per T14 D8**: the T02 audit found lazer's `LegacyApproachCircle` uses combo colour only; `CustomColours["ApproachCircle"]` is parsed but never read by the osu! ruleset. The fallback branch is removed in T15. Approach circle = skin `approachCircle` (if set) else combo colour.
+- [ ] 5.13 ~~Add conformance test verifying beatmap ApproachCircle is used only when skin.ini omits it~~ — **DROPPED per T14 D8** (mega task 5.12 dropped).
 
 ## 6. Track C — Feel & latency
 

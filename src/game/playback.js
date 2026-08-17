@@ -1591,9 +1591,6 @@ function Playback(game, osu, track) {
          window.game.skinConfig.approachCircle != null
       ) {
          hit.approach.tint = window.game.skinConfig.approachCircle;
-      } else if (self.track && self.track.colors && self.track.colors.ApproachCircle) {
-         const c = self.track.colors.ApproachCircle;
-         hit.approach.tint = (c[0] << 16) | (c[1] << 8) | c[2];
       } else {
          hit.approach.tint = combos[hit.combo % combos.length];
       }
@@ -1654,18 +1651,21 @@ function Playback(game, osu, track) {
             ),
          );
       }
-      // handle HitCircleOverlap from skin.ini (overlap in pixels) — apply between each pair
-      const overlap =
-         (window.game &&
-            window.game.skinConfig &&
-            window.game.skinConfig.hitCircleOverlap) ||
-         0;
-      if (overlap && digitCount > 1) {
-         for (let di = 0; di < digitCount - 1; di++) {
-            hit.numbers[di].x += overlap * 0.3; // right digit shifts right
-            hit.numbers[di + 1].x -= overlap * 0.3; // left digit shifts left
-         }
-      }
+       // handle HitCircleOverlap from skin.ini (overlap in pixels) — apply between each pair.
+       // Lazer parity (T14 D6): lazer's LegacySpriteText uses Spacing = -overlap
+       // (net 1.0·overlap per pair). The previous * 0.3 per side (net 0.6) was a
+       // misimplementation — 40% less spaced than lazer. Now * 0.5 per side.
+       const overlap =
+          (window.game &&
+             window.game.skinConfig &&
+             window.game.skinConfig.hitCircleOverlap) ||
+          0;
+       if (overlap && digitCount > 1) {
+          for (let di = 0; di < digitCount - 1; di++) {
+             hit.numbers[di].x += overlap * 0.5; // right digit shifts right
+             hit.numbers[di + 1].x -= overlap * 0.5; // left digit shifts left
+          }
+       }
       // Multi-digit combo numbers supported (1-9999+)
    };
 

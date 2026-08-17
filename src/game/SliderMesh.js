@@ -45,16 +45,16 @@ import { log, warn } from "./logger.js";
          this._fillCol = SliderTrackOverride ?? (this._colors ? this._colors[this.tintid % this._colors.length] : 0xffffff);
          this._transform = transform;
          this._dirty = true;
-         // Slider style from skin.ini (lazer parity): 1 = gradient, 2 = textured with sliderb.png
-         const skinStyle = window.game && window.game.skinConfig && window.game.skinConfig.sliderStyle;
-         this._sliderStyle = skinStyle != null ? skinStyle : 1;
-         // Gradient mode: linear for style 1, flat otherwise; textured only for style 2
-         this._gradientMode = this._sliderStyle === 1 ? 'linear' : 'flat';
+         // Lazer parity: LegacySliderBody always renders a gradient body.
+         // (The previous sliderStyle 1=gradient / 2=textured-with-sliderb.png
+         // branch was a webosu invention, not a lazer skin setting — removed per
+         // T14 D5. Lazer's LegacySliderBody has no sliderStyle switch.)
+         this._gradientMode = 'linear';
          this._sliderMode = null;
          this._cullMode = null;
          try { this.cullable = false; } catch {}
          try { if (this._g) this._g.cullable = false; } catch {}
-         log("SliderMesh", "init", colors?.length, "radius", radius, "sliderStyle", this._sliderStyle, "gradient", this._gradientMode);
+         log("SliderMesh", "init", colors?.length, "radius", radius, "gradient", this._gradientMode);
          if (import.meta.env.DEV && !this._cullLogged) {
             try {
                const b0 = this.getBounds?.() || this._g?.getBounds?.();
@@ -80,34 +80,10 @@ import { log, warn } from "./logger.js";
          for (let i=0;i<pts.length;i++) if (pts[i].t < t0) i0=i;
          for (let i=pts.length-1;i>=0;i--) if (pts[i].t > t1) i1=i;
          if (i0 >= i1) return;
-         // Textured slider body for sliderStyle 2: MeshRope with sliderb.png
-         if (this._sliderStyle === 2 && window.Skin?.['sliderb.png'] && PIXI?.MeshRope) {
-            try {
-               const tex = window.Skin['sliderb.png'];
-               const slice = [];
-               for (let i=i0;i<=i1;i++) slice.push(new PIXI.Point(pts[i].x, pts[i].y));
-               if (slice.length >= 2) {
-                  if (!this._rope) {
-                     this._rope = new PIXI.MeshRope({ texture: tex, points: slice, width: w, textureScale: 1 });
-                     this._rope.eventMode = 'none'; this._rope.cullable = false;
-                     this.addChild(this._rope);
-                     this._g.visible = false;
-                  } else {
-                     this._rope.points = slice;
-                     if (this._rope.geometry?.update) try { this._rope.geometry.update(); } catch {}
-                  }
-                  // still draw border underneath for outline
-                  g.moveTo(pts[i0].x, pts[i0].y);
-                  for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
-                  g.stroke({ width: w + 6, color: borderCol, alpha: 0.95, cap: "round", join: "round" });
-                  g.moveTo(pts[i0].x, pts[i0].y);
-                  for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
-                  g.stroke({ width: w + 4, color: 0x000000, alpha: 0.35, cap: "round", join: "round" });
-                  this._g.visible = true;
-                  return;
-               }
-            } catch {}
-         } else if (this._rope) {
+         // (D5 — T14: removed the sliderStyle 2 textured MeshRope block; lazer
+         // always renders a gradient body. The legacy _rope/_borderRope fields
+         // are cleaned up in destroy() if a prior render left them around.)
+         if (this._rope) {
             try { this.removeChild(this._rope); this._rope.destroy(); } catch {}
             this._rope = null;
             this._g.visible = true;
@@ -119,10 +95,9 @@ import { log, warn } from "./logger.js";
          g.moveTo(pts[i0].x, pts[i0].y);
          for (let i=i0+1;i<=i1;i++) g.lineTo(pts[i].x, pts[i].y);
          g.stroke({ width: w + 6, color: borderCol, alpha: 1, cap: "round", join: "round" });
-         // fill: flat vs linear gradient (driven by sliderStyle)
+         // fill: linear gradient (lazer LegacySliderBody always gradient)
          let fillColor = finalCol;
-         const mode = this._gradientMode || 'flat';
-         if (mode === 'linear' && PIXI?.FillGradient) {
+         if (this._gradientMode === 'linear' && PIXI?.FillGradient) {
             try {
                const lighten = (c, amt) => {
                   const r = Math.min(255, ((c>>16)&255) + amt*255);
@@ -159,10 +134,10 @@ import { log, warn } from "./logger.js";
             g.stroke({ width: Math.max(2, w - 8), color: hl, alpha: 0.28, cap: "round", join: "round" });
          } catch {}
          this._g.visible = true;
-         if (import.meta.env.DEV && this._cullMode !== null && !this._afterLogged) {
+         if (import.meta.env.DEV && !this._afterLogged) {
             try {
                const b1 = this.getBounds?.() || this._g?.getBounds?.();
-               log("SliderMesh", "cull spike bounds after _draw", { cullable: this.cullable, bounds: b1, w, pts: pts.length, mode, sliderMode });
+               log("SliderMesh", "cull spike bounds after _draw", { cullable: this.cullable, bounds: b1, w, pts: pts.length });
             } catch {}
             this._afterLogged = true;
          }
