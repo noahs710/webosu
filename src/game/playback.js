@@ -1975,14 +1975,20 @@ function Playback(game, osu, track) {
          sound: (h2, part, t) => self.playHitsound(h2, part, t),
       });
 
-      // For sliders, extend the first judgement's finalTime to the slider's
-      // end time + MehTime so the miss check doesn't fire while the slider
-      // is still active. The slider head is judged by checkClickdown; the
-      // miss should only fire if the user never interacted with the slider.
-      // In lazer mode, head is a normal circle, so keep original finalTime.
-      if (hit.judgements[0] && !(window.FEATURES && window.FEATURES.lazerSliderJudging)) {
-         hit.judgements[0].finalTime = hit.endTime + this.MehTime;
-      }
+       // For sliders, extend ALL judgements' finalTime to the slider's end
+       // time + MehTime so miss checks don't fire while the slider is still
+       // active. The slider head is judged by checkClickdown; repeats/tail
+       // are judged by the slider tick/edge logic in updateSlider. None of
+       // these should miss via updateJudgement while the slider is in progress.
+       // (Previously only judgements[0] was extended — repeats/tail with small
+       // sliderTime had finalTime ≈ hit.time and missed instantly after the
+       // head was hit.)
+       if (hit.judgements && hit.judgements.length) {
+          const extendedFinal = hit.endTime + this.MehTime;
+          for (let ji = 0; ji < hit.judgements.length; ji++) {
+             hit.judgements[ji].finalTime = extendedFinal;
+          }
+       }
 
       // add judgement objects at edge
       let endPoint = hit.curve.curve[hit.curve.curve.length - 1];
