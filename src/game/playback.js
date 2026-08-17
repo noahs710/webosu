@@ -89,6 +89,16 @@ function Playback(game, osu, track) {
    });
    self.offset = 0;
    self.currentHitIndex = 0; // index for all hit objects
+   // Scrub detector: tracks the previous frame's game time so we can detect
+   // audio-position jumps (scrub / resume / lead-in seek). A healthy frame
+   // advances by < 1 frame (~33ms); anything > 200ms means the clock jumped
+   // (the user seeked, or the audio sought to the first hit during lead-in).
+   // On a scrub frame, miss checks are skipped so the user isn't penalized
+   // for hits they never had a chance to play. This is the scrub-only guard
+   // — the per-frame miss CAP (MAX_MISSES_PER_FRAME) that caused the original
+   // "burst-miss on first tap" bug is NOT restored.
+   self._lastGameTime = -1;
+   self._scrubFrame = false;
    self.ended = false;
    // Signature of the active mod set when the user last paused. Used by btn_continue
    // to detect that a mod changed while paused and force a retry so the change
@@ -837,9 +847,15 @@ function Playback(game, osu, track) {
       time, // set transform of judgement text
    ) {
       if (judge.points < 0 && time >= judge.finalTime) {
-         // miss — original webosu has no scrub/burst guard; every miss fires
-         // immediately. The previous guard was disabled during lead-in and caused
-         // burst-miss on first tap, so it has been removed entirely.
+         // Skip miss check on a scrub frame (audio position jumped > 200ms):
+         // the user hasn't had a chance to play these hits. The next frame uses
+         // the new time and the scrub flag resets, so subsequent misses are real.
+         // This is the scrub-only guard — there is NO per-frame miss cap, so a
+         // real frame can fire multiple misses (a human cannot miss 10 hits in
+         // 33ms, but if they somehow do, each miss counts). The cap caused the
+         // original "burst-miss on first tap" bug and is NOT restored.
+         if (self._scrubFrame) return;
+         // miss — fire immediately (no cap)
          this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
          this.invokeJudgement(judge, judge.defaultScore, time);
          return;
@@ -3211,13 +3227,27 @@ function Playback(game, osu, track) {
       if (this.audioReady) {
          time = osu.audio.getPosition() * 1000 + self.offset;
       }
-      // Detect audio position jumps (scrub / resume): a healthy frame advances
-      // by < 1 frame (~33ms). Anything > 200ms means the user seeked; mark this
-      // frame as "scrub" so per-hit miss checks don't fire a burst of misses.
-      // The user must re-press the key on the scrubbed-to position, so we never
-      // award hits for the gap; we only avoid *punishing* them for it.
-      // scrub/burst-miss tracking removed — original webosu has no such guard;
-      // misses fire immediately via updateJudgement without per-frame caps.
+      // Detect audio position jumps (scrub / resume / lead-in seek): a healthy
+      // frame advances by < 1 frame (~33ms). Anything > 200ms means the clock
+      // jumped (user seeked, or audio sought to first hit during lead-in). Mark
+      // this frame as "scrub" so per-hit miss checks don't fire a burst of
+      // misses. The user must re-press the key on the scrubbed-to position, so
+      // we never award hits for the gap; we only avoid *punishing* them for it.
+      // Scrub-only guard (restored): the per-frame miss CAP that caused the
+      // original "burst-miss on first tap" bug is NOT restored — only the
+      // scrub detector. A scrub frame skips ALL miss checks; a normal frame
+      // lets every due miss fire (no cap).
+      if (typeof time === "number") {
+         if (self._lastGameTime >= 0) {
+            var dt = time - self._lastGameTime;
+            self._scrubFrame = dt > 200 || dt < -50;
+         } else {
+            self._scrubFrame = false;
+         }
+         self._lastGameTime = time;
+      } else {
+         self._scrubFrame = false;
+      }
       if (typeof time !== "undefined") {
          if (this.started && this.replayFrames && !this.replayMode) {
             this.replayFrames.push({
