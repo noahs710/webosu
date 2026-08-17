@@ -100,22 +100,24 @@ function Track(track) {
                   combo: combo, index: index,
                };
                 if (typeFlag & HIT_TYPE_NEWCOMBO) { combo = 0; forceNewCombo = true; combo += (typeFlag >> 4) & 7; }
-               if (hit.type === "slider") {
-                  hit.sliderType = parts[5];
-                  hit.keyframes = [];
-                  var kp = parts[6].split("|");
-                  for (var j = 0; j < kp.length; j++) {
-                     var c = kp[j].split(":");
-                     hit.keyframes.push({ x: +c[0], y: +c[1] });
-                  }
-                  hit.repeat = +parts[7] || 1;
-                  hit.pixelLength = +parts[8] || 0;
-                  hit.edgeHitsounds = parts[9] ? parts[9].split("|").map(function(s) { return +s || 0; }) : [];
-                  hit.edgeSets = parts[10] ? parts[10].split("|").map(function(s) {
-                     var sets = s.split(":");
-                     return { normalSet: +sets[0] || 0, additionSet: +sets[1] || 0 };
-                  }) : [];
-                  hit.hitSample = parseSample(parts[11]);
+                if (hit.type === "slider") {
+                   // Parse slider: parts[5] = "type|x:y|x:y...", parts[6] = repeat, parts[7] = pixelLength
+                   // (matches original osu.js field indices exactly)
+                   var sliderKeys = parts[5].split("|");
+                   hit.sliderType = sliderKeys[0];
+                   hit.keyframes = [];
+                   for (var j = 1; j < sliderKeys.length; j++) {
+                      var c = sliderKeys[j].split(":");
+                      hit.keyframes.push({ x: +c[0], y: +c[1] });
+                   }
+                   hit.repeat = +parts[6] || 1;
+                   hit.pixelLength = +parts[7] || 0;
+                   hit.edgeHitsounds = parts[8] ? parts[8].split("|").map(function(s) { return +s || 0; }) : [];
+                   hit.edgeSets = parts[9] ? parts[9].split("|").map(function(s) {
+                      var sets = s.split(":");
+                      return { normalSet: +sets[0] || 0, additionSet: +sets[1] || 0 };
+                   }) : [];
+                   hit.hitSample = parseSample(parts[10]);
                } else if (hit.type === "spinner") {
                   hit.endTime = +parts[5] || 0;
                   hit.hitSample = parseSample(parts[6]);
