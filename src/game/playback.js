@@ -1013,37 +1013,58 @@ function Playback(game, osu, track) {
          // Accept every reasonable image extension via Assets.load (which handles blob:/data:/http URLs).
          // For explicitly-blob URLs we resolve via Image + decode + Texture.from() so the GPU source is
          // captured (Pixi v8 Texture.from does NOT fetch; the underlying Image element does).
-         try {
-            if (isBlob) {
-               // Handle both image and video blobs
-               if (isVideo) {
-                  // Video blob: create video element
-                  const video = document.createElement("video");
-                  video.crossOrigin = "anonymous";
-                  video.src = uri;
-                  video.muted = true;
-                  video.loop = true;
-                  await new Promise((res, rej) => {
-                     video.onloadeddata = res;
-                     video.onerror = rej;
-                     setTimeout(rej, 5000);
-                  });
-                  bgTexture = PIXI.Texture.from(video);
-                  // Store video element for playback control
-                  if (window.game) window.game.backgroundVideo = video;
-               } else {
-                  const img = new Image();
-                  img.crossOrigin = "anonymous";
-                  img.src = uri;
-                  await img.decode().catch(
-                     () =>
-                        new Promise((res, rej) => {
-                           img.onload = res;
-                           img.onerror = rej;
-                        }),
-                  );
-                  bgTexture = PIXI.Texture.from(img);
-               }
+          try {
+             if (isBlob) {
+                // Handle both image and video blobs
+                if (isVideo) {
+                   // Video blob: create video element
+                   const video = document.createElement("video");
+                   video.crossOrigin = "anonymous";
+                   video.src = uri;
+                   video.muted = true;
+                   video.loop = true;
+                   await new Promise((res, rej) => {
+                      video.onloadeddata = res;
+                      video.onerror = rej;
+                      setTimeout(rej, 5000);
+                   });
+                   // Pixi v8: use Assets.load for video textures (Texture.from
+                   // doesn't handle video elements properly in v8).
+                   try {
+                      bgTexture = await PIXI.Assets.load({ src: video, parser: "texture" });
+                   } catch {
+                      bgTexture = PIXI.Texture.from(video);
+                   }
+                   // Store video element for playback control
+                   if (window.game) window.game.backgroundVideo = video;
+                } else {
+                   const img = new Image();
+                   img.crossOrigin = "anonymous";
+                   img.src = uri;
+                   await img.decode().catch(
+                      () =>
+                         new Promise((res, rej) => {
+                            img.onload = res;
+                            img.onerror = rej;
+                         }),
+                   );
+                   // Pixi v8: Texture.from(img) warns "Image element passed,
+                   // converting to canvas" and creates an invalid texture that
+                   // causes PrepareSystem to hang in an upload loop. Use
+                   // Assets.load with the blob URL instead (the Image decode
+                   // above ensures the blob is valid; Assets.load creates a
+                   // proper texture from it).
+                   try {
+                      bgTexture = await PIXI.Assets.load({
+                         src: uri,
+                         parser: "texture",
+                         data: { scaleMode: "linear", autoGenerateMipmaps: false },
+                      });
+                   } catch {
+                      // Fallback: Texture.from the decoded Image element
+                      bgTexture = PIXI.Texture.from(img);
+                   }
+                }
             } else {
                bgTexture = await PIXI.Assets.load(uri);
             }
