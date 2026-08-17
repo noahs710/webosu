@@ -1,5 +1,6 @@
 
 import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from "../lazerHpTables.js";
+import { jlog } from "../logger.js";
 import {
    computeTotalScore,
    comboScoreChange,
@@ -339,8 +340,9 @@ import {
                shouldFail = false;
                if (this.HP < 0) this.HP = 0;
             }
-            if (shouldFail) {
-               this.failed = true;
+             if (shouldFail) {
+                jlog.fail(this.HP, "hit-fail");
+                this.failed = true;
                this.HP = -1;
                this.HP4display.set(time, 0);
                if (this.onfail) this.onfail();
@@ -449,13 +451,11 @@ import {
               }
            }
          this.maxcombo = Math.max(this.maxcombo, this.combo);
-         if (this.HP >= 0) {
-            const hpDelta = this.HPincreasefor(result, maxresult);
-            // Lazer does NOT cap single-hit HP loss (a miss at HP=10 drains -0.20 in one hit).
-            // The previous Math.max(hpDelta, -0.1) clamp was a webosu approximation; removed
-            // for lazer parity. Audit finding D2.
-            this.HP += hpDelta;
-         }
+          if (this.HP >= 0) {
+             const hpDelta = this.HPincreasefor(result, maxresult);
+             this.HP += hpDelta;
+             jlog.hp(this.HP, hpDelta, "hit-" + result, time);
+          }
          this.HP = Math.min(1, this.HP);
 
          this.score4display.set(time, this.score);
@@ -474,8 +474,9 @@ import {
                shouldFail = false;
                if (this.HP < 0) this.HP = 0;
             }
-            if (shouldFail) {
-               this.failed = true;
+             if (shouldFail) {
+                jlog.fail(this.HP, "hit-fail");
+                this.failed = true;
                this.HP = -1;
                this.HP4display.set(time, 0);
                if (this.onfail) this.onfail();
@@ -573,12 +574,14 @@ import {
           const nextApproach = this.field && this.field._nextApproachTime;
           const inBreak = nextApproach != null && (nextApproach - time) > 1500 && time > drainStart;
           if (!this.failed && time >= drainStart && time <= drainEnd && dt > 0 && dt < 1000 && !inBreak) {
-             this.HP -= this.passiveDrain * dt;
-             if (this.HP < 0) {
-                if (this.nofail) {
-                   this.HP = 0;
-                } else {
-                   this.failed = true;
+              this.HP -= this.passiveDrain * dt;
+              jlog.hp(this.HP, -this.passiveDrain * dt, "drain", time);
+              if (this.HP < 0) {
+                 if (this.nofail) {
+                    this.HP = 0;
+                 } else {
+                    jlog.fail(this.HP, "drain-fail");
+                    this.failed = true;
                    this.HP = -1;
                    if (this.onfail) this.onfail();
                 }

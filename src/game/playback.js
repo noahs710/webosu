@@ -16,6 +16,7 @@ import {
    warn as gwarn,
    error as gerror,
    debug as gdebug,
+   jlog,
 } from "./logger.js";
 
 function clamp01(a) {
@@ -849,13 +850,14 @@ function Playback(game, osu, track) {
           // A note can only miss if it was rendered (approach circle appeared)
           // and its hit window expired. Notes that were never visible (lead-in
           // seek, resume, scrub) are skipped — the player never saw them.
-          // This replaces the scrub detector + scrub sweep + per-frame cap.
           if (!judge._wasVisible) {
+             jlog.miss(judge, null, time, "not-visible-skip");
              judge.points = 0; // mark as processed; won't re-enter
              judge.visible = false;
              return;
           }
           // miss — fire immediately
+          jlog.miss(judge, null, time, "visible-miss");
           this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
           this.invokeJudgement(judge, judge.defaultScore, time);
           return;
@@ -2465,20 +2467,22 @@ function Playback(game, osu, track) {
          hit && hit.x != null ? hit.x : (self.game && self.game.mouseX) || 0;
       self._lastClickY =
          hit && hit.y != null ? hit.y : (self.game && self.game.mouseY) || 0;
-      // Log the judgement so failures are diagnosable from the console.
-      if (import.meta.env.DEV) {
-         var label = (hit && hit.type) || "?";
-         try {
-            console.log(
-               "judge",
-               "type=" + label,
-               "x=" + (hit && hit.x),
-               "y=" + (hit && hit.y),
-               "time=" + time,
-               "points=" + points,
-               "score=" + hit.score,
-            );
-         } catch (_) {}
+       // Log the judgement so failures are diagnosable from the console.
+       if (import.meta.env.DEV) {
+          var label = (hit && hit.type) || "?";
+          try {
+             console.log(
+                "judge",
+                "type=" + label,
+                "x=" + (hit && hit.x),
+                "y=" + (hit && hit.y),
+                "time=" + time,
+                "points=" + points,
+                "score=" + hit.score,
+                "wasVisible=" + hit._wasVisible,
+             );
+             jlog.hit(hit, points, time);
+          } catch (_) {}
       }
       // Target Practice: accuracy-based scoring — score from distance to center
       if (this.game.targetpractice && hit.type === "circle") {
@@ -2665,13 +2669,14 @@ function Playback(game, osu, track) {
        // (diff <= approachTime). Before this, the note is not rendered to the
        // player and cannot be judged (hit or miss). If the clock jumps past
        // the approach window, _wasVisible stays false → miss is skipped.
-       if (diff <= this.approachTime) {
-          if (!hit._wasVisible) {
-             hit._wasVisible = true;
-             for (let ji = 0; ji < hit.judgements.length; ji++)
-                hit.judgements[ji]._wasVisible = true;
-          }
-       }
+        if (diff <= this.approachTime) {
+           if (!hit._wasVisible) {
+              hit._wasVisible = true;
+              for (let ji = 0; ji < hit.judgements.length; ji++)
+                 hit.judgements[ji]._wasVisible = true;
+              jlog.approach(hit, time);
+           }
+        }
         if (diff <= this.approachTime && diff > 0) {
           // approaching — approach circle shrinks from 4x to 1x the disc scale.
           // The disc is at hitSpriteScale * 1.0, so the approach circle at
