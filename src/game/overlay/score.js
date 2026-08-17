@@ -1,5 +1,13 @@
 
 import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from "../lazerHpTables.js";
+import {
+   computeTotalScore,
+   comboScoreChange,
+   baseScoreFor,
+   maxScoreFor,
+   RESULT_ACCURACY,
+   COMBO_EXPONENT,
+} from "../score-math.js";
 
    function addPlayHistory(summary) {
       if (!window.playHistory1000) {
@@ -114,6 +122,27 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
       this.fullcombo = true;
       // accuracy = judgeTotal / maxJudgeTotal
 
+      // ── Lazer Score V2 typed-pipe state (D1 — audit finding) ──────────────
+      // When FEATURES.lazerScoreV2 is on, every judgement routes through
+      // scoreTyped() which accumulates: comboPortion (Σ base·comboAfter^0.5),
+      // maximumComboPortion (perfect-play ceiling), bonusPortion (Large/SmallBonus),
+      // accuracyJudgementCount / maximumAccuracyJudgementCount. The production
+      // score is then computeTotalScore(acc, cp, ap, bp) × scoreMultiplier —
+      // matching ppy/osu ScoreProcessor.ComputeTotalScore exactly. The pure-math
+      // mirror lives in score-math.js (used by the property tests).
+      this.comboPortion = 0;
+      this.maximumComboPortion = 0;
+      this.bonusPortion = 0;
+      this.accuracyJudgementCount = 0;
+      this.maximumAccuracyJudgementCount = 0;
+      // Per-combo tier tracking for the last-in-combo HP bonus (D3).
+      // _comboHadMeh/Miss/Ok/tailMiss track the current (in-progress) combo's
+      // results so the tier can be computed when the combo's last hit lands.
+      this._comboHadMeh = false;
+      this._comboHadMiss = false;
+      this._comboHadOk = false;
+      this._comboHadTailMiss = false;
+
       this.onfail = null;
       this.judgecnt = {
          great: 0,
@@ -211,15 +240,179 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
                return lazerHpIncrease("Ok", dr);
             case 300:
                return lazerHpIncrease("Great", dr);
-            default:
-               return 0;
+             default:
+                return 0;
+          }
+      };
+
+      // ── Lazer Score V2 typed pipe (D1 — audit finding) ───────────────────
+      // scoreTyped(type, value, time, opts) — the lazer-faithful scoring path.
+      // Mirrors score-math.js's makeScorer.scoreTyped exactly: accumulates the
+      // comboPortion (Σ base(MaxResult)·comboAfter^0.5), maximumComboPortion
+      // (perfect-play ceiling), bonusPortion, accuracyJudgementCount, then
+      // recomputes this.score via computeTotalScore(acc, cp, ap, bp) × mult.
+      // Called by SliderScorer (playback.js:1885) for slider parts when the
+      // lazerSliderJudging flag is on, AND by hit() below for every judgement
+      // when lazerScoreV2 is on. The HP delta is applied via the same
+      // HPincreasefor path, plus the last-in-combo bonus (D3).
+      // opts: { hit: bool, displayOnly: bool, hitObjectKind: string, part: string,
+      //         lastInCombo: bool }
+      this.scoreTyped = function (type, value, time, opts = {}) {
+         const base = baseScoreFor(type);
+         const hitNow = !!opts.hit;
+         if (opts.displayOnly) return;
+         const isBonus = type === "LargeBonus" || type === "SmallBonus";
+         const affectsAcc = RESULT_ACCURACY.has(type);
+         if (isBonus) {
+            this.bonusPortion += value;
+         } else if (affectsAcc) {
+            this.judgeTotal += value;
+            this.maxJudgeTotal += maxScoreFor(type);
+         }
+         // Combo tracking (IgnoreMiss/IgnoreHit don't touch combo)
+         if (!isBonus && type !== "IgnoreMiss" && type !== "IgnoreHit") {
+            if (hitNow) {
+               this.combo += 1;
+               this.comboPortion += base * Math.pow(this.combo, COMBO_EXPONENT);
+            } else {
+               this.combo = 0;
+               this.fullcombo = false;
+            }
+         }
+         this.maxcombo = Math.max(this.maxcombo, this.combo);
+         this.accuracyJudgementCount += affectsAcc ? 1 : 0;
+         // maximumComboPortion uses the larger of current combo / max combo seen,
+         // so a perfect-play ceiling is stable even as combos break.
+         this.maximumComboPortion += isBonus
+            ? 0
+            : base * Math.pow(this.combo > 0 ? this.combo : this.maxcombo || 1, COMBO_EXPONENT);
+         this.maximumAccuracyJudgementCount += affectsAcc ? 1 : 0;
+         // Lazer ComputeTotalScore: 500000·acc·cp + 500000·acc^5·ap + bp, × mult
+         const acc = this.maxJudgeTotal ? this.judgeTotal / this.maxJudgeTotal : 1;
+         const cp = this.maximumComboPortion > 0 ? this.comboPortion / this.maximumComboPortion : 1;
+         const ap = this.maximumAccuracyJudgementCount > 0
+            ? this.accuracyJudgementCount / this.maximumAccuracyJudgementCount : 1;
+         this.score = Math.round(
+            computeTotalScore(acc, cp, ap, this.bonusPortion) * this.scoreMultiplier
+         );
+         // HP for the typed result (D2: no cap; D3: last-in-combo bonus)
+         if (this.HP >= 0) {
+            let hpDelta = this._hpDeltaForType(type, opts);
+            // D3: last-in-combo bonus. The tier is computed from the whole combo's
+            // results (tracked in _comboHad*). Perfect = no Meh/Miss, Good = any
+            // Ok/tail-miss/LargeTickMiss, None = any Meh/Miss.
+            if (hitNow && opts.lastInCombo) {
+               let tier = "None";
+               if (!this._comboHadMeh && !this._comboHadMiss) {
+                  tier = this._comboHadOk || this._comboHadTailMiss ? "Good" : "Perfect";
+               }
+               hpDelta += LAZER_LAST_COMBO_BONUS[tier];
+               // Reset the per-combo tier trackers for the next combo
+               this._comboHadMeh = false;
+               this._comboHadMiss = false;
+               this._comboHadOk = false;
+               this._comboHadTailMiss = false;
+            }
+            // Track per-combo results for the tier
+            if (type === "Meh" || type === "SmallTickMiss") this._comboHadMeh = true;
+            if (type === "Miss" || type === "LargeTickMiss") this._comboHadMiss = true;
+            if (type === "Ok") this._comboHadOk = true;
+            if (type === "IgnoreMiss") this._comboHadTailMiss = true;
+            this.HP += hpDelta;
+         }
+         this.HP = Math.min(1, this.HP);
+         // judgecnt for the results screen
+         if (type === "Great" || type === "Perfect") this.judgecnt.great++;
+         else if (type === "Ok" || type === "Good") this.judgecnt.good++;
+         else if (type === "Meh") this.judgecnt.meh++;
+         else if (type === "Miss") this.judgecnt.miss++;
+         // Display + fail checks
+         this.score4display.set(time, this.score);
+         this.combo4display.set(time, this.combo);
+         this.accuracy4display.set(time, this.maxJudgeTotal > 0 ? this.judgeTotal / this.maxJudgeTotal : 1);
+         this.HP4display.set(time, Math.max(0, this.HP));
+         if (!this.failed) {
+            let shouldFail = this.HP < 0;
+            if (this.suddendeath && (type === "Miss" || type === "LargeTickMiss") ) shouldFail = true;
+            if (this.perfect && hitNow && (type === "Meh" || type === "Ok")) shouldFail = true;
+            if (this.nofail) {
+               shouldFail = false;
+               if (this.HP < 0) this.HP = 0;
+            }
+            if (shouldFail) {
+               this.failed = true;
+               this.HP = -1;
+               this.HP4display.set(time, 0);
+               if (this.onfail) this.onfail();
+            }
+         }
+      };
+
+      // HP delta for a typed result (used by scoreTyped). Maps the lazer type
+      // to lazerHpIncrease, using opts.hitObjectKind for the SliderTick vs
+      // SliderRepeat distinction lazer makes on LargeTickHit.
+      this._hpDeltaForType = function (type, opts = {}) {
+         const dr = this.HPdrain;
+         switch (type) {
+            case "Miss": return lazerHpIncrease("Miss", dr);
+            case "Meh": return lazerHpIncrease("Meh", dr);
+            case "Ok": return lazerHpIncrease("Ok", dr);
+            case "Great": case "Perfect": return lazerHpIncrease("Great", dr);
+            case "Good": return lazerHpIncrease("Ok", dr); // Good is the 200-base in lazer (rare in osu!std)
+            case "SmallTickHit": return lazerHpIncrease("SmallTickHit", dr);
+            case "SmallTickMiss": return lazerHpIncrease("SmallTickMiss", dr);
+            case "LargeTickHit":
+               return lazerHpIncrease("LargeTickHit", dr, opts.hitObjectKind || "SliderRepeat");
+            case "LargeTickMiss": return lazerHpIncrease("LargeTickMiss", dr);
+            case "SliderTailHit": return lazerHpIncrease("SliderTailHit", dr);
+            case "IgnoreMiss": return 0; // no HP impact for tail miss (lazer)
+            case "IgnoreHit": return 0;
+            case "SmallBonus": return lazerHpIncrease("SmallBonus", dr);
+            case "LargeBonus": return lazerHpIncrease("LargeBonus", dr);
+            default: return 0;
          }
       };
 
       // should be called when note is hit or missed
       // maxresult: 300 for a hitcircle / slider start & end of every repeat
       // maxresult: 10 for a tick
-      this.hit = function (result, maxresult, time) {
+      // opts (optional, 4th arg): { lastInCombo: bool } — passed through to
+      // scoreTyped for the D3 last-in-combo HP bonus when lazerScoreV2 is on.
+      this.hit = function (result, maxresult, time, opts = {}) {
+         // Lazer Score V2 path: route every judgement through scoreTyped so the
+         // combo portion (Σ base·comboAfter^0.5) accumulates and the production
+         // score uses the full lazer formula (D1 — audit finding).
+         if (window.FEATURES && window.FEATURES.lazerScoreV2) {
+            let type;
+            if (maxresult === 300) {
+               type = result === 300 ? "Great"
+                    : result === 100 ? "Ok"
+                    : result === 50 ? "Meh"
+                    : "Miss";
+            } else if (maxresult === 30) {
+               type = result > 0 ? "LargeTickHit" : "LargeTickMiss";
+            } else if (maxresult === 10) {
+               type = result > 0 ? "SmallTickHit" : "SmallTickMiss";
+            } else if (maxresult === 150) {
+               type = result > 0 ? "SliderTailHit" : "IgnoreMiss";
+            } else {
+               // Unknown maxresult — fall through to legacy path
+               type = null;
+            }
+            if (type) {
+               this.scoreTyped(type, result, time, {
+                  hit: result > 0,
+                  lastInCombo: !!opts.lastInCombo,
+                  hitObjectKind: opts.hitObjectKind,
+               });
+               // combo-break sound (preserved from legacy path)
+               if (result === 0 && this.combo === 0) {
+                  // (combo already reset inside scoreTyped)
+               }
+               return;
+            }
+         }
+         // ── Legacy path (flag off, or classic mod) ──────────────────────────
          if (maxresult == 300) {
             if (result == 300) this.judgecnt.great++;
             if (result == 100) this.judgecnt.good++;
@@ -235,31 +428,33 @@ import { lazerHpIncrease, lazerDifficultyRange, LAZER_LAST_COMBO_BONUS } from ".
          this.score = this.classic
             ? this.v1Score
             : Math.round(
-                 1000000 *
-                    (this.maxJudgeTotal
-                       ? this.judgeTotal / this.maxJudgeTotal
-                       : 0) *
-                    this.scoreMultiplier
-              );
+                  1000000 *
+                     (this.maxJudgeTotal
+                        ? this.judgeTotal / this.maxJudgeTotal
+                        : 0) *
+                     this.scoreMultiplier
+               );
          // any zero-score result is a miss
          let oldCombo = this.combo;
          this.combo = result > 0 ? this.combo + 1 : 0;
          if (result == 0) {
             this.fullcombo = false;
             // combo creak
-             if (oldCombo > 20) {
-                if (window.game.sampleComboBreak) {
-                   window.game.sampleComboBreak.volume =
-                      window.game.masterVolume * window.game.effectVolume;
-                   window.game.sampleComboBreak.play();
-                }
-             }
-          }
+              if (oldCombo > 20) {
+                 if (window.game.sampleComboBreak) {
+                    window.game.sampleComboBreak.volume =
+                       window.game.masterVolume * window.game.effectVolume;
+                    window.game.sampleComboBreak.play();
+                 }
+              }
+           }
          this.maxcombo = Math.max(this.maxcombo, this.combo);
          if (this.HP >= 0) {
             const hpDelta = this.HPincreasefor(result, maxresult);
-            // Cap single-hit HP loss to 10% so a miss from near-full never instakills
-            this.HP += Math.max(hpDelta, -0.1);
+            // Lazer does NOT cap single-hit HP loss (a miss at HP=10 drains -0.20 in one hit).
+            // The previous Math.max(hpDelta, -0.1) clamp was a webosu approximation; removed
+            // for lazer parity. Audit finding D2.
+            this.HP += hpDelta;
          }
          this.HP = Math.min(1, this.HP);
 

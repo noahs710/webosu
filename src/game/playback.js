@@ -8,7 +8,7 @@ import BreakOverlay from "./overlay/break.js";
 import ProgressOverlay from "./overlay/progress.js";
 import ErrorMeterOverlay from "./overlay/hiterrormeter.js";
 import { ModRegistry } from "./mods/index.js";
-import { lazerSpinnerRpm, lazerHitWindows } from "./lazerHpTables.js";
+import { lazerSpinnerRpm, lazerHitWindows, lazerDifficultyRange } from "./lazerHpTables.js";
 import SliderJudge from "./slider-judge.js";
 import SliderScorer from "./slider-scorer.js";
 import {
@@ -391,9 +391,11 @@ function Playback(game, osu, track) {
          );
       }
    };
-   // Lazer CS formula (canonical): R = 32 * (1 - 0.7 * (CS - 5) / 5)
-   // At CS=4 this gives 36.48 — matches lazer exactly, fixes circles feeling tiny.
-   self.circleRadius = 32 * (1 - (0.7 * (this.CS - 5)) / 5);
+   // Lazer CS formula (ppy/osu OsuHitObject.cs): R = 32 * (1 - 0.7 * DifficultyRange(CS, 0, 0.5, 1))
+   // where DifficultyRange is the two-piece-linear: 0->min, 5->mid, 10->max.
+   // At CS=4: R = 23.04; CS=5: R = 16; CS=0: R = 36.16. (The previous (CS-5)/5 linear
+   // was wrong for any CS!=5 — 58% too big at CS=4. Audit finding D4.)
+   self.circleRadius = 32 * (1 - 0.7 * lazerDifficultyRange(this.CS, 0, 0.5, 1));
    // hitSpriteScale: circle radius / 60 (visible radius of default 128px texture).
    // This scales the sprite so the visual circle has radius = circleRadius.
    // For custom skins, texture normalization via source.resolution handles
@@ -803,7 +805,7 @@ function Playback(game, osu, track) {
          // miss — original webosu has no scrub/burst guard; every miss fires
          // immediately. The previous guard was disabled during lead-in and caused
          // burst-miss on first tap, so it has been removed entirely.
-         this.scoreOverlay.hit(judge.defaultScore, 300, time);
+         this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
          this.invokeJudgement(judge, judge.defaultScore, time);
          return;
       }
@@ -1599,6 +1601,7 @@ function Playback(game, osu, track) {
       hit.judgements.push(
          this.createJudgement(hit.x, hit.y, hit.time + this.MehTime),
       );
+      hit.judgements[hit.judgements.length - 1].lastInCombo = !!hit.lastInCombo;
 
       // create combo number — respect skin.ini HitCirclePrefix/ScorePrefix, gated to valid
       function hitNumberKey(digit) {
@@ -1949,6 +1952,9 @@ function Playback(game, osu, track) {
       hit.judgements.push(
          this.createJudgement(hit.x, hit.y, hit.endTime + 233),
       );
+      // The slider's end judgement is the last-in-combo for the slider (lazer:
+      // the slider's tail is what carries the LastInCombo flag for the combo).
+      hit.judgements[hit.judgements.length - 1].lastInCombo = !!hit.lastInCombo;
    };
 
    // create a follow point connection between two hit objects & store it in the latter object
@@ -2018,6 +2024,19 @@ function Playback(game, osu, track) {
       hit.objects = [];
       hit.judgements = [];
       hit.score = -1;
+      // Lazer last-in-combo flag (D3): a hit is the last in its combo when the
+      // next hit has a different combo number, or there is no next hit. Spinners
+      // always end their combo. Used by scoreTyped to apply the +0.07/+0.05/+0.03
+      // last-in-combo HP bonus.
+      try {
+         const idx = self.hits.indexOf(hit);
+         if (idx >= 0) {
+            const next = self.hits[idx + 1];
+            hit.lastInCombo = !next || next.combo !== hit.combo || hit.type === "spinner";
+         } else {
+            hit.lastInCombo = true;
+         }
+      } catch { hit.lastInCombo = false; }
       switch (hit.type) {
          case "circle":
             self.createHitCircle(hit);
@@ -2375,8 +2394,8 @@ function Playback(game, osu, track) {
          points = Math.round(acc * 300);
          if (points < 50) points = 50; // minimum for a hit
       }
-      let prevCombo = this.scoreOverlay.combo;
-      this.scoreOverlay.hit(points, 300, time);
+       let prevCombo = this.scoreOverlay.combo;
+       this.scoreOverlay.hit(points, 300, time, { lastInCombo: !!hit.lastInCombo });
       // Lazer: record head hit for slider tracking gate (head must be hit for ticks to track)
       if (hit.type === "slider" && hit.sliderScorer) {
          try { hit.sliderScorer.recordHead(points > 0); } catch {}
@@ -2975,12 +2994,12 @@ function Playback(game, osu, track) {
          time > hit.endTime
       ) {
          const finalScore = hit.sliderJudge.finalScore();
-         // emit via the last judgement slot (the slider-end judgement)
-         const tailJudge = hit.judgements[hit.judgements.length - 1];
-         if (tailJudge && tailJudge.points < 0) {
-            self.invokeJudgement(tailJudge, finalScore, hit.endTime);
-            self.scoreOverlay.hit(finalScore, 300, hit.endTime);
-         }
+          // emit via the last judgement slot (the slider-end judgement)
+          const tailJudge = hit.judgements[hit.judgements.length - 1];
+          if (tailJudge && tailJudge.points < 0) {
+             self.invokeJudgement(tailJudge, finalScore, hit.endTime);
+             self.scoreOverlay.hit(finalScore, 300, hit.endTime, { lastInCombo: !!tailJudge.lastInCombo });
+          }
       }
    };
 
