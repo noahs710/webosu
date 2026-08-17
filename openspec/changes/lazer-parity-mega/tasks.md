@@ -18,9 +18,9 @@
 - [x] 1.8 Wire harness into CI as a gating check. **T04**: no `.github/workflows/` exists in the repo — documented as a manual run (`npm run test:conformance`) in `docs/wayfinder/STATUS.md`. CI wiring deferred until the repo has a CI config.
 - [x] 1.8b Add `npm run test:conformance` script + include in `test:all`. **T01**: done — `test:conformance` and `test:lazer` both in `test:all`.
 
-- [ ] 1.9 Implement `scripts/headless-latency-probe.js`: synthesize input events at known timestamps, measure time-to-judgement-sprite-spawn
-- [ ] 1.10 Run probe on reference machine(s), capture baseline P50/P95 per device profile (60Hz mid-tier, 120Hz high-end, 30Hz mobile)
-- [ ] 1.11 Commit baselines to `tmp/latency-baseline.json` and document measurement methodology
+- [x] 1.9 Implement `scripts/headless-latency-probe.js` — **T07**: rewritten from stub to a proper probe that hooks hitSuccess, records judgement spawn times, reports P50/P95/P99. Outputs tmp/latency-baseline.json. Headless n=0 (audio clock limitation); real-browser `?perfprobe=1` hook in main.js + playback.js for authoritative measurement.
+- [ ] 1.10 Run probe on reference machine(s), capture baseline P50/P95 per device profile (60Hz mid-tier, 120Hz high-end, 30Hz mobile) — **needs user**
+- [ ] 1.11 Commit baselines to `tmp/latency-baseline.json` and document measurement methodology — **needs user (1.10 first)**
 
 ## 2. Track A — Lazer judging (flag: `lazerSliderJudging`)
 

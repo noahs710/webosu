@@ -25,6 +25,7 @@ export function parseSkinIni(iniText) {
       cursorCentre: true,
       sliderStyle: 2,
       sliderBallFrames: 0,
+      animationFramerate: 60, // T16: lazer default for hit*-N animated judgements
       allowSliderBallTint: false,
       comboColors: [],
       sliderBorder: null,
@@ -65,6 +66,8 @@ export function parseSkinIni(iniText) {
             config.sliderStyle = parseInt(val) || 2;
          else if (key === "SliderBallFrames")
             config.sliderBallFrames = parseInt(val) || 0;
+         else if (key === "AnimationFramerate")
+            config.animationFramerate = parseInt(val) || 60; // T16: hit*-N animated judgement framerate
          else if (key === "AllowSliderBallTint")
             config.allowSliderBallTint = val === "1";
       } else if (section === "colours") {
@@ -185,8 +188,12 @@ export async function loadOsk(file) {
        // skip non-gameplay (menu/ranking) to save GPU memory
        if (!isGameplayTexture(flattened)) continue;
        // (no low-end pre-skip — all textures are loaded; OOM is handled reactively below)
-       // skip numbered hit variants like hit0-0.png (60 variants per hit) — only need base hit0.png
-       if (flattened.match(/^hit(0|50|100|300)[k]?-\d+\.png$/)) continue;
+       // T16: hit*-N.png numbered frames are now LOADED (not skipped) for animated judgements.
+       // Cap at 60 frames per type (matching followpoint/sliderb caps) to bound GPU memory.
+       if (flattened.match(/^hit(0|50|100|300)[k]?-\d+\.png$/)) {
+          const idx = parseInt(flattened.match(/hit(?:0|50|100|300)[k]?-(\d+)\.png/)[1], 10);
+          if (idx > 60) continue; // cap at 60 frames per judgement type
+       }
        if (flattened.match(/^followpoint-\d+\.png$/)) {
           const idx = parseInt(flattened.match(/followpoint-(\d+)\.png/)[1], 10);
           if (idx > 9) continue; // only 0-9 needed for animation, skin has 0-60
@@ -439,6 +446,32 @@ export async function applySkin(skinData) {
          await Promise.all(chunk.map(loadOne));
       }
       clog("skin-loader", "queued", keys.length, "textures");
+
+      // T16: group hit*-N.png frames by judgement type for animated judgements.
+      // Stores window.Skin.__hitAnimFrames["hit0"] = [tex0, tex1, ...] etc.
+      // The judgement spawn path (playback.js invokeJudgement) uses these to
+      // create a PIXI.AnimatedSprite when frames exist, falling back to the
+      // static base texture when they don't.
+      try {
+         const frames = {};
+         const frameRe = /^(hit(?:0|50|100|300)[k]?)-(\d+)\.png$/;
+         for (const key of Object.keys(window.Skin || {})) {
+            const m = key.match(frameRe);
+            if (m) {
+               const base = m[1]; // e.g. "hit0"
+               const idx = parseInt(m[2], 10);
+               if (!frames[base]) frames[base] = [];
+               frames[base].push({ idx, tex: window.Skin[key] });
+            }
+         }
+         // Sort each group by index and extract just the textures
+         for (const base of Object.keys(frames)) {
+            frames[base].sort((a, b) => a.idx - b.idx);
+            frames[base] = frames[base].map((f) => f.tex);
+         }
+         if (window.Skin) window.Skin.__hitAnimFrames = frames;
+         clog("skin-loader", "hit animation frames grouped:", Object.keys(frames).map(k => k + ":" + frames[k].length).join(", "));
+      } catch (e) { cwarn("skin-loader", "hit frame grouping failed:", e); }
    }
 
    // Apply hitsounds to game.sample

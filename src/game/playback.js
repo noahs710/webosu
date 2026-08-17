@@ -778,9 +778,44 @@ function Playback(game, osu, track) {
          if (tex && tex.source && (tex.source.width <= 2 || tex.source.height <= 2)) {
             tex = PIXI.Texture.WHITE; // forces text fallback below
          }
-         judge.texture = tex;
-         if (tex === PIXI.Texture.WHITE) judge.tint = judgementColor(points);
-         else judge.tint = 0xffffff;
+         // T16: animated judgement sprites. If the skin ships hit*-N.png frames
+         // for this judgement type, play them as a PIXI.AnimatedSprite at
+         // AnimationFramerate (default 60). The AnimatedSprite is created
+         // per-judgement (not pooled) and destroyed when the hit despawns.
+         const animFrames = window.Skin?.__hitAnimFrames?.[texKey.replace(".png", "")];
+         if (animFrames && animFrames.length > 1 && PIXI.AnimatedSprite) {
+            try {
+               // Stop + remove any existing animated sprite on this judge
+               if (judge._animSprite) {
+                  try { judge._animSprite.stop(); self.gamefield.removeChild(judge._animSprite); judge._animSprite.destroy(); } catch {}
+                  judge._animSprite = null;
+               }
+               const anim = new PIXI.AnimatedSprite(animFrames);
+               anim.anchor.set(0.5);
+               anim.scale.set(judge.scale.x, judge.scale.y);
+               anim.x = judge.x; anim.y = judge.y;
+               anim.zIndex = judge.zIndex;
+               anim.eventMode = "none";
+               anim.cullable = false;
+               anim.animationSpeed = (window.game?.skinConfig?.animationFramerate || 60) / 60;
+               anim.loop = false;
+               anim.gotoAndPlay(0);
+               anim.onComplete = () => { try { anim.gotoAndStop(animFrames.length - 1); } catch {} };
+               self.gamefield.addChild(anim);
+               judge._animSprite = anim;
+               // Hide the static sprite — the AnimatedSprite renders on top
+               judge.visible = false;
+            } catch (e) {
+               // Fall back to static if AnimatedSprite creation fails
+               judge.texture = tex;
+               if (tex === PIXI.Texture.WHITE) judge.tint = judgementColor(points);
+               else judge.tint = 0xffffff;
+            }
+         } else {
+            judge.texture = tex;
+            if (tex === PIXI.Texture.WHITE) judge.tint = judgementColor(points);
+            else judge.tint = 0xffffff;
+         }
          // ensure sprite judgements respect hideGreat as optional — but keep visible for now
          // if (this.hideGreat && points === 300) judge.visible = false;
        } else {
@@ -2507,6 +2542,11 @@ function Playback(game, osu, track) {
                self._releaseToPool(o);
             });
             hit.judgements.forEach(function (o) {
+               // T16: destroy any animated judgement sprite before returning to pool
+               if (o._animSprite) {
+                  try { o._animSprite.stop(); self.gamefield.removeChild(o._animSprite); o._animSprite.destroy(); } catch {}
+                  o._animSprite = null;
+               }
                self.gamefield.removeChild(o);
                if (o._pooledType === "text") {
                   if (self._judgeTextPool.length < self._POOL_MAX)
