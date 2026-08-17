@@ -99,6 +99,24 @@ Gameplay, mods, scoring, HP drain, slider judgement, spinner formula, stacking, 
 2. **Integration test** — 10/11 (1 failure: replay anti-cheat rejects fast-forwarded replay — test limitation, not a game bug). headless-touch now 5/5 after the on-screen pause button was added.
 3. **Light-mode palette** — user's design call
 
+## Lazer perfect parity (wayfinder map `lazer-perfect-parity`)
+
+The in-flight `lazer-parity-mega` OpenSpec change was committed (T01). The map at `docs/wayfinder/lazer-perfect-parity.md` charts the remaining work to close every reducible delta + attack the "not reducible" browser-constrained deltas (WebGPU, AudioWorklet, OffscreenCanvas, sub-frame input).
+
+### T01 — Commit & stabilize (done)
+- Audited the uncommitted diff (10 modified + ~15 untracked files). Verified typecheck 121/121, backend 53/53, lazer parity 87/87, conformance 4/4 (goldens regenerated after fixing a harness crash — fresh page per skin), headless-play/headless-mod-flashlight/headless-settings/headless-error-popup/headless-crash all 0 pageerrors.
+- Reconciled `openspec/changes/lazer-parity-mega/tasks.md` with reality: tasks 3.1, 3.3, 3.4 were marked `[x]` but the code doesn't do what they claim (the T02 lazer source audit found the production Score V2 formula isn't wired, the HP −0.10 cap is still present, and `LAZER_LAST_COMBO_BONUS` is imported but never used). Marked `[ ]` with notes pointing to T13.
+- Added task 2.0 (circle radius formula fix — D4: the uncommitted diff introduced `32 * (1 - 0.7 * (CS-5)/5)` with a wrong "matches lazer exactly" comment; it's wrong for any CS≠5).
+- Cleaned up stray runtime artifacts (`tmp-smoke.*`, `t_target`, `public/skins/`) via `.gitignore`.
+- Fixed `scripts/headless-skin-conformance.js` harness crash ("Execution context destroyed" on second skin) by opening a fresh page per skin; separated `--update-golden` from `--gameplay` so skin-golden updates don't require a gameplay run.
+- Known scope-creep flagged for T14: the aspect-ratio overlay in `skin-loader.js` (`applyAspectRatioOverlay`, ~100 lines for Default Reforged skin) is beyond the mega-change's stated Track B and not in tasks.md.
+
+### T02 — Lazer source audit (done, research)
+Findings at `docs/wayfinder/research/lazer-source-audit.md`. 15 points audited vs ppy/osu master: 6 confirmed, 9 divergences (D1–D9). D1–D4 are real bugs (graduate T13); D5–D9 are extension-or-fix decisions (graduate T14).
+
+### T05 — Browser timing floor (done, research)
+Findings at `docs/wayfinder/research/browser-timing-floor.md`. Practical floor ~9ms P50 / ~20ms P95 at 60Hz (vsync-dominated). 7 candidate attacks feed T08/T09.
+
 ## GameState seam (deepen-game-state-seam change)
 
 All non-engine callers now read/write settings through a single, observable `GameState` API. The game engine keeps using `window.game` during the deprecation window.
