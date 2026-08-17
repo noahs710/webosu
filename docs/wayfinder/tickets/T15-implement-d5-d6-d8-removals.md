@@ -29,9 +29,16 @@ Three of the T14 decisions are small, focused code changes that should land toge
 - `headless-play.js` 0 pageerrors.
 - One-line Decisions-so-far entry on the map.
 
+## Status
+done
+
+## Resolution
+
+Commit `5a99866`. All 3 changes implemented (D5 sliderStyle removed, D6 hitCircleOverlap fixed, D8 ApproachCircle fallback dropped). typecheck 120/120, backend 53/53, lazer parity 110/110, conformance 4/4, headless-play 0 pageerrors. See commit message for full detail.
+
 ## Blocks
 
-T06 (rollout — D5/D6 should land before flags flip), T03 (D8 removal was originally in T03's scope; moving to T15 unblocks T03 to focus on D7)
+T06 (rollout — D5/D6 landed before flags flip), T03 (D8 moved out of T03 — unblocked now)
 
 ## Blocked by
 
