@@ -58,7 +58,7 @@ export async function launchOSU(osu, beatmapid, version) {
        autoDensity: true,
        antialias: !_lowEnd,
        powerPreference: "high-performance",
-       preference: "webgl",
+       preference: "webgpu", // T17: WebGPU with Pixi 8 auto-fallback to WebGL (85% browser coverage)
        // per pixijs-performance skill — GC tuning (ms), not deprecated textureGC.*
        gcActive: true,
        gcMaxUnusedTime: 60_000,
