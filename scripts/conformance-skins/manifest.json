@@ -1,0 +1,22 @@
+{
+  "aristia-weird.osk": {
+    "sha256": "f7278719197e73b1990eae30f1b4d8ab0e27029ba2ca5a99f1b49a7dcc5f0789",
+    "size": 18698485
+  },
+  "default-reforged.osk": {
+    "sha256": "059847086983f65ae345f9047a8a96e88c9cab810106041f29432f832f9347bb",
+    "size": 28860541
+  },
+  "reowotuna-default.osk": {
+    "sha256": "059847086983f65ae345f9047a8a96e88c9cab810106041f29432f832f9347bb",
+    "size": 28860541
+  },
+  "vaxei-minimal.osk": {
+    "sha256": "4983cda8491de247e5b92d93438326c2db046c1cca632320b8ab389bed1cbe41",
+    "size": 7762857
+  },
+  "whitecat-full.osk": {
+    "sha256": "31bffd594396e570ae9aa23d5af458f25d4afdc0abe986a7e30f47e699fe2a2b",
+    "size": 51129608
+  }
+}

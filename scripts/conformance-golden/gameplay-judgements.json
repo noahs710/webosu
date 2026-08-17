@@ -21,5 +21,22 @@
       "miss": 27
     }
   },
-  "note": "sequence-form golden removed; invariants are the deterministic gate"
+  "sceneSnaps": [
+    {
+      "frame": 10,
+      "scene": [],
+      "texCount": 265
+    },
+    {
+      "frame": 30,
+      "scene": [],
+      "texCount": 265
+    },
+    {
+      "frame": 60,
+      "scene": [],
+      "texCount": 265
+    }
+  ],
+  "note": "sequence-form golden removed; invariants are the deterministic gate; sceneSnaps are the frame [10,30,60] scene-graph leaves (T04 task 1.7b)"
 }

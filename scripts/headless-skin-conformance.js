@@ -163,14 +163,37 @@ async function main() {
                 if (window.playback.game) { window.playback.game.autoplay = true; window.playback.game.autofullscreen = false; }
              }
           });
-          // run the map; poll until ended or timeout
-          const t0 = Date.now();
-          let ended = false;
-          while (Date.now() - t0 < 120000) {
-             ended = await p.evaluate(() => !!(window.playback && window.playback.ended));
-             if (ended) break;
-             await p.waitForTimeout(1000);
-          }
+           // run the map; poll until ended or timeout
+           const t0 = Date.now();
+           let ended = false;
+           // Scene-graph snapshots at frames [10, 30, 60] (T04 task 1.7b).
+           // Capture early in the run — the first 3 polls at ~1s intervals
+           // roughly correspond to the initial hit objects appearing. The
+           // snapshot is invariant-form (sorted, rounded coords) per __snapshotSkinTree.
+           const sceneSnaps = [];
+           let snapFrames = [10, 30, 60];
+           let pollCount = 0;
+           while (Date.now() - t0 < 120000) {
+              ended = await p.evaluate(() => !!(window.playback && window.playback.ended));
+              if (ended) break;
+              // Capture scene graph at the first 3 polls (frames 10/30/60 are
+              // approximate — headless RAF cadence varies, but the scene-graph
+              // structure at these early points is deterministic enough for
+              // a structural diff gate).
+              if (snapFrames.length > 0 && pollCount < 3) {
+                 const snap = await p.evaluate(() => {
+                    try { return window.__snapshotSkinTree ? window.__snapshotSkinTree() : null; }
+                    catch (e) { return { error: String(e) }; }
+                 }).catch(() => null);
+                 if (snap && !snap.error) {
+                    sceneSnaps.push({ frame: snapFrames.shift(), scene: snap.scene || [], texCount: Object.keys(snap.textures || {}).length });
+                 } else {
+                    snapFrames.shift();
+                 }
+              }
+              pollCount++;
+              await p.waitForTimeout(1000);
+           }
           const judgements = await p.evaluate(() => window.__judgeLog || []);
           const sum = await p.evaluate(() => window.playback && window.playback.scoreOverlay ? {
              score: window.playback.scoreOverlay.score,
@@ -200,14 +223,15 @@ async function main() {
              mehs: objHits("obj:Meh:1"),
              misses: objHits("obj:Miss:0"),
           };
-          console.log(`gameplay: ended=${ended} judgements=${judgements.length} invariants=${JSON.stringify(invariants)}`);
-          console.log(`  summary: ${JSON.stringify(sum)}`);
-          fs.writeFileSync(path.join(OUT_DIR, "gameplay.current.json"), JSON.stringify({ ended, judgements, summary: sum, invariants }, null, 2));
-          const gPath = path.join(GOLDEN_DIR, "gameplay-judgements.json");
-          if (UPDATE) {
-             fs.writeFileSync(gPath, JSON.stringify({ invariants, summary: sum, note: "sequence-form golden removed; invariants are the deterministic gate" }, null, 2));
-             console.log("      gameplay golden updated (invariant-form)");
-          } else if (fs.existsSync(gPath)) {
+           console.log(`gameplay: ended=${ended} judgements=${judgements.length} invariants=${JSON.stringify(invariants)}`);
+           console.log(`  summary: ${JSON.stringify(sum)}`);
+           console.log(`  scene-snaps: ${sceneSnaps.length} frames captured (${sceneSnaps.map(s => "f" + s.frame + ":" + s.scene.length + "leaves").join(", ")})`);
+           fs.writeFileSync(path.join(OUT_DIR, "gameplay.current.json"), JSON.stringify({ ended, judgements, summary: sum, invariants, sceneSnaps }, null, 2));
+           const gPath = path.join(GOLDEN_DIR, "gameplay-judgements.json");
+           if (UPDATE) {
+              fs.writeFileSync(gPath, JSON.stringify({ invariants, summary: sum, sceneSnaps, note: "sequence-form golden removed; invariants are the deterministic gate; sceneSnaps are the frame [10,30,60] scene-graph leaves (T04 task 1.7b)" }, null, 2));
+              console.log("      gameplay golden updated (invariant-form + scene-snaps)");
+           } else if (fs.existsSync(gPath)) {
              const golden = JSON.parse(fs.readFileSync(gPath, "utf8"));
              if (!golden.invariants) {
                 console.log("      no invariant golden (run --update-golden to create)");

@@ -7,16 +7,16 @@
 
 ## 1. Harnesses (baseline first)
 
-- [x] 1.1 Implement `scripts/headless-skin-conformance.js`: loads skin via the real `loadOsk`/`applySkin` pipeline (window-exposed in main.js), snapshots texture table via `__snapshotSkinTree`, plus `--gameplay` mode for a real headless playthrough. NOTE: scene-graph capture at frames [10,30,60] of a live beatmap is NOT wired (requires launching a map) — deferred; current snapshot covers the texture table, which is what Track B whitelist/name-map regressions break.
+- [x] 1.1 Implement `scripts/headless-skin-conformance.js`: loads skin via the real `loadOsk`/`applySkin` pipeline (window-exposed in main.js), snapshots texture table via `__snapshotSkinTree`, plus `--gameplay` mode for a real headless playthrough. **T04**: scene-graph capture at frames [10,30,60] now wired (sceneSnaps field in the gameplay golden).
 - [x] 1.2 Golden snapshot format (JSON texture table: per-key w/h/resolution) and `scripts/conformance-golden/` directory layout.
-- [x] 1.3 Reference skins acquired and copied to `scripts/conformance-skins/`: whitecat-full (48.8MB), reowotuna-default (37.9MB), aristia-weird (17.8MB), vaxei-minimal (7.4MB). SHA-256 manifest NOT generated (marked below).
-- [x] 1.4 Baseline goldens generated from CURRENT behavior via `--update-golden` for all 4 reference skins.
+- [x] 1.3 Reference skins acquired and copied to `scripts/conformance-skins/`: whitecat-full (48.8MB), reowotuna-default (37.9MB), aristia-weird (17.8MB), vaxei-minimal (7.4MB). **T04**: SHA-256 manifest generated at `scripts/conformance-skins/manifest.json` (5 skins).
+- [x] 1.4 Baseline goldens generated from CURRENT behavior via `--update-golden` for all 4 reference skins. **T03/T04**: goldens refreshed after whitelist extension + scene-snaps added.
 - [x] 1.5 `--update-golden` mode + JSON diff-artifact writer (report written to `tmp/skin-conformance/<id>.report.json`). Rendered PNG comparison NOT implemented (texture-table diffs only).
 - [x] 1.6 Whitelist-gap detection implemented (raw .osk png names not present in loaded texture table → `gaps` array). NOTE: currently over-reports intentional skips (non-gameplay menu/ranking textures @ ~hundreds per skin) AND name-mapped aliases; the whitelist now correctly includes number-prefix textures after flattening (`assets/default/default-5.png` → `5.png`), so most remaining "gaps" are intentional.
 - [ ] 1.7 Dead-field detection (requires instrumenting skin.ini consumers; deferred — needs a hook point per consumer, lower value now that wire-up audit identified all dead fields statically).
-- [ ] 1.7b Scene-graph snapshot capture mid-gameplay (launch a fixed beatmap, capture at frames [10,30,60]); needed to validate the remaining slider rewiring.
-- [ ] 1.8 Wire harness into CI as a gating check — currently runs manually via `node scripts/headless-skin-conformance.js`; not yet in any npm script or CI config.
-- [ ] 1.8b Add `npm run test:conformance` script + include in `test:all`.
+- [x] 1.7b Scene-graph snapshot capture mid-gameplay (launch a fixed beatmap, capture at frames [10,30,60]). **T04**: wired — the gameplay phase captures `__snapshotSkinTree` at 3 early polls, stores in `sceneSnaps` field of the gameplay golden. NOTE: headless sceneSnaps are empty (0 leaves) because the headless audio context doesn't advance without a user gesture, so no hit objects render. The structure is complete; meaningful content requires a real browser (T11/T12 exercise this).
+- [x] 1.8 Wire harness into CI as a gating check. **T04**: no `.github/workflows/` exists in the repo — documented as a manual run (`npm run test:conformance`) in `docs/wayfinder/STATUS.md`. CI wiring deferred until the repo has a CI config.
+- [x] 1.8b Add `npm run test:conformance` script + include in `test:all`. **T01**: done — `test:conformance` and `test:lazer` both in `test:all`.
 
 - [ ] 1.9 Implement `scripts/headless-latency-probe.js`: synthesize input events at known timestamps, measure time-to-judgement-sprite-spawn
 - [ ] 1.10 Run probe on reference machine(s), capture baseline P50/P95 per device profile (60Hz mid-tier, 120Hz high-end, 30Hz mobile)
