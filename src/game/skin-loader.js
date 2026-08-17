@@ -16,7 +16,7 @@ import {
 // ── Name mapping, texture filter, and hitsound names imported from skin-filter.js ──
 
 // ── skin.ini parser ──
-const SKIN_CACHE_VERSION = "v4-2026-reforged-fix"; // bump when cache schema changes — v4 fixes 85→145 texture count for Default Reforged
+const SKIN_CACHE_VERSION = "v5-2026-t03-t16"; // bump when cache schema changes — v5: T03 @2x whitelist extend + T16 hit*-N frames + removed texCount<100 gate
 export function parseSkinIni(iniText) {
    const config = {
       cursorSize: null,
@@ -906,13 +906,10 @@ export async function loadCachedSkin() {
                resolve(null);
                return;
             }
-            // Also invalidate if cached texture count is suspiciously low for Default Reforged
-            // (old cache had 85, new should have 145+)
-            if (texCount > 0 && texCount < 100) {
-               clog("skin-loader", "cached skin has too few textures", texCount, "— invalidating");
-               resolve(null);
-               return;
-            }
+            // (Removed the texCount < 100 invalidation — it was a hack for
+            // Default Reforged that nuked legitimate small skins like
+            // vaxei-minimal which has 73 textures. The version check above
+            // handles schema changes; no texture-count gate needed.)
             // Recreate blob URLs from cached buffers
             const textures = {};
             for (const key in results.rawTextures) {

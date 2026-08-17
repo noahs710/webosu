@@ -156,13 +156,16 @@ async function main() {
           // Set flag + autoplay AFTER launchGame binds playback (gamesettings re-sync
           // inside launchGame overwrites game.autoplay). Flag must be re-asserted here
           // too — launching a game may reset FEATURES via a fresh initgame context.
-          await p.evaluate(() => {
-             if (window.Features) { window.Features.set("lazerSliderJudging", true); window.Features.set("lazerScoreV2", true); }
-             if (window.playback) {
-                window.playback.autoplay = true;
-                if (window.playback.game) { window.playback.game.autoplay = true; window.playback.game.autofullscreen = false; }
-             }
-          });
+           await p.evaluate(() => {
+              // Set flags directly on the proxy (non-persistent) — do NOT use
+              // Features.set which persists to localStorage and would leak into
+              // the user's real browser sessions.
+              if (window.FEATURES) { window.FEATURES.lazerSliderJudging = true; window.FEATURES.lazerScoreV2 = true; }
+              if (window.playback) {
+                 window.playback.autoplay = true;
+                 if (window.playback.game) { window.playback.game.autoplay = true; window.playback.game.autofullscreen = false; }
+              }
+           });
            // run the map; poll until ended or timeout
            const t0 = Date.now();
            let ended = false;

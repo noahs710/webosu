@@ -2874,9 +2874,16 @@ function Playback(game, osu, track) {
             (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2) ||
             (hit.x === 0 && hit.y === 318) // specific reported degenerate slider
          );
-         if (window.FEATURES && window.FEATURES.lazerSliderJudging && hit.sliderScorer && !isDegenerateSlider) {
-            try { hit.sliderScorer.update(time, !!activated); } catch {}
-         } else if (isDegenerateSlider && hit.type === "slider") {
+          if (window.FEATURES && window.FEATURES.lazerSliderJudging && hit.sliderScorer && !isDegenerateSlider) {
+             // Skip sliderScorer.update on a scrub frame (lead-in seek / resume):
+             // the parts are "due" only because the clock jumped past them, not
+             // because the user failed to track. Without this guard, the first
+             // frame after a seek fires LargeTickMiss/IgnoreMiss for every due
+             // part → instant fail.
+             if (!self._scrubFrame) {
+                try { hit.sliderScorer.update(time, !!activated); } catch {}
+             }
+          } else if (isDegenerateSlider && hit.type === "slider") {
             // Degenerate slider: just handle as a single hit, no per-tick
             // The head's hitSuccess already handled the main judgement
          }
@@ -3237,14 +3244,18 @@ function Playback(game, osu, track) {
       // original "burst-miss on first tap" bug is NOT restored — only the
       // scrub detector. A scrub frame skips ALL miss checks; a normal frame
       // lets every due miss fire (no cap).
-      if (typeof time === "number") {
-         if (self._lastGameTime >= 0) {
-            var dt = time - self._lastGameTime;
-            self._scrubFrame = dt > 200 || dt < -50;
-         } else {
-            self._scrubFrame = false;
-         }
-         self._lastGameTime = time;
+       if (typeof time === "number") {
+          if (self._lastGameTime >= 0) {
+             var dt = time - self._lastGameTime;
+             self._scrubFrame = dt > 200 || dt < -50;
+          } else {
+             // First frame: the audio may have already sought past 0 during
+             // lead-in (the audio starts at a position matching the beatmap's
+             // first hit object). Mark as scrub so any hits already past their
+             // finalTime on this first frame don't fire instant misses.
+             self._scrubFrame = true;
+          }
+          self._lastGameTime = time;
       } else {
          self._scrubFrame = false;
       }
