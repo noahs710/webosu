@@ -1,54 +1,226 @@
 {
   "textures": {
-    "0.png": null,
-    "1.png": null,
-    "2.png": null,
-    "3.png": null,
-    "4.png": null,
-    "5.png": null,
-    "6.png": null,
-    "7.png": null,
-    "8.png": null,
-    "9.png": null,
+    "0.png": {
+      "w": 34,
+      "h": 37.46938775510204,
+      "res": 1.4411764705882353
+    },
+    "1.png": {
+      "w": 26,
+      "h": 28.653061224489797,
+      "res": 1.8846153846153846
+    },
+    "2.png": {
+      "w": 32,
+      "h": 35.265306122448976,
+      "res": 1.53125
+    },
+    "3.png": {
+      "w": 32,
+      "h": 35.265306122448976,
+      "res": 1.53125
+    },
+    "4.png": {
+      "w": 35,
+      "h": 38.57142857142858,
+      "res": 1.4
+    },
+    "5.png": {
+      "w": 32,
+      "h": 35.265306122448976,
+      "res": 1.53125
+    },
+    "6.png": {
+      "w": 33,
+      "h": 36.36734693877551,
+      "res": 1.4848484848484849
+    },
+    "7.png": {
+      "w": 32,
+      "h": 35.265306122448976,
+      "res": 1.53125
+    },
+    "8.png": {
+      "w": 33,
+      "h": 36.36734693877551,
+      "res": 1.4848484848484849
+    },
+    "9.png": {
+      "w": 33,
+      "h": 36.36734693877551,
+      "res": 1.4848484848484849
+    },
     "__hitAnimFrames": null,
-    "approachcircle.png": null,
+    "approachcircle.png": {
+      "w": 140,
+      "h": 140,
+      "res": 1
+    },
     "cursor-smoke.png": null,
-    "cursor.png": null,
-    "cursortrail.png": null,
-    "disc.png": null,
-    "followpoint-0.png": null,
-    "followpoint-1.png": null,
-    "followpoint-2.png": null,
-    "followpoint-3.png": null,
-    "followpoint-4.png": null,
-    "followpoint-5.png": null,
-    "followpoint-6.png": null,
-    "followpoint-7.png": null,
-    "followpoint-8.png": null,
-    "followpoint-9.png": null,
-    "followpoint.png": null,
+    "cursor.png": {
+      "w": 125,
+      "h": 125,
+      "res": 0.8
+    },
+    "cursortrail.png": {
+      "w": 40,
+      "h": 40,
+      "res": 2.5
+    },
+    "disc.png": {
+      "w": 128,
+      "h": 128,
+      "res": 1
+    },
+    "followpoint-0.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-1.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-2.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-3.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-4.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-5.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-6.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-7.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-8.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "followpoint-9.png": {
+      "w": 128,
+      "h": 128,
+      "res": 0.0078125
+    },
+    "followpoint.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
     "hit0-0.png": null,
-    "hit0.png": null,
-    "hit100-0.png": null,
-    "hit100.png": null,
-    "hit100k-0.png": null,
+    "hit0.png": {
+      "w": 1,
+      "h": 1,
+      "res": 128
+    },
+    "hit100-0.png": {
+      "w": 72,
+      "h": 72,
+      "res": 1.0416666666666667
+    },
+    "hit100.png": {
+      "w": 1,
+      "h": 1,
+      "res": 256
+    },
+    "hit100k-0.png": {
+      "w": 72,
+      "h": 72,
+      "res": 1.0416666666666667
+    },
     "hit100k.png": null,
     "hit100k@2x.png": null,
-    "hit300-0.png": null,
-    "hit300-1.png": null,
-    "hit300.png": null,
-    "hit300g-0.png": null,
-    "hit300g-1.png": null,
-    "hit300g.png": null,
-    "hit300k-0.png": null,
-    "hit300k-1.png": null,
-    "hit300k.png": null,
-    "hit50-0.png": null,
-    "hit50.png": null,
-    "hitcircle.png": null,
-    "hitcircleoverlay.png": null,
+    "hit300-0.png": {
+      "w": 256,
+      "h": 256,
+      "res": 1
+    },
+    "hit300-1.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "hit300.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "hit300g-0.png": {
+      "w": 256,
+      "h": 256,
+      "res": 1
+    },
+    "hit300g-1.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "hit300g.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "hit300k-0.png": {
+      "w": 256,
+      "h": 256,
+      "res": 1
+    },
+    "hit300k-1.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "hit300k.png": {
+      "w": 1,
+      "h": 1,
+      "res": 256
+    },
+    "hit50-0.png": {
+      "w": 75,
+      "h": 75,
+      "res": 1
+    },
+    "hit50.png": {
+      "w": 256,
+      "h": 256,
+      "res": 1
+    },
+    "hitcircle.png": {
+      "w": 128,
+      "h": 128,
+      "res": 1
+    },
+    "hitcircleoverlay.png": {
+      "w": 128,
+      "h": 128,
+      "res": 1
+    },
     "hitcircleselect.png": null,
-    "inputoverlay-key.png": null,
+    "inputoverlay-key.png": {
+      "w": 44,
+      "h": 44,
+      "res": 1
+    },
     "mode-osu-small.png": null,
     "mode-osu-small@2x.png": null,
     "mode-taiko-small.png": null,
@@ -203,26 +375,106 @@
     "ranking-xh.png": null,
     "ranking-xh@2x.png": null,
     "readme.txt": null,
-    "reversearrow.png": null,
-    "score-0.png": null,
-    "score-1.png": null,
-    "score-2.png": null,
-    "score-3.png": null,
-    "score-4.png": null,
-    "score-5.png": null,
-    "score-6.png": null,
-    "score-7.png": null,
-    "score-8.png": null,
-    "score-9.png": null,
-    "score-comma.png": null,
-    "score-dot.png": null,
-    "score-percent.png": null,
-    "score-x.png": null,
-    "scorebar-bg.png": null,
-    "scorebar-colour.png": null,
-    "scorebar-ki.png": null,
-    "scorebar-kidanger.png": null,
-    "scorebar-kidanger2.png": null,
+    "reversearrow.png": {
+      "w": 78,
+      "h": 58,
+      "res": 1
+    },
+    "score-0.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-1.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-2.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-3.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-4.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-5.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-6.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-7.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-8.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-9.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "score-comma.png": {
+      "w": 14.999999999999998,
+      "h": 25.71428571428571,
+      "res": 2.3333333333333335
+    },
+    "score-dot.png": {
+      "w": 14.999999999999998,
+      "h": 25.71428571428571,
+      "res": 2.3333333333333335
+    },
+    "score-percent.png": {
+      "w": 35,
+      "h": 60,
+      "res": 1
+    },
+    "score-x.png": {
+      "w": 23,
+      "h": 39.42857142857142,
+      "res": 1.5217391304347827
+    },
+    "scorebar-bg.png": {
+      "w": 1366,
+      "h": 786,
+      "res": 1
+    },
+    "scorebar-colour.png": {
+      "w": 516,
+      "h": 6,
+      "res": 1
+    },
+    "scorebar-ki.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "scorebar-kidanger.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
+    "scorebar-kidanger2.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
     "selection-mode.png": null,
     "selection-mode@2x.png": null,
     "selection-mods-over.png": null,
@@ -238,8 +490,16 @@
     "selection-random.png": null,
     "selection-random@2x.png": null,
     "skin.ini": null,
-    "sliderb.png": null,
-    "sliderendcircle.png": null,
+    "sliderb.png": {
+      "w": 170,
+      "h": 170,
+      "res": 1
+    },
+    "sliderendcircle.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
     "sliderendcircleoverlay.png": null,
     "sliderfollowcircle-0.png": null,
     "sliderfollowcircle-1.png": null,
@@ -265,17 +525,45 @@
     "sliderfollowcircle-7.png": null,
     "sliderfollowcircle-8.png": null,
     "sliderfollowcircle-9.png": null,
-    "sliderfollowcircle.png": null,
-    "sliderpoint10.png": null,
-    "sliderpoint30.png": null,
-    "sliderscorepoint.png": null,
-    "sliderstartcircle.png": null,
-    "sliderstartcircleoverlay.png": null,
+    "sliderfollowcircle.png": {
+      "w": 256,
+      "h": 256,
+      "res": 1
+    },
+    "sliderpoint10.png": {
+      "w": 48,
+      "h": 29,
+      "res": 1
+    },
+    "sliderpoint30.png": {
+      "w": 56,
+      "h": 56,
+      "res": 1
+    },
+    "sliderscorepoint.png": {
+      "w": 32,
+      "h": 32,
+      "res": 1
+    },
+    "sliderstartcircle.png": {
+      "w": 128,
+      "h": 128,
+      "res": 1
+    },
+    "sliderstartcircleoverlay.png": {
+      "w": 128,
+      "h": 128,
+      "res": 1
+    },
     "songselect-bottom.png": null,
     "songselect-bottom@2x.png": null,
     "songselect-top.png": null,
     "songselect-top@2x.png": null,
-    "star2.png": null,
+    "star2.png": {
+      "w": 1,
+      "h": 1,
+      "res": 1
+    },
     "taiko-hit100k.png": null,
     "taiko-hit100k@2x.png": null
   },

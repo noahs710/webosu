@@ -16,7 +16,7 @@ import {
 // ── Name mapping, texture filter, and hitsound names imported from skin-filter.js ──
 
 // ── skin.ini parser ──
-const SKIN_CACHE_VERSION = "v5-2026-t03-t16"; // bump when cache schema changes — v5: T03 @2x whitelist extend + T16 hit*-N frames + removed texCount<100 gate
+const SKIN_CACHE_VERSION = "v4-2026-reforged-fix"; // cache schema version — stores raw texture buffers + config; the whitelist is applied at load time so old caches are valid across whitelist changes
 export function parseSkinIni(iniText) {
    const config = {
       cursorSize: null,
@@ -359,33 +359,50 @@ export async function applySkin(skinData) {
       const keys = Object.keys(skinData.textures);
       clog("skin-loader", "applying", keys.length, "textures (capped)");
       const CONCURRENCY = 6;
-      const loadOne = async (key) => {
-         try {
-            const url = skinData.textures[key].url;
-            let tex;
-            try {
-               if (
-                  PIXI.Assets &&
-                  PIXI.Assets.cache &&
-                  PIXI.Assets.cache.has(url)
-               ) {
-                  tex = PIXI.Assets.cache.get(url);
-                  _activeSkinKeys.add(url);
-               } else {
-                  // Use Texture.from for blob URLs — suppress the noisy "was not found in the Cache"
-                  // warning that Pixi logs when a blob URL isn't yet in Assets cache (expected).
-                  const _warn = console.warn; let _muted = false;
-                  try { console.warn = () => {}; _muted = true; tex = PIXI.Texture.from(url); } catch { tex = PIXI.Texture.WHITE; } finally { if (_muted) console.warn = _warn; }
-                  try {
-                     if (PIXI.Assets && PIXI.Assets.cache)
-                        PIXI.Assets.cache.set(url, tex);
-                  } catch (_) {}
-                  _activeSkinKeys.add(url);
-               }
-            } catch (e) {
-               const _w3=console.warn; let _m3=false;
-               try { console.warn=()=>{}; _m3=true; tex = PIXI.Texture.from(url); } catch { tex=PIXI.Texture.WHITE; } finally { if(_m3) console.warn=_w3; }
-            }
+       const loadOne = async (key) => {
+          try {
+             const url = skinData.textures[key].url;
+             let tex;
+             try {
+                if (
+                   PIXI.Assets &&
+                   PIXI.Assets.cache &&
+                   PIXI.Assets.cache.has(url)
+                ) {
+                   tex = PIXI.Assets.cache.get(url);
+                   _activeSkinKeys.add(url);
+                } else {
+                   // Pixi v8: Texture.from(blobURL) does NOT load the image — it
+                   // only reads cache (per docs/plan-pixijs-v8-blob-slider.md §1).
+                   // Must use Assets.load with parser:"texture" for blob URLs.
+                   // The old Texture.from fallback created invalid textures that
+                   // never loaded, causing "Missing core textures" validation
+                   // failures.
+                   try {
+                      tex = await PIXI.Assets.load({
+                         src: url,
+                         parser: "texture",
+                         data: {
+                            scaleMode: "linear",
+                            autoGenerateMipmaps: false,
+                         },
+                      });
+                   } catch {
+                      // Last-resort fallback: Texture.from (may work for data URLs
+                      // or already-cached URLs, but not for fresh blob URLs)
+                      const _warn = console.warn; let _muted = false;
+                      try { console.warn = () => {}; _muted = true; tex = PIXI.Texture.from(url); } catch { tex = PIXI.Texture.WHITE; } finally { if (_muted) console.warn = _warn; }
+                   }
+                   try {
+                      if (PIXI.Assets && PIXI.Assets.cache)
+                         PIXI.Assets.cache.set(url, tex);
+                   } catch (_) {}
+                   _activeSkinKeys.add(url);
+                }
+             } catch (e) {
+                const _w3=console.warn; let _m3=false;
+                try { console.warn=()=>{}; _m3=true; tex = PIXI.Texture.from(url); } catch { tex=PIXI.Texture.WHITE; } finally { if(_m3) console.warn=_w3; }
+             }
             if (tex && tex.source) {
                 tex.source.autoGenerateMipmaps = false;
                 tex.source.scaleMode = "linear";
@@ -419,21 +436,13 @@ export async function applySkin(skinData) {
                       }
                    }
                 } catch {}
-               const doRevoke = () => {
-                  try {
-                     URL.revokeObjectURL(url);
-                  } catch {}
-               };
-               if (tex.valid) {
-                  if (tex.source.once) tex.source.once("update", doRevoke);
-                  setTimeout(doRevoke, 500);
-               } else {
-                  if (tex.source.once) tex.source.once("loaded", doRevoke);
-                  tex.once?.("update", doRevoke);
-                  setTimeout(() => {
-                     if (tex.valid) doRevoke();
-                  }, 2000);
-               }
+                // Do NOT revoke the blob URL here — the texture needs the URL
+                // to stay alive for its lifetime. Revoking after 500ms (the old
+                // behavior) caused textures to fail loading silently when the
+                // image decode took longer than 500ms (especially with 96+
+                // textures loading concurrently at 6 per chunk). The blob URLs
+                // are revoked when the skin is unloaded (see the _activeSkinKeys
+                // cleanup in unloadActiveSkin / clearCachedSkin).
             }
             // don't destroy old managed textures (avoids Assets warning/split error) — just overwrite, GC will handle
             if (window.Skin) window.Skin[key] = tex;
