@@ -555,28 +555,36 @@ import {
             console.error("score overlay update with time = NaN");
             return;
          }
-         // passive HP drain (lazer): drains over time while playing
-         if (this.lastDrainTime < 0) this.lastDrainTime = time;
-         let dt = time - this.lastDrainTime;
-         this.lastDrainTime = time;
-         // Only drain during active gameplay (between first and last hit object),
-         // not during breaks or before the map starts. This prevents HP from
-         // draining to 0 on long maps where a single miss then causes fail.
-         const drainStart = this.field && this.field._drainStart || 0;
-         const drainEnd = this.field && this.field._drainEnd || Infinity;
-         if (!this.failed && time >= drainStart && time <= drainEnd && dt > 0 && dt < 1000) {
-            this.HP -= this.passiveDrain * dt;
-            if (this.HP < 0) {
-               if (this.nofail) {
-                  this.HP = 0;
-               } else {
-                  this.failed = true;
-                  this.HP = -1;
-                  if (this.onfail) this.onfail();
-               }
-            }
-            this.HP4display.set(time, Math.max(0, this.HP));
-         }
+          // passive HP drain (lazer): drains over time while playing.
+          // Does NOT drain during:
+          // - lead-in / countdown (time < drainStart)
+          // - breaks (gap > 1500ms before next hit object — lazer pauses drain)
+          // - after the map ends (time > drainEnd)
+          // - scrub frames (clock jumped — don't penalize for seek)
+          if (this.lastDrainTime < 0) this.lastDrainTime = time;
+          let dt = time - this.lastDrainTime;
+          this.lastDrainTime = time;
+          const drainStart = this.field && this.field._drainStart || 0;
+          const drainEnd = this.field && this.field._drainEnd || Infinity;
+          // Check if we're in a break period (gap before next hit > 1500ms).
+          // The break overlay uses the same threshold (appearthreshold = 1500).
+          // During breaks, HP stays the same (lazer: DrainingHealthProcessor
+          // uses noDrainPeriods for break periods).
+          const nextApproach = this.field && this.field._nextApproachTime;
+          const inBreak = nextApproach != null && (nextApproach - time) > 1500 && time > drainStart;
+          if (!this.failed && time >= drainStart && time <= drainEnd && dt > 0 && dt < 1000 && !inBreak) {
+             this.HP -= this.passiveDrain * dt;
+             if (this.HP < 0) {
+                if (this.nofail) {
+                   this.HP = 0;
+                } else {
+                   this.failed = true;
+                   this.HP = -1;
+                   if (this.onfail) this.onfail();
+                }
+             }
+             this.HP4display.set(time, Math.max(0, this.HP));
+          }
          let hp = this.HP4display.valueAt(time);
           if (this._useScorebar) {
              // scorebar: bg full width, colour width = hp * width

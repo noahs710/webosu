@@ -572,10 +572,18 @@ export async function applySkin(skinData) {
        clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "hitRadius", window.game.hitRadius);
     }
 
-    // Apply aspect-ratio specific overrides (Default Reforged v1.2)
-    // The skin ships 6 variants (4x3, 16x10, 16x9, 21x9, 32x9, 43x18). Detect
-    // current window aspect and overlay the closest match on top of base skin.
-    try { await applyAspectRatioOverlay(); } catch (e) { cwarn("skin-loader", "aspect overlay failed", e); }
+    // Apply aspect-ratio specific overrides — ONLY for skins that ship
+    // aspect-ratio variants (e.g. Default Reforged). The overlay fetches
+    // /skins/aspect-ratios/manifest.json which only exists for skins that
+    // support it. Other skins skip the overlay entirely (the fetch 404s
+    // and the function returns early).
+    // Gate by skin name to avoid unnecessary fetches for skins that don't
+    // support aspect ratios.
+    const skinName = (skinData.config && skinData.config.name) || "";
+    const supportsAspectRatios = /default\s+reforged|argon/i.test(skinName);
+    if (supportsAspectRatios) {
+       try { await applyAspectRatioOverlay(); } catch (e) { cwarn("skin-loader", "aspect overlay failed", e); }
+    }
 }
 
 // ── Aspect-ratio overlay for Default Reforged (Argon 2022) ──

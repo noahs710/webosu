@@ -350,22 +350,32 @@ var playerActions = function (playback) {
                   cur.x + spinRadius * Math.cos(currentAngle);
             }
          }
-         // looking for next target
-         cur = playback.auto.currentObject;
-         while (
-            playback.auto.curid < playback.hits.length &&
-            playback.hits[playback.auto.curid].time < time
-         ) {
-            if (playback.hits[playback.auto.curid].score < 0) {
-               playback.game.mouseX = playback.hits[playback.auto.curid].x;
-               playback.game.mouseY = playback.hits[playback.auto.curid].y;
-               if (playback.hits[playback.auto.curid].type == "spinner")
-                  playback.game.mouseY -= spinRadius;
-               playback.game.down = true;
-               checkClickdown();
-            }
-            ++playback.auto.curid;
-         }
+          // looking for next target
+          cur = playback.auto.currentObject;
+          while (
+             playback.auto.curid < playback.hits.length &&
+             playback.hits[playback.auto.curid].time < time
+          ) {
+             if (playback.hits[playback.auto.curid].score < 0) {
+                const autoHit = playback.hits[playback.auto.curid];
+                playback.game.mouseX = autoHit.x;
+                playback.game.mouseY = autoHit.y;
+                if (autoHit.type == "spinner")
+                   playback.game.mouseY -= spinRadius;
+                playback.game.down = true;
+                // For past hits (whose time has already passed), click at the
+                // hit's exact time, not the current time. checkClickdown uses
+                // the current audio position which may be past the hit's MehTime
+                // window, causing the click to be rejected → instant miss.
+                // Directly call hitSuccess for past hits with the hit's time.
+                if (autoHit.type === "circle" || autoHit.type === "slider") {
+                   playback.hitSuccess(autoHit, 300, autoHit.time);
+                } else {
+                   checkClickdown();
+                }
+             }
+             ++playback.auto.curid;
+          }
          if (!cur && playback.auto.curid < playback.hits.length) {
             cur = playback.hits[playback.auto.curid];
             playback.auto.currentObject = cur;

@@ -3314,14 +3314,17 @@ function Playback(game, osu, track) {
              if (this.replayFrames.length > 201000)
                 this.replayFrames = this.replayFrames.slice(-200000);
           }
-         let nextapproachtime =
-            waitinghitid < this.hits.length &&
-            this.hits[waitinghitid].time -
-               (this.hits[waitinghitid].approachTime || this.approachTime) >
-               time
-               ? this.hits[waitinghitid].time -
-                 (this.hits[waitinghitid].approachTime || this.approachTime)
-               : -1;
+          let nextapproachtime =
+             waitinghitid < this.hits.length &&
+             this.hits[waitinghitid].time -
+                (this.hits[waitinghitid].approachTime || this.approachTime) >
+                time
+                ? this.hits[waitinghitid].time -
+                  (this.hits[waitinghitid].approachTime || this.approachTime)
+                : -1;
+          // Store the next approach time on the gamefield so the score overlay
+          // can use it to detect break periods and pause HP drain during breaks.
+          this.gamefield._nextApproachTime = nextapproachtime >= 0 ? nextapproachtime : null;
           try {
              if (nextapproachtime >= 0) {
                 this.breakOverlay.countdown(nextapproachtime, time);
