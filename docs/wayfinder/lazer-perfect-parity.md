@@ -25,12 +25,12 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 - [T07 — Track C: latency probe + critical-path optimization](tickets/T07-latency-probe-and-critical-path.md) — `task`, HITL. Partially done: commit `6049c2c`. Probe built (headless structure validation + real-browser `?perfprobe=1` hook in main.js + playback.js hitSuccess). Headless n=0 (audio clock doesn't advance without user gesture — known limitation). Remaining: user runs probe on reference hardware (1.10), commits baselines (1.11), critical-path optimization (6.1-6.2), re-run (6.3), finalize deltas doc (6.4-6.6 → T10). T08 + T09 unblocked.
 - [T08 — Research + decision: WebGPU renderer + OffscreenCanvas worker render in Pixi 8](tickets/T08-research-webgpu-offscreen.md) — `research`, AFK. Resolved: **Prototype WebGPU only**. One-line change (`launchgame.js:62` `"webgl"` → `"webgpu"`, Pixi auto-falls back). 85% browser coverage (Chrome/Edge/Firefox; Safari 26 ships WebGPU). OffscreenCanvas worker render deferred (major refactor: 68+ `window.game.*` refs, video-bg breakage, input-path rewrite — speculative P95 win only pays off if T07's profiling confirms main-thread contention). Findings: `research/webgpu-offscreen-research.md`. Graduates T17 (WebGPU prototype).
 - [T09 — AudioWorklet tight-clock: research + prototype decision](tickets/T09-research-audioworklet.md) — `research`, AFK. Resolved: **Skip**. `osu-audio.js:184-187` already uses `AudioContext.getOutputTimestamp()` — the spec's synchronous, audio-thread-aligned clock bridge. An AudioWorklet would be a higher-jitter (postMessage hop) path to the same quantum-quantized value, with zero-to-negative net win below the RAF vsync floor. Howler coexistence is moot (Howler is hitsounds only; the song clock uses a separate AudioContext). Findings: `research/audioworklet-clock-research.md`. `docs/lazer-feel-deltas.md` to get the skip entry (T10).
+- [T17 — Prototype WebGPU renderer](tickets/T17-prototype-webgpu.md) — `task`, HITL. Partially done: commit `262f809`. One-line change landed (`launchgame.js:61` `"webgl"` → `"webgpu"`, Pixi auto-falls back). Headless green (0 pageerrors, 1301 hits). Remaining: user measures P50/P95 on WebGPU vs WebGL in a real browser with `?perfprobe=1` on reference hardware. Result → `docs/lazer-feel-deltas.md` (T10).
 
 ## Frontier (open, unblocked, unclaimed)
 
 - **T06 — Rollout: flip the 4 feature flags on, remove legacy code, ship** (`grilling`, HITL) — flip order, validation gates, legacy deletion, score migration policy, release cadence, AGENTS.md decision. Needs user. `docs/wayfinder/tickets/T06-rollout-flags.md`
 - **T16 — Implement D9 animated judgements** (`task`, HITL) — load `hit*-N.png` frames, play as `PIXI.AnimatedSprite` at `AnimationFramerate`. T03's whitelist now allows the frames; T16 removes the skin-loader skip + implements the playback. `docs/wayfinder/tickets/T16-implement-d9-animated-judgements.md`
-- **T17 — Prototype WebGPU renderer** (`task`, HITL) — NEW, graduated from T08. One-line change: `launchgame.js:62` `"webgl"` → `"webgpu"`, Pixi auto-falls back to WebGL. Measure latency delta vs WebGL-only on reference hardware. `docs/wayfinder/tickets/T17-prototype-webgpu.md` (to be created)
 
 ## Open, blocked (not on the frontier)
 
@@ -52,6 +52,7 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 - [T07 — Track C: latency probe + critical-path optimization](tickets/T07-latency-probe-and-critical-path.md) — `task`, HITL. Partially done: commit `6049c2c`. Probe built (headless + `?perfprobe=1`). Remaining needs user (measurement + optimization). See Decisions so far.
 - [T08 — Research + decision: WebGPU renderer + OffscreenCanvas worker render in Pixi 8](tickets/T08-research-webgpu-offscreen.md) — `research`, AFK. Resolved: Prototype WebGPU only. Graduates T17. Findings: `research/webgpu-offscreen-research.md`.
 - [T09 — AudioWorklet tight-clock: research + prototype decision](tickets/T09-research-audioworklet.md) — `research`, AFK. Resolved: Skip. `osu-audio.js` already uses `getOutputTimestamp()`. Findings: `research/audioworklet-clock-research.md`.
+- [T17 — Prototype WebGPU renderer](tickets/T17-prototype-webgpu.md) — `task`, HITL. Partially done: commit `262f809`. One-line change landed; measurement needs user. See Decisions so far.
 
 ## Not yet specified
 

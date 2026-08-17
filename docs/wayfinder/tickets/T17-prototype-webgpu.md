@@ -22,6 +22,15 @@ T08 researched WebGPU + OffscreenCanvas and decided: **Prototype WebGPU only**. 
 - `docs/lazer-feel-deltas.md` has a preliminary "WebGPU renderer" entry with the measured numbers (or "no measurable win" if that's the result).
 - One-line Decisions-so-far entry on the map.
 
+## Status
+partially done (code change landed; measurement needs user)
+
+## Resolution
+
+Commit `262f809`. The one-line change landed: `launchgame.js:61` `preference: "webgl"` → `"webgpu"`. Pixi 8 auto-falls back to WebGL when WebGPU is unavailable. Headless verification passed (Pixi fell back to WebGL under swiftshader — 0 pageerrors, 1301 hits). typecheck 120/120, backend 53/53, lazer parity 110/110.
+
+Remaining (needs user): measure P50/P95 on WebGPU vs WebGL in a real browser (Chrome/Edge) with `?perfprobe=1` on reference hardware. Document the result in `docs/lazer-feel-deltas.md` (T10).
+
 ## Blocks
 
 T10 (final deltas doc incorporates the WebGPU numbers), T12 (final validation)
