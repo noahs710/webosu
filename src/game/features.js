@@ -46,6 +46,19 @@ function readInitial(name) {
 const state = {};
 for (const key of Object.keys(DEFAULTS)) state[key] = readInitial(key);
 
+// Clean up any flags that were persisted by the OLD Features.set (which
+// wrote to localStorage). The new Features.set does NOT persist, but old
+// flags from a previous session may still be in localStorage and would
+// activate via readInitial above. Remove them so the flags are clean.
+try {
+   for (const key of Object.keys(DEFAULTS)) {
+      const k = `webosu_features.${key}`;
+      if (window.localStorage.getItem(k) !== null) {
+         window.localStorage.removeItem(k);
+      }
+   }
+} catch {}
+
 window.FEATURES = new Proxy(state, {
    get(target, prop) {
       if (prop in target) return target[prop];
@@ -76,9 +89,11 @@ window.Features = {
          return false;
       }
       window.FEATURES[name] = !!value;
-      try {
-         window.localStorage.setItem(`webosu_features.${name}`, value ? "1" : "0");
-      } catch {}
+      // NOTE: do NOT persist to localStorage — the conformance harness uses
+      // Features.set and persistence leaked flags into the user's real browser
+      // sessions, causing instant-fail bugs. Flags are URL-only (?features=...)
+      // or set at runtime (non-persistent). Use window.FEATURES.<name> = true
+      // for non-persistent runtime sets (e.g. from the harness).
       return true;
    },
    snapshot() {
