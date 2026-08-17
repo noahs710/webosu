@@ -3,6 +3,27 @@
 ## Type
 task (HITL — code change to a live game path)
 
+## Claimed by
+webosu-agent (2026-08-17 session)
+
+## Status
+done
+
+## Resolution
+
+Commit `0e05b2d` on `main`. All 4 audit-parity bugs fixed:
+
+- **D1 (Score V2 production formula)**: `score.js` now imports `computeTotalScore`/`baseScoreFor`/`maxScoreFor`/`RESULT_ACCURACY`/`COMBO_EXPONENT` from `score-math.js`. Added `ScoreOverlay.scoreTyped(type, value, time, opts)` — the lazer-faithful typed pipe mirroring `score-math.js`'s `makeScorer.scoreTyped` exactly. `hit()` routes through `scoreTyped` when `FEATURES.lazerScoreV2` is on (maps `(result, maxresult)` → lazer type); legacy path preserved for flag-off/classic. **Critical catch**: `SliderScorer`'s `scoreTyped()` calls (`playback.js:1885`) were going to a non-existent method before this commit — silent `TypeError` swallowed by the render-loop try/catch. Now wired.
+- **D2 (HP loss cap)**: removed `Math.max(hpDelta, -0.1)` from `hit()`. A miss at HP=10 now drains −0.20 (lazer value), not −0.10.
+- **D3 (last-in-combo bonus)**: `scoreTyped` tracks per-combo tier (`_comboHadMeh/Miss/Ok/tailMiss`). On the last hit of a combo (`opts.lastInCombo`), adds `LAZER_LAST_COMBO_BONUS[Perfect=+0.07, Good=+0.05, None=+0.03]` on top of the base HP increase. `playback.js` computes `hit.lastInCombo` at `populateHit` time (next hit has different combo number, or spinner, or last hit). Judgement objects carry `lastInCombo` through to the miss/hit call sites.
+- **D4 (circle radius)**: `playback.js` circleRadius = `32 * (1 - 0.7 * lazerDifficultyRange(CS, 0, 0.5, 1))` (was `32 * (1 - 0.7 * (CS-5)/5)` — wrong for any CS≠5, 58% too big at CS=4).
+
+### Tests
+- `test-lazer-parity.js`: 87 → 110 tests (+23: D1 scoreTyped wiring, D2 cap removed, D3 bonus tiers, D4 circle radius for CS 0–10 + old-formula divergence). All 110 pass.
+
+### Verification (all green)
+- typecheck 120/120, backend 53/53, lazer parity 110/110, conformance 4/4, headless-play 0 pageerrors (1301 hits).
+
 ## Question
 
 The T02 lazer source audit found **4 real bugs** where webosu's in-flight mega-change claims lazer parity but actually diverges from ppy/osu master. These are the reducible deltas that *must* be fixed before the rollout (T06) flips the `lazerSliderJudging` / `lazerScoreV2` / `lazerHpDrain` flags on — otherwise the flags ship wrong behaviour under the "lazer parity" label.
