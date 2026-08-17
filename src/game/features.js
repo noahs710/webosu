@@ -43,13 +43,9 @@ function readInitial(name) {
    return DEFAULTS[name];
 }
 
-const state = {};
-for (const key of Object.keys(DEFAULTS)) state[key] = readInitial(key);
-
 // Clean up any flags that were persisted by the OLD Features.set (which
-// wrote to localStorage). The new Features.set does NOT persist, but old
-// flags from a previous session may still be in localStorage and would
-// activate via readInitial above. Remove them so the flags are clean.
+// wrote to localStorage). This MUST run BEFORE readInitial so stale flags
+// from a previous session don't get read into state and activated.
 try {
    for (const key of Object.keys(DEFAULTS)) {
       const k = `webosu_features.${key}`;
@@ -58,6 +54,9 @@ try {
       }
    }
 } catch {}
+
+const state = {};
+for (const key of Object.keys(DEFAULTS)) state[key] = readInitial(key);
 
 window.FEATURES = new Proxy(state, {
    get(target, prop) {

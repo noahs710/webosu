@@ -89,16 +89,6 @@ function Playback(game, osu, track) {
    });
    self.offset = 0;
    self.currentHitIndex = 0; // index for all hit objects
-   // Scrub detector: tracks the previous frame's game time so we can detect
-   // audio-position jumps (scrub / resume / lead-in seek). A healthy frame
-   // advances by < 1 frame (~33ms); anything > 200ms means the clock jumped
-   // (the user seeked, or the audio sought to the first hit during lead-in).
-   // On a scrub frame, miss checks are skipped so the user isn't penalized
-   // for hits they never had a chance to play. This is the scrub-only guard
-   // — the per-frame miss CAP (MAX_MISSES_PER_FRAME) that caused the original
-   // "burst-miss on first tap" bug is NOT restored.
-   self._lastGameTime = -1;
-   self._scrubFrame = false;
    self.ended = false;
    // Signature of the active mod set when the user last paused. Used by btn_continue
    // to detect that a mod changed while paused and force a retry so the change
@@ -851,25 +841,25 @@ function Playback(game, osu, track) {
       this.updateJudgement(judge, time);
    };
 
-   this.updateJudgement = function (
-      judge,
-      time, // set transform of judgement text
-   ) {
-      if (judge.points < 0 && time >= judge.finalTime) {
-         // Skip miss check on a scrub frame (audio position jumped > 200ms):
-         // the user hasn't had a chance to play these hits. Mark the hit as
-         // processed (score = 0) so it doesn't fire again on the next frame.
-         // This is the scrub-only guard — there is NO per-frame miss cap.
-         if (self._scrubFrame) {
-            judge.points = 0; // mark as processed; won't re-enter this branch
-            judge.visible = false;
-            return;
-         }
-         // miss — fire immediately (no cap)
-         this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
-         this.invokeJudgement(judge, judge.defaultScore, time);
-         return;
-      }
+    this.updateJudgement = function (
+       judge,
+       time, // set transform of judgement text
+    ) {
+       if (judge.points < 0 && time >= judge.finalTime) {
+          // A note can only miss if it was rendered (approach circle appeared)
+          // and its hit window expired. Notes that were never visible (lead-in
+          // seek, resume, scrub) are skipped — the player never saw them.
+          // This replaces the scrub detector + scrub sweep + per-frame cap.
+          if (!judge._wasVisible) {
+             judge.points = 0; // mark as processed; won't re-enter
+             judge.visible = false;
+             return;
+          }
+          // miss — fire immediately
+          this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
+          this.invokeJudgement(judge, judge.defaultScore, time);
+          return;
+       }
       if (!judge.visible) return;
 
       let t = time - judge.t0;
@@ -2571,10 +2561,17 @@ function Playback(game, osu, track) {
          for (let i = hit.objects.length - 1; i >= 0; i--) {
             self.gamefield.addChild(hit.objects[i]);
          }
-         self.upcomingHits.push(hit);
-         if (hit.time > futuremost) {
-            futuremost = hit.time;
-         }
+          self.upcomingHits.push(hit);
+          // Mark the hit as rendered/visible — the miss check in updateJudgement
+          // only fires for hits that were _wasVisible (rendered to the player).
+          // Notes that are past their time but were never rendered (lead-in seek,
+          // resume) are skipped, not missed.
+          hit._wasVisible = true;
+          for (let ji = 0; ji < hit.judgements.length; ji++)
+             hit.judgements[ji]._wasVisible = true;
+          if (hit.time > futuremost) {
+             futuremost = hit.time;
+          }
       }
       for (var i = 0; i < self.upcomingHits.length; i++) {
          var hit = self.upcomingHits[i];
@@ -2904,53 +2901,35 @@ function Playback(game, osu, track) {
             try {
                this._stopSliderSlide(hit);
             } catch (e) {}
-         }
+          }
 
-         // Lazer per-part judgement: scorer handles ticks/repeats/tail when flag on
-         // Guard for degenerate/offscreen sliders (e.g. x=0 due to stacking/HR edge case):
-         // The reported slider at 0,318 caused 1-hit-10-miss because it was scored
-         // per-tick but never tracked. Treat edge-positioned or tiny sliders as
-         // degenerate and skip per-tick scoring.
-         const isDegenerateSlider = hit.type === "slider" && (
-            hit.x == null || hit.y == null ||
-            hit.x <= 0 || hit.x >= 512 || hit.y <= 0 || hit.y >= 384 ||
-            (hit.pixelLength != null && hit.pixelLength < 5) ||
-            (!hit.curve || !hit.curve.curve || hit.curve.curve.length < 2) ||
-            (hit.x === 0 && hit.y === 318) // specific reported degenerate slider
-         );
-          if (window.FEATURES && window.FEATURES.lazerSliderJudging && hit.sliderScorer && !isDegenerateSlider) {
-             // Skip sliderScorer.update on a scrub frame (lead-in seek / resume):
-             // the parts are "due" only because the clock jumped past them, not
-             // because the user failed to track. Without this guard, the first
-             // frame after a seek fires LargeTickMiss/IgnoreMiss for every due
-             // part → instant fail.
-             if (!self._scrubFrame) {
-                try { hit.sliderScorer.update(time, !!activated); } catch {}
+          // (SliderScorer render-loop path removed — the legacy tick/edge
+          // path below handles slider scoring. The SliderScorer class is kept
+          // for tests but not called in the render loop. The degenerate-slider
+          // hack is also removed — the _wasVisible gate handles unseen sliders.)
+
+          // slider tick judgement — immediate scoring (legacy, flag-off)
+          // Only fire if the slider was rendered (_wasVisible). Ticks from a
+          // slider that was never seen (lead-in seek) are skipped, not missed.
+          if (
+             hit._wasVisible &&
+             hit.nexttick < hit.ticks.length &&
+             time >= hit.ticks[hit.nexttick].time
+          ) {
+             if (activated) {
+                hit.ticks[hit.nexttick].result = true;
+                self.playTicksound(hit, hit.ticks[hit.nexttick].time);
+                hit.sliderJudge.recordTick(hit, time);
+             } else {
+                hit.sliderJudge.recordTickMiss(time);
              }
-          } else if (isDegenerateSlider && hit.type === "slider") {
-            // Degenerate slider: just handle as a single hit, no per-tick
-            // The head's hitSuccess already handled the main judgement
-         }
-         // slider tick judgement — immediate scoring (lazer SmallTickHit = 10) + accumulator (legacy, flag-off)
-         if (
-            !(window.FEATURES && window.FEATURES.lazerSliderJudging) &&
-            hit.nexttick < hit.ticks.length &&
-            time >= hit.ticks[hit.nexttick].time
-         ) {
-            if (activated) {
-               hit.ticks[hit.nexttick].result = true;
-               self.playTicksound(hit, hit.ticks[hit.nexttick].time);
-               hit.sliderJudge.recordTick(hit, time);
-            } else {
-               hit.sliderJudge.recordTickMiss(time);
-            }
-            self.scoreOverlay.hit(activated ? 10 : 0, 10, time);
-            hit.nexttick++;
-         }
+             self.scoreOverlay.hit(activated ? 10 : 0, 10, time);
+             hit.nexttick++;
+          }
 
-         // slider edge judgement — immediate scoring (legacy, flag-off)
-         // Note: being tolerant if follow circle hasn't shrinked to minimum
-         if (!(window.FEATURES && window.FEATURES.lazerSliderJudging) && atEnd && activated) {
+          // slider edge judgement — immediate scoring (legacy, flag-off)
+          // Note: being tolerant if follow circle hasn't shrinked to minimum
+          if (hit._wasVisible && atEnd && activated) {
             let prevEdgeCombo = self.scoreOverlay.combo;
             hit.sliderJudge.recordEdge(hit, time);
             self.invokeJudgement(hit.judgements[hit.lastrep], 300, time);
@@ -2974,8 +2953,8 @@ function Playback(game, osu, track) {
                   hit.time + hit.lastrep * hit.sliderTime,
                );
             } catch (e) {}
-          } else if (!(window.FEATURES && window.FEATURES.lazerSliderJudging) && atEnd && !activated) {
-            // edge missed — record to accumulator (legacy)
+           } else if (hit._wasVisible && atEnd && !activated) {
+             // edge missed — record to accumulator (legacy)
             hit.sliderJudge.recordEdgeMiss(time);
          }
 
@@ -3278,31 +3257,8 @@ function Playback(game, osu, track) {
       if (this.audioReady) {
          time = osu.audio.getPosition() * 1000 + self.offset;
       }
-      // Detect audio position jumps (scrub / resume / lead-in seek): a healthy
-      // frame advances by < 1 frame (~33ms). Anything > 200ms means the clock
-      // jumped (user seeked, or audio sought to first hit during lead-in). Mark
-      // this frame as "scrub" so per-hit miss checks don't fire a burst of
-      // misses. The user must re-press the key on the scrubbed-to position, so
-      // we never award hits for the gap; we only avoid *punishing* them for it.
-      // Scrub-only guard (restored): the per-frame miss CAP that caused the
-      // original "burst-miss on first tap" bug is NOT restored — only the
-      // scrub detector. A scrub frame skips ALL miss checks; a normal frame
-      // lets every due miss fire (no cap).
-       if (typeof time === "number") {
-          if (self._lastGameTime >= 0) {
-             var dt = time - self._lastGameTime;
-             self._scrubFrame = dt > 200 || dt < -50;
-          } else {
-             // First frame: the audio may have already sought past 0 during
-             // lead-in (the audio starts at a position matching the beatmap's
-             // first hit object). Mark as scrub so any hits already past their
-             // finalTime on this first frame don't fire instant misses.
-             self._scrubFrame = true;
-          }
-          self._lastGameTime = time;
-      } else {
-         self._scrubFrame = false;
-      }
+      // (Scrub detector removed — the _wasVisible gate in updateJudgement
+      // replaces it entirely. Notes that were never rendered cannot miss.)
       if (typeof time !== "undefined") {
           if (this.started && this.replayFrames && !this.replayMode && !this.ended) {
              this.replayFrames.push({
@@ -3339,27 +3295,6 @@ function Playback(game, osu, track) {
              try {
                 this.updateBackground(time);
              } catch (e) {}
-             // Scrub frame sweep: if the clock jumped (lead-in seek, resume,
-             // skip), mark ALL hits that are past their finalTime as processed
-             // (score=0, not miss). This prevents burst-misses for notes the
-             // player never saw. Without this, the scrub check in
-             // updateJudgement only catches hits checked on THIS frame; hits
-             // that are past their finalTime but not yet in upcomingHits would
-             // miss on the next non-scrub frame.
-             if (self._scrubFrame) {
-                for (var si = 0; si < self.hits.length; si++) {
-                   var sHit = self.hits[si];
-                   if (sHit.score < 0 && sHit.judgements && sHit.judgements[0]) {
-                      var sFinal = sHit.judgements[0].finalTime;
-                      if (typeof sFinal === "number" && time >= sFinal) {
-                         // Mark as processed — the player never saw this note
-                         sHit.judgements[0].points = 0;
-                         sHit.judgements[0].visible = false;
-                         sHit.score = 0;
-                      }
-                   }
-                }
-             }
              // CRITICAL: updatePlayerActions MUST run BEFORE updateHitObjects.
              // In autoplay, the auto-click logic in playerActions.js needs to
              // click hit objects before the miss check in updateJudgement fires.
