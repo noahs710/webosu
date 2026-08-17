@@ -38,10 +38,17 @@ This graduates the map's "Not yet specified" fog item "`hit*-N.png` animated jud
 - `headless-play.js` 0 pageerrors.
 - One-line Decisions-so-far entry on the map.
 
+## Status
+done
+
+## Resolution
+
+Commit `57c0ee1`. D9 animated judgements implemented: `skin-loader.js` adds `animationFramerate` parse + removes the hit*-N.png skip + groups frames into `window.Skin.__hitAnimFrames`. `playback.js invokeJudgement` creates a `PIXI.AnimatedSprite` when frames exist (>1), plays once at `animationFramerate/60` speed, falls back to static texture otherwise. Despawn cleans up the AnimatedSprite. Conformance goldens regenerated (whitecat 88→328 textures). typecheck 120/120, lazer parity 110/110, conformance 4/4, headless-play 0 pageerrors.
+
 ## Blocks
 
-T06 (rollout — if gated behind skinConformance, the flag flip validates this), T12 (final validation)
+T12 (final validation)
 
 ## Blocked by
 
-T14 (the D9 decision — now closed), T03 (the @2x whitelist extension should land first so the animated frames' @2x variants load correctly on high-DPI)
+T03 (whitelist — done), T14 (D9 decision — closed)

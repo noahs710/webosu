@@ -26,17 +26,17 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 - [T08 — Research + decision: WebGPU renderer + OffscreenCanvas worker render in Pixi 8](tickets/T08-research-webgpu-offscreen.md) — `research`, AFK. Resolved: **Prototype WebGPU only**. One-line change (`launchgame.js:62` `"webgl"` → `"webgpu"`, Pixi auto-falls back). 85% browser coverage (Chrome/Edge/Firefox; Safari 26 ships WebGPU). OffscreenCanvas worker render deferred (major refactor: 68+ `window.game.*` refs, video-bg breakage, input-path rewrite — speculative P95 win only pays off if T07's profiling confirms main-thread contention). Findings: `research/webgpu-offscreen-research.md`. Graduates T17 (WebGPU prototype).
 - [T09 — AudioWorklet tight-clock: research + prototype decision](tickets/T09-research-audioworklet.md) — `research`, AFK. Resolved: **Skip**. `osu-audio.js:184-187` already uses `AudioContext.getOutputTimestamp()` — the spec's synchronous, audio-thread-aligned clock bridge. An AudioWorklet would be a higher-jitter (postMessage hop) path to the same quantum-quantized value, with zero-to-negative net win below the RAF vsync floor. Howler coexistence is moot (Howler is hitsounds only; the song clock uses a separate AudioContext). Findings: `research/audioworklet-clock-research.md`. `docs/lazer-feel-deltas.md` to get the skip entry (T10).
 - [T17 — Prototype WebGPU renderer](tickets/T17-prototype-webgpu.md) — `task`, HITL. Partially done: commit `262f809`. One-line change landed (`launchgame.js:61` `"webgl"` → `"webgpu"`, Pixi auto-falls back). Headless green (0 pageerrors, 1301 hits). Remaining: user measures P50/P95 on WebGPU vs WebGL in a real browser with `?perfprobe=1` on reference hardware. Result → `docs/lazer-feel-deltas.md` (T10).
+- [T16 — Implement D9 animated judgements](tickets/T16-implement-d9-animated-judgements.md) — `task`, HITL. Resolved: commit `57c0ee1`. `skin-loader.js` adds `animationFramerate` parse + removes hit*-N.png skip + groups frames into `window.Skin.__hitAnimFrames`. `playback.js invokeJudgement` creates `PIXI.AnimatedSprite` when frames exist, plays once at `animationFramerate/60`, falls back to static. Despawn cleans up. Conformance goldens regenerated (whitecat 88→328). typecheck 120/120, lazer parity 110/110, conformance 4/4, headless-play 0 pageerrors.
 
 ## Frontier (open, unblocked, unclaimed)
 
 - **T06 — Rollout: flip the 4 feature flags on, remove legacy code, ship** (`grilling`, HITL) — flip order, validation gates, legacy deletion, score migration policy, release cadence, AGENTS.md decision. Needs user. `docs/wayfinder/tickets/T06-rollout-flags.md`
-- **T16 — Implement D9 animated judgements** (`task`, HITL) — load `hit*-N.png` frames, play as `PIXI.AnimatedSprite` at `AnimationFramerate`. T03's whitelist now allows the frames; T16 removes the skin-loader skip + implements the playback. `docs/wayfinder/tickets/T16-implement-d9-animated-judgements.md`
 
 ## Open, blocked (not on the frontier)
 
-- **T10 — Finalize `docs/lazer-feel-deltas.md` with all measured deltas** (`task`, AFK) — blocked by T07 (measurement). T08 (WebGPU decision) + T09 (AudioWorklet skip) are closed — T10 incorporates their decisions. `docs/wayfinder/tickets/T10-finalize-deltas-doc.md`
-- **T11 — Real-play validation panel: 3 reference beatmaps × all flags on** (`grilling`, HITL) — blocked by T04 (done), T06. `docs/wayfinder/tickets/T11-real-play-validation.md`
-- **T12 — Final validation gates** (`task`, HITL) — blocked by T06, T10, T11, T04 (done), T07. Terminal ticket. `docs/wayfinder/tickets/T12-final-validation.md`
+- **T10 — Finalize `docs/lazer-feel-deltas.md` with all measured deltas** (`task`, AFK) — blocked by T07 (measurement needs user). T08 (WebGPU) + T09 (AudioWorklet skip) closed; T10 incorporates their decisions. `docs/wayfinder/tickets/T10-finalize-deltas-doc.md`
+- **T11 — Real-play validation panel: 3 reference beatmaps × all flags on** (`grilling`, HITL) — blocked by T06. `docs/wayfinder/tickets/T11-real-play-validation.md`
+- **T12 — Final validation gates** (`task`, HITL) — blocked by T06, T10, T11, T07. Terminal ticket. `docs/wayfinder/tickets/T12-final-validation.md`
 - **T16 — Implement D9 animated judgements** (`task`, HITL) — blocked by T03. `docs/wayfinder/tickets/T16-implement-d9-animated-judgements.md`
 
 ## Closed (resolved — see Decisions so far for the gist, ticket for the detail)
@@ -53,6 +53,7 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 - [T08 — Research + decision: WebGPU renderer + OffscreenCanvas worker render in Pixi 8](tickets/T08-research-webgpu-offscreen.md) — `research`, AFK. Resolved: Prototype WebGPU only. Graduates T17. Findings: `research/webgpu-offscreen-research.md`.
 - [T09 — AudioWorklet tight-clock: research + prototype decision](tickets/T09-research-audioworklet.md) — `research`, AFK. Resolved: Skip. `osu-audio.js` already uses `getOutputTimestamp()`. Findings: `research/audioworklet-clock-research.md`.
 - [T17 — Prototype WebGPU renderer](tickets/T17-prototype-webgpu.md) — `task`, HITL. Partially done: commit `262f809`. One-line change landed; measurement needs user. See Decisions so far.
+- [T16 — Implement D9 animated judgements](tickets/T16-implement-d9-animated-judgements.md) — `task`, HITL. Resolved: commit `57c0ee1`. Animated judgement sprites play when skins ship hit*-N.png frames. See Decisions so far.
 
 ## Not yet specified
 
