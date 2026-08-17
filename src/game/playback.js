@@ -1622,10 +1622,10 @@ function Playback(game, osu, track) {
       let index = hit.index + 1;
       let basedep = 4.9999 - 0.0001 * hit.hitIndex;
 
-      hit.base = newHitSprite("disc.png", basedep, 1.09);
+      hit.base = newHitSprite("disc.png", basedep, 1.0);
       hit.base.tint = combos[hit.combo % combos.length];
 
-      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 1.09);
+      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 1.0);
       hit.glow = newHitSprite("ring-glow.png", basedep + 2, 1.0);
       hit.glow.tint = combos[hit.combo % combos.length];
       hit.glow.blendMode = "add";
@@ -2624,13 +2624,17 @@ function Playback(game, osu, track) {
       let diff = hit.time - time; // milliseconds before time of circle
       // update approach circle
       let approachFullAppear = this.approachTime - this.approachFadeInTime; // duration of opaque approach circle when approaching
-      if (diff <= this.approachTime && diff > 0) {
-         // approaching
-         let scalemul = (diff / this.approachTime) * this.approachScale + 1;
-         hit.approach.scale.set(0.5 * this.hitSpriteScale * scalemul);
-      } else {
-         hit.approach.scale.set(0.5 * this.hitSpriteScale);
-      }
+       if (diff <= this.approachTime && diff > 0) {
+          // approaching — approach circle shrinks from 4x to 1x the disc scale.
+          // The disc is at hitSpriteScale * 1.0, so the approach circle at
+          // contact (diff=0) is also at hitSpriteScale * 1.0 — its ring aligns
+          // with the disc's outer edge. (The old 0.5 * hitSpriteScale was from
+          // when the disc scalemul was also 0.5; both were updated together.)
+          let scalemul = (diff / this.approachTime) * this.approachScale + 1;
+          hit.approach.scale.set(this.hitSpriteScale * scalemul);
+       } else {
+          hit.approach.scale.set(this.hitSpriteScale);
+       }
       if (diff <= this.approachTime && diff > approachFullAppear) {
          // approach circle fading in
          hit.approach.alpha =
