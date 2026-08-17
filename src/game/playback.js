@@ -3339,11 +3339,30 @@ function Playback(game, osu, track) {
              try {
                 this.updateBackground(time);
              } catch (e) {}
+             // Scrub frame sweep: if the clock jumped (lead-in seek, resume,
+             // skip), mark ALL hits that are past their finalTime as processed
+             // (score=0, not miss). This prevents burst-misses for notes the
+             // player never saw. Without this, the scrub check in
+             // updateJudgement only catches hits checked on THIS frame; hits
+             // that are past their finalTime but not yet in upcomingHits would
+             // miss on the next non-scrub frame.
+             if (self._scrubFrame) {
+                for (var si = 0; si < self.hits.length; si++) {
+                   var sHit = self.hits[si];
+                   if (sHit.score < 0 && sHit.judgements && sHit.judgements[0]) {
+                      var sFinal = sHit.judgements[0].finalTime;
+                      if (typeof sFinal === "number" && time >= sFinal) {
+                         // Mark as processed — the player never saw this note
+                         sHit.judgements[0].points = 0;
+                         sHit.judgements[0].visible = false;
+                         sHit.score = 0;
+                      }
+                   }
+                }
+             }
              // CRITICAL: updatePlayerActions MUST run BEFORE updateHitObjects.
              // In autoplay, the auto-click logic in playerActions.js needs to
              // click hit objects before the miss check in updateJudgement fires.
-             // If updateHitObjects runs first, the miss fires before autoplay
-             // gets a chance to click → 9 instant misses on the first note.
              try {
                 this.game.updatePlayerActions(time);
              } catch (e) {}
