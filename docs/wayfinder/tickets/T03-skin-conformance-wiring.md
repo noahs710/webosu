@@ -34,8 +34,8 @@ Track B of the mega-change is ~40% done. The remaining skin-wiring work is well-
 
 ## Blocks
 
-T04 (conformance harness needs the complete skin pipeline to snapshot), T06 (rollout flips `skinConformance` flag only after Track B is done)
+T04 (conformance harness needs the complete skin pipeline to snapshot), T06 (rollout flips `skinConformance` flag only after Track B is done), T16 (animated judgements need the @2x whitelist landed first)
 
 ## Blocked by
 
-T01 (clean base), T14 (D7 @2x whitelist extend-or-not decision + D8 drop-5.12 decision + D9 animated-judgements decision must be made before the skin pipeline is "complete")
+T15 (D8 removal was originally in T03's scope; moved to T15 so T03 can focus on D7 @2x extend + the remaining tasks.md §5 items)

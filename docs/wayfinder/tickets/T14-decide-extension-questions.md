@@ -3,6 +3,12 @@
 ## Type
 grilling (HITL)
 
+## Claimed by
+webosu-agent (2026-08-17 session)
+
+## Status
+done
+
 ## Question
 
 The T02 audit found **5 more divergences** (D5–D9) that are NOT straightforward bugs — each is a judgement call: is the divergence a webosu extension worth keeping (and documenting), or a parity gap worth closing? The user must decide each one. This is a grilling ticket: one question at a time, per the grilling skill.
@@ -42,6 +48,29 @@ Walk the user through each of the 5 questions one at a time. For each:
 2. Let the user decide.
 3. Record the decision in the ticket's resolution.
 
+### Decisions (recorded live during grilling)
+
+- **D5 — `sliderStyle`: REMOVE (always gradient, true lazer parity).** User chose Option 2 over the recommended Option 1. Delete the `sliderStyle` branch in `SliderMesh.js` + the textured `MeshRope` code (~30 lines). Skins shipping `sliderStyle: 2` in skin.ini get the gradient body. Follow-up task: graduate a ticket to do the removal (update `SliderMesh._draw()` to always gradient, remove the `sliderStyle` read, remove the `MeshRope` textured body block, remove `sliderStyle` from `skin-loader.js` parse if no other consumer).
+
+- **D6 — `hitCircleOverlap` shift factor: FIX to lazer 1.0 + default -2.** User chose Option 1 (recommended). Change `overlap * 0.3` per side to `overlap * 0.5` per side (net 1.0·overlap per pair, matching lazer's `Spacing = -overlap`). Change default from 0 to -2. Player-visible: multi-digit combo numbers on skins with non-zero overlap get wider spacing. Follow-up: graduate a ticket to make the code change in `playback.js:1663-1666` + the default in `skin-loader.js:34`.
+
+- **D7 — `@2x` whitelist: EXTEND to full lazer-legal set.** User chose Option 1 (recommended). Add the ~12 missing texture names (animation frames, per-digit font, sliderpoint, cursormiddle, particle, sliderend/startcircle variants). Add the beatmap-skin @2x disable (`LegacyBeatmapSkin.AllowHighResolutionSprites => false` — webosu must distinguish beatmap skins from user skins for @2x). This is the bulk of T03's Track B work.
+
+- **D8 — `[Colours] ApproachCircle`:** (pending)
+- **D8 — `[Colours] ApproachCircle`: DROP mega task 5.12.** User chose Option 1 (recommended). Remove the beatmap ApproachCircle fallback from `playback.js:1594-1596`. Approach circle uses combo colour (skin `approachCircle` still wins if set, then combo colour). True lazer parity — lazer's `LegacyApproachCircle` uses combo colour only; `CustomColours["ApproachCircle"]` is parsed but never read by the osu! ruleset. Follow-up: graduate a ticket to remove the fallback branch + drop mega task 5.12 from tasks.md.
+
+- **D9 — `hit*-N.png` animated judgements: IMPLEMENT.** User chose Option 1 (parity win). Load the `hit*-N.png` frames per judgement type and play them as a `PIXI.AnimatedSprite` at `AnimationFramerate` (default 60 FPS, or `1000/length` if the skin specifies). This is scope expansion beyond the mega-change — a new feature, not a wiring fix. Visible parity win for skins like reowoTuna (the project default) that ship animated judgement frames. Graduate a follow-up ticket to do the implementation (decides: `PIXI.AnimatedSprite` vs. per-frame `Texture.from` swap, `AnimationFramerate` default, memory budget / frame cap, whether to gate behind `skinConformance` flag, where to hook into the judgement spawn path). This also graduates the map's "`hit*-N.png` animated judgement implementation scope" fog item into a real ticket.
+
+### Summary of decisions
+
+| Decision | Choice | Action |
+|----------|--------|--------|
+| D5 `sliderStyle` | Remove (always gradient) | Delete sliderStyle branch + MeshRope textured code; update skin-loader parse |
+| D6 `hitCircleOverlap` | Fix to lazer 1.0 + default -2 | Change `* 0.3` → `* 0.5` per side; default 0 → -2 |
+| D7 `@2x` whitelist | Extend to full lazer-legal set | Add ~12 missing names; add beatmap-skin @2x disable (T03 scope) |
+| D8 `[Colours] ApproachCircle` | Drop mega task 5.12 | Remove beatmap fallback branch; approach uses combo colour |
+| D9 `hit*-N.png` animated judgements | Implement | Load frames, play as AnimatedSprite (new follow-up ticket) |
+
 ### Acceptance
 
 - All 5 decisions recorded (D5 keep/fix, D6 keep/fix, D7 keep/extend, D8 drop/implement, D9 implement/skip-and-document).
@@ -50,10 +79,34 @@ Walk the user through each of the 5 questions one at a time. For each:
 - T03 (Track B skin conformance) is updated to reflect the D7 decision (extend whitelist or not) and the D8 decision (drop 5.12 or not).
 - One-line Decisions-so-far entry on the map.
 
+## Resolution
+
+All 5 decisions recorded via grilling (see "Decisions" section above). Summary:
+
+- **D5 `sliderStyle`**: REMOVE — delete the sliderStyle branch + textured MeshRope code, always render gradient (true lazer parity).
+- **D6 `hitCircleOverlap`**: FIX — change `* 0.3` → `* 0.5` per side (net 1.0·overlap per pair, matching lazer's `Spacing = -overlap`); change default 0 → -2.
+- **D7 `@2x` whitelist**: EXTEND — add ~12 missing texture names; add beatmap-skin @2x disable (`LegacyBeatmapSkin.AllowHighResolutionSprites => false`). This is T03's bulk work.
+- **D8 `[Colours] ApproachCircle`**: DROP mega task 5.12 — remove the beatmap ApproachCircle fallback branch; approach circle uses combo colour (skin wins, then combo). True lazer parity.
+- **D9 `hit*-N.png` animated judgements**: IMPLEMENT — load frames, play as `PIXI.AnimatedSprite` at `AnimationFramerate`. Scope expansion; graduates a new follow-up ticket (T15).
+
+### Graduated follow-up tickets
+
+- **T15 — Implement D5/D6/D8 removals + fixes** (task, HITL): delete the sliderStyle branch in `SliderMesh.js` + the textured MeshRope code; fix the hitCircleOverlap shift factor in `playback.js` + the default in `skin-loader.js`; remove the beatmap ApproachCircle fallback from `playback.js`. These are small, focused code changes with clear acceptance (conformance goldens may shift — regenerate).
+- **T16 — Implement D9 animated judgements** (task, HITL): load `hit*-N.png` frames, play as `PIXI.AnimatedSprite` at `AnimationFramerate`, decide on memory cap + flag gating. Larger scope; new feature. Graduates the map's "`hit*-N.png` animated judgement implementation scope" fog item.
+- **T03 updated**: D7 (`@2x` whitelist extend) is the bulk of T03's remaining work; D8's removal (dropping mega task 5.12) is now part of T15, not T03.
+
+### What this means for the map
+
+- T03 (Track B skin conformance) is unblocked — its scope is now D7 (@2x extend + beatmap-skin disable) + the remaining tasks.md §5 items (5.1, 5.2, 5.4, 5.8, 5.11, 5.13). D8 (ApproachCircle) is moved to T15. D9 (animated judgements) is T16.
+- T06 (rollout) is unblocked on the D5/D6 front — those are T15's scope, which should land before T06 flips flags.
+- The map's "Not yet specified" fog item "`hit*-N.png` animated judgement implementation scope" graduates into T16.
+
 ## Blocks
 
-T03 (skin conformance scope depends on D7/D8/D9 decisions), T06 (rollout scope depends on D5/D6)
+T03 (skin conformance scope depends on D7), T06 (rollout scope depends on D5/D6 via T15)
 
 ## Blocked by
 
 T01 (clean base), T02 (the audit that found these — now closed)
+
+## Question
