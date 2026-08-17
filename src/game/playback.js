@@ -2362,6 +2362,22 @@ function Playback(game, osu, track) {
    };
 
    this.hitSuccess = function hitSuccess(hit, points, time) {
+      // T07 latency probe: when ?perfprobe=1, record the judgement spawn time
+      // vs the input event timestamp. The user plays a map in a real browser;
+      // the probe logs P50/P95 to the console every 50 judgements. See
+      // scripts/headless-latency-probe.js header for the real-browser instructions.
+      if (typeof window !== "undefined" && window.__perfProbe && hit) {
+         try {
+            window.__perfProbe.marks.push({ spawn: performance.now(), time, x: hit.x, y: hit.y });
+            if (window.__perfProbe.marks.length >= 50) {
+               const lats = window.__perfProbe.marks.map(m => m.spawn - m.time).filter(x => x >= 0 && isFinite(x)).sort((a, b) => a - b);
+               const p50 = lats[Math.floor(lats.length * 0.5)] || 0;
+               const p95 = lats[Math.floor(lats.length * 0.95)] || 0;
+               console.log(`[perfprobe] n=${lats.length} P50=${p50.toFixed(1)}ms P95=${p95.toFixed(1)}ms`);
+               window.__perfProbe.marks = [];
+            }
+         } catch {}
+      }
       // Record this click for the click-grace logic in updateJudgement.
       self._lastClickTime = time;
       self._lastClickX =

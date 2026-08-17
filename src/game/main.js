@@ -11,6 +11,16 @@ import { launchGame, launchReplay } from "./launchgame.js";
 // capture the resulting render tree for golden-snapshot comparison.
 import { loadOsk, applySkin } from "./skin-loader.js";
 
+// T07 latency probe: activate under ?perfprobe=1. The probe hooks hitSuccess
+// (in playback.js) to record judgement spawn times and logs P50/P95 to the
+// console every 50 judgements. Run in a real browser for authoritative numbers.
+try {
+   if (new URLSearchParams(window.location.search).get("perfprobe") === "1") {
+      window.__perfProbe = { marks: [] };
+      console.log("[perfprobe] active — play a map; P50/P95 logged every 50 judgements");
+   }
+} catch {}
+
 
 window.launchGame = launchGame;
 window.launchReplay = launchReplay;
