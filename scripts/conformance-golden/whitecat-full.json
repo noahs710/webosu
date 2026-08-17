@@ -70,6 +70,9 @@
     "numbers-dot.png": null,
     "numbers-percent.png": null,
     "numbers-x.png": null,
+    "particle100.png": null,
+    "particle300.png": null,
+    "particle50.png": null,
     "pause-replay.png": null,
     "pause-replay@2x.png": null,
     "percent.png": null,
@@ -235,6 +238,9 @@
     "score-x.png": null,
     "scorebar-bg.png": null,
     "scorebar-colour.png": null,
+    "scorebar-ki.png": null,
+    "scorebar-kidanger.png": null,
+    "scorebar-kidanger2.png": null,
     "selection-mode.png": null,
     "selection-mode@2x.png": null,
     "selection-mods-over.png": null,
@@ -285,13 +291,14 @@
     "songselect-bottom@2x.png": null,
     "songselect-top.png": null,
     "songselect-top@2x.png": null,
+    "star2.png": null,
     "taiko-hit100k.png": null,
     "taiko-hit100k@2x.png": null,
     "x.png": null
   },
   "scene": [],
   "meta": {
-    "texCount": 87,
+    "texCount": 88,
     "sndCount": 16,
     "cfg": {
       "name": "-         《CK》 WhiteCat 3.0 ~ DT",
@@ -1553,8 +1560,6 @@
     "spinner-top@2x.png",
     "star.png",
     "star@2x.png",
-    "star2.png",
-    "star2@2x.png",
     "welcome_text.png",
     "welcome_text@2x.png"
   ]

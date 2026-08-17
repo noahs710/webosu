@@ -63,10 +63,10 @@
 
 ## 5. Track B — Skin conformance (no flag; gated by harness)
 
-- [ ] 5.1 Extend `src/game/skin-filter.js` whitelist with `@2x` variants of existing whitelisted names (see osk-skin-loading spec §Requirement: @2x variants)
-- [ ] 5.2 Wire `sliderb@2x.png` as texture-fill source when `sliderStyle: 2`
+- [x] 5.1 Extend `src/game/skin-filter.js` whitelist with `@2x` variants — **T03 D7**: extended to full lazer-legal set (added hit100k, cursor-ripple, star2, cursor-smoke, sliderstartcircle(+overlay), sliderpoint30/10, particle50/100/300, scorebar-ki(+kidanger/+kidanger2), hit*-N animation frames). Beatmap-skin @2x disable is implicitly enforced (webosu doesn't load beatmap-skin textures).
+- [x] 5.2 ~~Wire `sliderb@2x.png` as texture-fill source when `sliderStyle: 2`~~ — **SUPERSEDED by T15 D5**: sliderStyle removed; always gradient. No textured slider body.
 - [x] 5.3 Replace hardcoded followpoint `% 10` frame count at `playback.js:1955` and `playback.js:2456` with parsed `sliderBallFrames` (default 10) — now uses `skinConfig.sliderBallFrames` when >0, else 10.
-- [ ] 5.4 Document intentional skip of `hit*-<n>.png` numbered variants in `skin-loader.js` and `skin-filter.js` (mark as reserved for future animation support)
+- [ ] 5.4 Document intentional skip of `hit*-<n>.png` numbered variants — **T16 scope**: T14 D9 decided to IMPLEMENT animated judgements (not skip). The whitelist now allows hit*-N frames (T03); T16 removes the skin-loader.js skip + implements AnimatedSprite playback. Document the implementation in T16.
 
 - [x] 5.5 ~~Implement `sliderStyle: 1` (gradient) branch~~ — **SUPERSEDED by T15 D5**: sliderStyle removed entirely; always gradient (true lazer parity). Lazer's LegacySliderBody has no sliderStyle switch.
 - [x] 5.6 ~~Implement `sliderStyle: 2` (MeshRope textured) branch~~ — **SUPERSEDED by T15 D5**: sliderStyle removed; the textured MeshRope code is deleted.

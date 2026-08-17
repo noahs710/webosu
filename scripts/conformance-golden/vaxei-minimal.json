@@ -31,6 +31,8 @@
     "hit100k.png": null,
     "hit100k@2x.png": null,
     "hit300.png": null,
+    "hit300g-0.png": null,
+    "hit300g-1.png": null,
     "hit300g.png": null,
     "hit300k.png": null,
     "hit50.png": null,
@@ -42,6 +44,9 @@
     "mode-osu-small@2x.png": null,
     "mode-taiko-small.png": null,
     "mode-taiko-small@2x.png": null,
+    "particle100.png": null,
+    "particle300.png": null,
+    "particle50.png": null,
     "pause-replay.png": null,
     "pause-replay@2x.png": null,
     "play-skip-0.png": null,
@@ -206,6 +211,9 @@
     "score-x.png": null,
     "scorebar-bg.png": null,
     "scorebar-colour.png": null,
+    "scorebar-ki.png": null,
+    "scorebar-kidanger.png": null,
+    "scorebar-kidanger2.png": null,
     "selection-mode.png": null,
     "selection-mode@2x.png": null,
     "selection-mods-over.png": null,
@@ -258,12 +266,13 @@
     "songselect-bottom@2x.png": null,
     "songselect-top.png": null,
     "songselect-top@2x.png": null,
+    "star2.png": null,
     "taiko-hit100k.png": null,
     "taiko-hit100k@2x.png": null
   },
   "scene": [],
   "meta": {
-    "texCount": 60,
+    "texCount": 66,
     "sndCount": 16,
     "cfg": {
       "name": "Vaxei 2023",
@@ -372,8 +381,6 @@
     "hit100k-0.png",
     "hit300-0.png",
     "hit300-1.png",
-    "hit300g-0.png",
-    "hit300g-1.png",
     "hit300k-0.png",
     "hit300k-1.png",
     "hit50-0.png",
@@ -398,9 +405,6 @@
     "ranking-x-small.png",
     "ranking-xh-small.png",
     "ready.png",
-    "scorebar-ki.png",
-    "scorebar-kidanger.png",
-    "scorebar-kidanger2.png",
     "section-fail.png",
     "section-pass.png",
     "selection-mod-autoplay.png",
@@ -431,8 +435,6 @@
     "spinner-rpm.png",
     "spinner-spin.png",
     "spinner-top.png",
-    "star.png",
-    "star2.png",
-    "star2@2x.png"
+    "star.png"
   ]
 }
