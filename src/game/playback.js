@@ -407,11 +407,14 @@ function Playback(game, osu, track) {
          );
       }
    };
-   // Lazer CS formula (ppy/osu OsuHitObject.cs): R = 32 * (1 - 0.7 * DifficultyRange(CS, 0, 0.5, 1))
-   // where DifficultyRange is the two-piece-linear: 0->min, 5->mid, 10->max.
-   // At CS=4: R = 23.04; CS=5: R = 16; CS=0: R = 36.16. (The previous (CS-5)/5 linear
-   // was wrong for any CS!=5 — 58% too big at CS=4. Audit finding D4.)
-   self.circleRadius = 32 * (1 - 0.7 * lazerDifficultyRange(this.CS, 0, 0.5, 1));
+   // Lazer CS formula (ppy/osu OsuHitObject.cs + LegacyRulesetExtensions.cs):
+   //   R = 64 * (1 - 0.7 * DifficultyRange(CS)) / 2 * 1.00041
+   //     = 32 * (1 - 0.7 * DifficultyRange(CS, 0, 0.5, 1)) * 1.00041
+   // where DifficultyRange is the two-piece-linear: 0->0, 5->0.5, 10->1.
+   // The 1.00041 fudge is lazer's broken_gamefield_rounding_allowance (under
+   // 1 game pixel — visually imperceptible but needed for replay parity).
+   // At CS=4: R ≈ 23.06; CS=5: R ≈ 20.82; CS=0: R = 32.01.
+   self.circleRadius = 32 * (1 - 0.7 * lazerDifficultyRange(this.CS, 0, 0.5, 1)) * 1.00041;
    // hitSpriteScale: circle radius / 60 (visible radius of default 128px texture).
    // This scales the sprite so the visual circle has radius = circleRadius.
    // For custom skins, texture normalization via source.resolution handles
@@ -854,13 +857,14 @@ function Playback(game, osu, track) {
    ) {
       if (judge.points < 0 && time >= judge.finalTime) {
          // Skip miss check on a scrub frame (audio position jumped > 200ms):
-         // the user hasn't had a chance to play these hits. The next frame uses
-         // the new time and the scrub flag resets, so subsequent misses are real.
-         // This is the scrub-only guard — there is NO per-frame miss cap, so a
-         // real frame can fire multiple misses (a human cannot miss 10 hits in
-         // 33ms, but if they somehow do, each miss counts). The cap caused the
-         // original "burst-miss on first tap" bug and is NOT restored.
-         if (self._scrubFrame) return;
+         // the user hasn't had a chance to play these hits. Mark the hit as
+         // processed (score = 0) so it doesn't fire again on the next frame.
+         // This is the scrub-only guard — there is NO per-frame miss cap.
+         if (self._scrubFrame) {
+            judge.points = 0; // mark as processed; won't re-enter this branch
+            judge.visible = false;
+            return;
+         }
          // miss — fire immediately (no cap)
          this.scoreOverlay.hit(judge.defaultScore, 300, time, { lastInCombo: !!judge.lastInCombo });
          this.invokeJudgement(judge, judge.defaultScore, time);
@@ -1048,22 +1052,31 @@ function Playback(game, osu, track) {
                             img.onerror = rej;
                          }),
                    );
-                   // Pixi v8: Texture.from(img) warns "Image element passed,
-                   // converting to canvas" and creates an invalid texture that
-                   // causes PrepareSystem to hang in an upload loop. Use
-                   // Assets.load with the blob URL instead (the Image decode
-                   // above ensures the blob is valid; Assets.load creates a
-                   // proper texture from it).
-                   try {
-                      bgTexture = await PIXI.Assets.load({
-                         src: uri,
-                         parser: "texture",
-                         data: { scaleMode: "linear", autoGenerateMipmaps: false },
-                      });
-                   } catch {
-                      // Fallback: Texture.from the decoded Image element
-                      bgTexture = PIXI.Texture.from(img);
-                   }
+                    // Pixi v8: create a canvas from the decoded Image, then
+                    // use Texture.from(canvas). The "Image element passed,
+                    // converting to canvas" warning from Texture.from(img) is
+                    // benign — Pixi converts it internally. But to avoid the
+                    // warning + ensure a valid texture, draw the image to a
+                    // canvas explicitly and create the texture from that.
+                    try {
+                       const canvas = document.createElement("canvas");
+                       canvas.width = img.naturalWidth || img.width;
+                       canvas.height = img.naturalHeight || img.height;
+                       const ctx = canvas.getContext("2d");
+                       ctx.drawImage(img, 0, 0);
+                       bgTexture = PIXI.Texture.from(canvas);
+                    } catch {
+                       // Fallback: Assets.load with the blob URL
+                       try {
+                          bgTexture = await PIXI.Assets.load({
+                             src: uri,
+                             parser: "texture",
+                             data: { scaleMode: "linear", autoGenerateMipmaps: false },
+                          });
+                       } catch {
+                          bgTexture = PIXI.Texture.from(img);
+                       }
+                    }
                 }
             } else {
                bgTexture = await PIXI.Assets.load(uri);
@@ -3323,6 +3336,14 @@ function Playback(game, osu, track) {
              try {
                 this.updateBackground(time);
              } catch (e) {}
+             // CRITICAL: updatePlayerActions MUST run BEFORE updateHitObjects.
+             // In autoplay, the auto-click logic in playerActions.js needs to
+             // click hit objects before the miss check in updateJudgement fires.
+             // If updateHitObjects runs first, the miss fires before autoplay
+             // gets a chance to click → 9 instant misses on the first note.
+             try {
+                this.game.updatePlayerActions(time);
+             } catch (e) {}
              try {
                 this.updateHitObjects(time);
              } catch (e) {
@@ -3337,9 +3358,6 @@ function Playback(game, osu, track) {
                 } catch (e) {}
              try {
                 this.scoreOverlay.update(time);
-             } catch (e) {}
-             try {
-                this.game.updatePlayerActions(time);
              } catch (e) {}
           }
           try {
