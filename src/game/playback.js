@@ -1975,30 +1975,27 @@ function Playback(game, osu, track) {
          sound: (h2, part, t) => self.playHitsound(h2, part, t),
       });
 
-       // For sliders, extend ALL judgements' finalTime to the slider's end
-       // time + MehTime so miss checks don't fire while the slider is still
-       // active. The slider head is judged by checkClickdown; repeats/tail
-       // are judged by the slider tick/edge logic in updateSlider. None of
-       // these should miss via updateJudgement while the slider is in progress.
-       // (Previously only judgements[0] was extended — repeats/tail with small
-       // sliderTime had finalTime ≈ hit.time and missed instantly after the
-       // head was hit.)
+       // add judgement objects at edge
+       let endPoint = hit.curve.curve[hit.curve.curve.length - 1];
+       for (let i = 1; i <= hit.repeat; ++i) {
+          let x = i % 2 == 1 ? endPoint.x : hit.x;
+          let y = i % 2 == 1 ? endPoint.y : hit.y;
+          hit.judgements.push(
+             this.createJudgement(x, y, hit.time + i * hit.sliderTime),
+          );
+       }
+       // Extend ALL slider judgements' finalTime to hit.endTime + MehTime so
+       // miss checks don't fire while the slider is still active. The slider
+       // head is judged by checkClickdown; repeats/tail are judged by the
+       // slider tick/edge logic in updateSlider. None of these should miss
+       // via updateJudgement while the slider is in progress. This MUST run
+       // AFTER the repeat judgements are created above.
        if (hit.judgements && hit.judgements.length) {
           const extendedFinal = hit.endTime + this.MehTime;
           for (let ji = 0; ji < hit.judgements.length; ji++) {
              hit.judgements[ji].finalTime = extendedFinal;
           }
        }
-
-      // add judgement objects at edge
-      let endPoint = hit.curve.curve[hit.curve.curve.length - 1];
-      for (let i = 1; i <= hit.repeat; ++i) {
-         let x = i % 2 == 1 ? endPoint.x : hit.x;
-         let y = i % 2 == 1 ? endPoint.y : hit.y;
-         hit.judgements.push(
-            this.createJudgement(x, y, hit.time + i * hit.sliderTime),
-         );
-      }
    };
 
    this.createSpinner = function (hit) {
