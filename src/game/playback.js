@@ -2947,8 +2947,9 @@ function Playback(game, osu, track) {
             hit.ball.visible = true;
             hit.ball.alpha = 1;
              if (hit._ballFrameCount > 0) {
-                // 60fps animation (16.67ms per frame) for smooth slider ball
-                let bIdx = Math.floor((time / 16.67) % hit._ballFrameCount);
+                // Use skin's AnimationFramerate (default 60 FPS if not specified)
+                const ballFPS = (window.game && window.game.skinConfig && window.game.skinConfig.animationFramerate) || 60;
+                let bIdx = Math.floor((time / (1000 / ballFPS)) % hit._ballFrameCount);
                let bTex =
                   window.Skin?.["sliderb" + bIdx + ".png"] ||
                   PIXI.Texture.WHITE;

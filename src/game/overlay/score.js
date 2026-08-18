@@ -202,11 +202,11 @@ import {
          this.HPbar[0].anchor.x = 1;
          this._useScorebar = false;
       }
-      this.HPbar[0].scale.x = this.field.width / 500;
-      this.HPbar[1].scale.x = this.field.width / 500;
-      this.HPbar[0].y = -7 * this.scaleMul;
-      this.HPbar[1].y = -7 * this.scaleMul;
-      this.HPbar[2].y = -7 * this.scaleMul;
+       this.HPbar[0].scale.x = this.field.width / 500;
+       this.HPbar[1].scale.x = this.field.width / 500;
+       this.HPbar[0].y = 0;
+       this.HPbar[1].y = 0;
+       this.HPbar[2].y = 0;
 
       // value initialization ends
 
@@ -224,11 +224,11 @@ import {
          f(this.accuracyDigits, this.scaleMul * 0.2);
          f(this.HPbar, this.scaleMul * 0.5);
 
-         this.HPbar[0].scale.x = this.field.width / 500;
-         this.HPbar[1].scale.x = this.field.width / 500;
-         this.HPbar[0].y = -7 * this.scaleMul;
-         this.HPbar[1].y = -7 * this.scaleMul;
-         this.HPbar[2].y = -7 * this.scaleMul;
+          this.HPbar[0].scale.x = this.field.width / 500;
+          this.HPbar[1].scale.x = this.field.width / 500;
+          this.HPbar[0].y = 0;
+          this.HPbar[1].y = 0;
+          this.HPbar[2].y = 0;
       };
 
       // Lazer HP increase per judgement (from OsuHealthProcessor.getHealthIncreaseFor)

@@ -411,13 +411,16 @@ export async function applySkin(skinData) {
                       tex.source.resolution = 2;
                    } catch {}
                 } else {
-                   try {
-                      if (tex.source.resolution !== 1) tex.source.resolution = 1;
-                   } catch {}
+                    try {
+                       if (tex.source.resolution !== 1) tex.source.resolution = 1;
+                    } catch {}
                 }
-                // Normalize texture size: if default texture was 128px and custom is 256px,
-                // set resolution = 256/128 = 2 so the sprite renders at the same on-screen size.
-                // This ensures all skins show circles, cursor, etc. at the same visual size.
+                // Texture size normalization for FONT textures only (score/combo digits).
+                // Gameplay textures (disc, approachcircle, sliderb) are 128px and
+                // hitSpriteScale = circleRadius/64 handles their sizing. Font textures
+                // vary in size between skins (e.g. Default Reforged uses 23x40px score
+                // digits, default skin uses ~40x72px). Normalize font textures to match
+                // the default skin's font size so text renders at the correct scale.
                 try {
                    const defaultSizes = window._defaultTexSizes;
                    if (defaultSizes && defaultSizes[key]) {
@@ -425,9 +428,10 @@ export async function applySkin(skinData) {
                       const dh = defaultSizes[key].h;
                       const tw = tex.orig?.width || tex.source?.width || tex.width || 0;
                       const th = tex.orig?.height || tex.source?.height || tex.height || 0;
-                      if (dw > 0 && tw > 0) {
+                      // Only normalize font textures (score-*, default-*, combos-*)
+                      const isFont = key.match(/^(score|default|combos|numbers)[-]/) || key.match(/^[0-9]\.png$/);
+                      if (isFont && dw > 0 && tw > 0) {
                          const ratio = tw / dw;
-                         // Only adjust if ratio differs from current resolution (avoid redundant sets)
                          const currentRes = tex.source.resolution || 1;
                          const targetRes = skinData.textures[key].is2x ? 2 : ratio;
                          if (Math.abs(targetRes - currentRes) > 0.01) {
