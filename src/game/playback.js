@@ -617,24 +617,42 @@ function Playback(game, osu, track) {
       if (m) m.setAttribute("hidden", "");
    };
 
-   // adjust volume
-   var wheelCallback;
-   if (game.allowMouseScroll) {
-      wheelCallback = function (e) {
-         self.game.masterVolume -= e.deltaY * 0.002;
-         if (self.game.masterVolume < 0) {
-            self.game.masterVolume = 0;
-         }
-         if (self.game.masterVolume > 1) {
-            self.game.masterVolume = 1;
-         }
-         if (self.osu && self.osu.audio && self.osu.audio.gain)
-            self.osu.audio.gain.gain.value =
-               self.game.musicVolume * self.game.masterVolume;
-         self.volumeMenu.setVolume(self.game.masterVolume * 100);
-      };
-      window.addEventListener("wheel", wheelCallback);
-   }
+    // adjust volume — fine-grained scroll control
+    // 1% per notch (deltaY ~100 per wheel notch), accelerating with scroll speed.
+    // Affects both music volume and hitsound volume.
+    var wheelCallback;
+    var _lastWheelTime = 0;
+    if (game.allowMouseScroll) {
+       wheelCallback = function (e) {
+          e.preventDefault();
+          var now = performance.now();
+          var dt = now - _lastWheelTime;
+          _lastWheelTime = now;
+          // Base 1% per notch; accelerate if scrolling fast (< 50ms between events)
+          var speed = dt < 50 ? 3 : dt < 150 ? 2 : 1;
+          var step = 0.01 * speed;
+          self.game.masterVolume -= Math.sign(e.deltaY) * step;
+          if (self.game.masterVolume < 0) self.game.masterVolume = 0;
+          if (self.game.masterVolume > 1) self.game.masterVolume = 1;
+          // Update music volume
+          if (self.osu && self.osu.audio && self.osu.audio.gain)
+             self.osu.audio.gain.gain.value =
+                self.game.musicVolume * self.game.masterVolume;
+          // Update hitsound volume — the samples are played via howler which
+          // respects the Howler.volume global. Set it to masterVolume so all
+          // sounds (music + effects) scale together.
+          try { if (window.Howler) window.Howler.volume(self.game.masterVolume); } catch {}
+          self.volumeMenu.setVolume(self.game.masterVolume * 100);
+          // Persist to gamesettings
+          try {
+             if (window.gamesettings) {
+                window.gamesettings.mastervolume = Math.round(self.game.masterVolume * 100);
+                window.gamesettings.save && window.gamesettings.save();
+             }
+          } catch {}
+       };
+       window.addEventListener("wheel", wheelCallback, { passive: false });
+    }
 
    var pauseKeyCallback = function (e) {
       // press esc to pause

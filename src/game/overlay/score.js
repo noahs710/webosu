@@ -176,6 +176,12 @@ import {
       this.accuracyDigits = this.newSpriteArray(7, 0.2, 0xddffff); // 100.00%
 
       this.HPbar = this.newSpriteArray(3, 0.5);
+      // HP marker (scorebar-ki) — sits at the right edge of the HP fill
+      this.HPmarker = new PIXI.Sprite();
+      this.HPmarker.anchor.set(0.5);
+      this.HPmarker.scale.set(this.scaleMul * 0.5);
+      this.HPmarker.visible = false;
+      this.addChild(this.HPmarker);
       // Prefer scorebar-* if skin provides it (osu! skins use scorebar-bg/colour), otherwise hpbar
       if (window.Skin?.["scorebar-bg.png"] && window.Skin?.["scorebar-colour.png"]) {
          this.HPbar[0].texture = window.Skin?.["scorebar-bg.png"];
@@ -183,6 +189,12 @@ import {
          this.HPbar[2].texture = window.Skin?.["scorebar-colour.png"];
          this.HPbar[0].anchor.x = 0;
          this._useScorebar = true;
+         // Set up the HP marker (scorebar-ki)
+         if (window.Skin?.["scorebar-ki.png"]) {
+            this.HPmarker.texture = window.Skin?.["scorebar-ki.png"];
+            this.HPmarker.visible = true;
+            this._hasHPmarker = true;
+         }
       } else {
          this.HPbar[0].texture = window.Skin?.["hpbarleft.png"];
          this.HPbar[1].texture = window.Skin?.["hpbarright.png"];
@@ -590,10 +602,26 @@ import {
           }
          let hp = this.HP4display.valueAt(time);
           if (this._useScorebar) {
-             // scorebar: bg full width, colour width = hp * width
-             this.HPbar[0].x = 0; this.HPbar[0].width = this.field.width;
-             this.HPbar[1].x = 0; this.HPbar[1].width = this.field.width;
-             this.HPbar[2].x = 0; this.HPbar[2].width = Math.max(0, hp) * this.field.width;
+              // scorebar: bg full width, colour width = hp * width
+              this.HPbar[0].x = 0; this.HPbar[0].width = this.field.width;
+              this.HPbar[1].x = 0; this.HPbar[1].width = this.field.width;
+              this.HPbar[2].x = 0; this.HPbar[2].width = Math.max(0, hp) * this.field.width;
+              // Position the HP marker (scorebar-ki) at the right edge of the fill
+              if (this._hasHPmarker) {
+                 this.HPmarker.x = Math.max(0, hp) * this.field.width;
+                 this.HPmarker.y = this.HPbar[2].y;
+                 // Swap to danger variant when HP < 25%
+                 if (hp < 0.25 && window.Skin?.["scorebar-kidanger2.png"]) {
+                    if (this.HPmarker.texture !== window.Skin?.["scorebar-kidanger2.png"])
+                       this.HPmarker.texture = window.Skin?.["scorebar-kidanger2.png"];
+                 } else if (hp < 0.5 && window.Skin?.["scorebar-kidanger.png"]) {
+                    if (this.HPmarker.texture !== window.Skin?.["scorebar-kidanger.png"])
+                       this.HPmarker.texture = window.Skin?.["scorebar-kidanger.png"];
+                 } else {
+                    if (this.HPmarker.texture !== window.Skin?.["scorebar-ki.png"])
+                       this.HPmarker.texture = window.Skin?.["scorebar-ki.png"];
+                 }
+              }
          } else {
             let HPpos = hp * this.field.width;
             this.HPbar[0].x = HPpos;
