@@ -661,10 +661,10 @@ export async function applyAspectRatioOverlay() {
    }
    clog("skin-loader", "aspect overlay applied", aspect, files.length + " files");
 
-   // Re-apply hitSpriteScale if aspect changed anything
-   if (window.game && window.game.circleRadius) {
-      window.game.hitSpriteScale = window.game.circleRadius / 60;
-   }
+    // Re-apply hitSpriteScale if aspect changed anything
+    if (window.game && window.game.circleRadius) {
+       window.game.hitSpriteScale = window.game.circleRadius / 64;
+    }
 
    // Listen for resize to re-apply on aspect change
    if (!window._aspectListener) {
