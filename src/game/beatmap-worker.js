@@ -99,7 +99,7 @@ function Track(track) {
                   hitSound: +parts[4] || 0,
                   combo: combo, index: index,
                };
-                if (typeFlag & HIT_TYPE_NEWCOMBO) { combo = 0; forceNewCombo = true; combo += (typeFlag >> 4) & 7; }
+                if (typeFlag & HIT_TYPE_NEWCOMBO) { combo = 0; forceNewCombo = true; combo += (typeFlag >> 4) & 7; index = 0; }
                 if (hit.type === "slider") {
                    // Parse slider: parts[5] = "type|x:y|x:y...", parts[6] = repeat, parts[7] = pixelLength
                    // (matches original osu.js field indices exactly)

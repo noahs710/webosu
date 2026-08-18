@@ -1645,11 +1645,11 @@ function Playback(game, osu, track) {
       let index = hit.index + 1;
       let basedep = 4.9999 - 0.0001 * hit.hitIndex;
 
-      hit.base = newHitSprite("disc.png", basedep, 1.0);
+      hit.base = newHitSprite("disc.png", basedep, 0.5);
       hit.base.tint = combos[hit.combo % combos.length];
 
-      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 1.0);
-      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 1.0);
+      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 0.5);
+      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 0.46);
       hit.glow.tint = combos[hit.combo % combos.length];
       hit.glow.blendMode = "add";
       hit.burst = newHitSprite("hitburst.png", 8.00005 + 0.0001 * hit.hitIndex);
@@ -1714,7 +1714,7 @@ function Playback(game, osu, track) {
          // actual ratio from the loaded textures and use that instead of a
          // fixed 0.4/0.35.
          var numTexKey = hitNumberKey(digits[di]);
-         var scalemul = digitCount === 1 ? 0.32 : 0.28;
+          var scalemul = digitCount === 1 ? 0.4 : 0.35;
          hit.numbers.push(
             newHitSprite(
                numTexKey,
@@ -2645,12 +2645,12 @@ function Playback(game, osu, track) {
           // The disc is at hitSpriteScale * 1.0, so the approach circle at
           // contact (diff=0) is also at hitSpriteScale * 1.0 — its ring aligns
           // with the disc's outer edge. (The old 0.5 * hitSpriteScale was from
-          // when the disc scalemul was also 0.5; both were updated together.)
-          let scalemul = (diff / this.approachTime) * this.approachScale + 1;
-          hit.approach.scale.set(this.hitSpriteScale * scalemul);
-       } else {
-          hit.approach.scale.set(this.hitSpriteScale);
-       }
+           // when the disc scalemul was also 0.5; both were updated together.)
+           let scalemul = (diff / this.approachTime) * this.approachScale + 1;
+           hit.approach.scale.set(0.5 * this.hitSpriteScale * scalemul);
+        } else {
+           hit.approach.scale.set(0.5 * this.hitSpriteScale);
+        }
       if (diff <= this.approachTime && diff > approachFullAppear) {
          // approach circle fading in
          hit.approach.alpha =
@@ -2933,8 +2933,9 @@ function Playback(game, osu, track) {
             // slider ball immediately emerges
             hit.ball.visible = true;
             hit.ball.alpha = 1;
-            if (hit._ballFrameCount > 0) {
-               let bIdx = Math.floor((time / 100) % hit._ballFrameCount);
+             if (hit._ballFrameCount > 0) {
+                // 60fps animation (16.67ms per frame) for smooth slider ball
+                let bIdx = Math.floor((time / 16.67) % hit._ballFrameCount);
                let bTex =
                   window.Skin?.["sliderb" + bIdx + ".png"] ||
                   PIXI.Texture.WHITE;
