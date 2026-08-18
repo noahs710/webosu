@@ -403,7 +403,7 @@ export async function applySkin(skinData) {
                 const _w3=console.warn; let _m3=false;
                 try { console.warn=()=>{}; _m3=true; tex = PIXI.Texture.from(url); } catch { tex=PIXI.Texture.WHITE; } finally { if(_m3) console.warn=_w3; }
              }
-            if (tex && tex.source) {
+             if (tex && tex.source) {
                 tex.source.autoGenerateMipmaps = false;
                 tex.source.scaleMode = "linear";
                 if (skinData.textures[key].is2x) {
@@ -414,6 +414,10 @@ export async function applySkin(skinData) {
                     try {
                        if (tex.source.resolution !== 1) tex.source.resolution = 1;
                     } catch {}
+                }
+                // Log gameplay texture sizes for debugging disc/slider mismatch
+                if (key.match(/disc|hitcircle\.png|approachcircle|sliderb\.png/)) {
+                   clog("skin-loader", "texture", key, "source.w=" + (tex.source.width||0), "source.h=" + (tex.source.height||0), "res=" + (tex.source.resolution||1), "is2x=" + skinData.textures[key].is2x, "logical.w=" + ((tex.source.width||0)/(tex.source.resolution||1)));
                 }
                 // Texture size normalization for FONT textures only (score/combo digits).
                 // Gameplay textures (disc, approachcircle, sliderb) are 128px and
