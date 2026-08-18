@@ -2009,20 +2009,28 @@ function Playback(game, osu, track) {
       hit.rotationRequired =
          (2 * Math.PI * spinRequiredPerSec * (hit.endTime - hit.time)) / 1000;
 
-      function newsprite(spritename) {
-         var sprite = new PIXI.Sprite(
-            window.Skin?.[spritename] || PIXI.Texture.WHITE,
-         );
-         sprite.anchor.set(0.5);
-         sprite.x = hit.x;
-         sprite.y = hit.y;
-         sprite.zIndex = 4.9999 - 0.0001 * (hit.hitIndex || 1);
-         sprite.alpha = 0;
-         sprite.eventMode = "none";
-         sprite.cullable = false;
-         hit.objects.push(sprite);
-         return sprite;
-      }
+       function newsprite(spritename) {
+          var sprite = new PIXI.Sprite(
+             window.Skin?.[spritename] || PIXI.Texture.WHITE,
+          );
+          sprite.anchor.set(0.5);
+          sprite.x = hit.x;
+          sprite.y = hit.y;
+          // Scale spinner to fit the playfield. Spinner textures are typically
+          // 400x400 (or larger). Scale so the spinner fills ~384px (the playfield
+          // height) in osu! pixels.
+          var spinnerTexW = sprite.texture?.source?.width || 400;
+          var spinnerTexRes = sprite.texture?.source?.resolution || 1;
+          var spinnerLogicalW = spinnerTexW / spinnerTexRes;
+          var spinnerScale = 384 / spinnerLogicalW;
+          sprite.scale.set(spinnerScale);
+          sprite.zIndex = 4.9999 - 0.0001 * (hit.hitIndex || 1);
+          sprite.alpha = 0;
+          sprite.eventMode = "none";
+          sprite.cullable = false;
+          hit.objects.push(sprite);
+          return sprite;
+       }
       hit.base = newsprite("spinnerbase.png");
       hit.progress = newsprite("spinnerprogress.png");
       hit.top = newsprite("spinnertop.png");

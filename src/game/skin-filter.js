@@ -21,6 +21,11 @@ export const OSK_NAME_MAP = {
   "hitcircle.png": "disc.png",
   "sliderb0.png": "sliderb.png",
   "sliderb.png": "sliderb.png",
+  // Spinner name aliases: modern skins use spinner-background/metre/circle,
+  // old skins use spinnerbase/spinnerprogress/spinnertop. Map both ways.
+  "spinner-background.png": "spinnerbase.png",
+  "spinner-metre.png": "spinnerprogress.png",
+  "spinner-circle.png": "spinnertop.png",
   "default-0.png": "0.png", "default-1.png": "1.png", "default-2.png": "2.png",
   "default-3.png": "3.png", "default-4.png": "4.png", "default-5.png": "5.png",
   "default-6.png": "6.png", "default-7.png": "7.png", "default-8.png": "8.png",
@@ -90,7 +95,7 @@ export function isGameplayTexture(name) {
       }
       return true;
    }
-   if (["disc.png","hitcircleoverlay.png","ring-glow.png","hitburst.png","followpoint.png","approachcircle.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","sliderendcircle.png","sliderendcircleoverlay.png","sliderstartcircle.png","sliderstartcircleoverlay.png","sliderpoint30.png","sliderpoint10.png","cursortrail.png","cursormiddle.png","cursor.png","cursor-ripple.png","star2.png","cursor-smoke.png","particle0.png","particle50.png","particle100.png","particle300.png","dot.png","percent.png","score-x.png","score-dot.png","score-percent.png","0.png","1.png","2.png","3.png","4.png","5.png","6.png","7.png","8.png","9.png","hit0.png","hit50.png","hit100.png","hit300.png","hit300g.png","hit300k.png","hit100k.png","scorebar-bg.png","scorebar-colour.png","scorebar-ki.png","scorebar-kidanger.png","scorebar-kidanger2.png","errormeterbar.png","errormeterindicator.png","spinnerbase.png","spinnerprogress.png","spinnertop.png","bar.png","barend.png"].includes(n)) return true;
+   if (["disc.png","hitcircleoverlay.png","ring-glow.png","hitburst.png","followpoint.png","approachcircle.png","sliderb.png","sliderfollowcircle.png","reversearrow.png","sliderscorepoint.png","sliderendcircle.png","sliderendcircleoverlay.png","sliderstartcircle.png","sliderstartcircleoverlay.png","sliderpoint30.png","sliderpoint10.png","cursortrail.png","cursormiddle.png","cursor.png","cursor-ripple.png","star2.png","cursor-smoke.png","particle0.png","particle50.png","particle100.png","particle300.png","dot.png","percent.png","score-x.png","score-dot.png","score-percent.png","0.png","1.png","2.png","3.png","4.png","5.png","6.png","7.png","8.png","9.png","hit0.png","hit50.png","hit100.png","hit300.png","hit300g.png","hit300k.png","hit100k.png","scorebar-bg.png","scorebar-colour.png","scorebar-ki.png","scorebar-kidanger.png","scorebar-kidanger2.png","errormeterbar.png","errormeterindicator.png","spinnerbase.png","spinnerprogress.png","spinnertop.png","spinner-background.png","spinner-metre.png","spinner-circle.png","spinner-approachcircle.png","spinner-warning.png","spinner-clear.png","spinner-rpm.png","bar.png","barend.png"].includes(n)) return true;
   if (OSK_EXTRA_TEXTURES.includes(name) || OSK_NAME_MAP[name]) return true;
   if (n.match(/^(numbers|combos)-[0-9]\.png$/)) return true;
   if (n.match(/^(numbers|combos)-(dot|comma|percent|x)\.png$/)) return true;

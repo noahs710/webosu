@@ -5,11 +5,12 @@ import { log, warn } from "./logger.js";
    const DIVIDES = 16;
 
    class SliderMesh extends PIXI.Container {
-      constructor(curve, radius, tintid) {
-         super();
-         this.curve = curve;
-         this._radius = radius;
-         this.tintid = tintid;
+       constructor(curve, radius, tintid) {
+          super();
+          this.curve = curve;
+          this._radius = radius;
+          this._hitSpriteScale = radius / 64; // default; updated by initialize()
+          this.tintid = tintid;
          this._startt = 0.0;
          this._endt = 1.0;
          this._dirty = true;
@@ -35,9 +36,20 @@ import { log, warn } from "./logger.js";
       get endt() { return this._endt; }
       set endt(v) { if (v !== this._endt) { this._endt = v; this._dirty = true; } }
       initialize(colors, radius, transform, SliderTrackOverride, SliderBorder) {
-         this._colors = colors;
-         this._radius = radius;
-         this._override = SliderTrackOverride;
+          this._colors = colors;
+          this._radius = radius;
+          // Update hitSpriteScale from the actual loaded disc texture so the
+          // slider body width matches the disc width exactly.
+          var discTex = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
+          if (discTex && discTex.source) {
+             var srcW = discTex.source.width || 128;
+             var srcRes = discTex.source.resolution || 1;
+             var logicalW = srcW / srcRes;
+             this._hitSpriteScale = (2 * radius) / logicalW;
+          } else {
+             this._hitSpriteScale = radius / 64; // fallback for 128px textures
+          }
+          this._override = SliderTrackOverride;
          this._border = SliderBorder ?? 0xffffff;
          this._borderCol = SliderBorder ?? 0xffffff;
          this._fillCol = SliderTrackOverride ?? (this._colors ? this._colors[this.tintid % this._colors.length] : 0xffffff);
@@ -70,7 +82,17 @@ import { log, warn } from "./logger.js";
          const finalCol = (col == null || col === undefined) ? 0xffffff : col;
          const brd = this._border ?? 0xffffff;
          const borderCol = (this._borderCol != null ? this._borderCol : brd) ?? 0xffffff;
-         const w = (this._radius || 20) * 2;
+          // Slider body width = disc width. The disc renders at
+          // logicalTextureWidth * hitSpriteScale, so the slider body must
+          // be the same: w = 128 * hitSpriteScale (= 2 * circleRadius for
+          // 128px textures). This ensures the disc fits inside the slider
+          // path perfectly regardless of texture size or resolution.
+          var discTex2 = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
+          var discLogicalW = 128;
+          if (discTex2 && discTex2.source) {
+             discLogicalW = (discTex2.source.width || 128) / (discTex2.source.resolution || 1);
+          }
+          const w = discLogicalW * this._hitSpriteScale;
          const pts = this.curve && this.curve.curve ? this.curve.curve : null;
          if (!pts || pts.length < 2) return;
          const t0 = this._startt, t1 = this._endt;
