@@ -567,7 +567,7 @@ export async function applySkin(skinData) {
     // Texture normalization via source.resolution ensures custom skins render at
     // the same on-screen size, so /60 stays correct for all skins.
     if (window.game && window.game.circleRadius) {
-       window.game.hitSpriteScale = window.game.circleRadius / 60;
+       window.game.hitSpriteScale = window.game.circleRadius / 64;
        window.game.hitRadius = window.game.circleRadius;
        clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "hitRadius", window.game.hitRadius);
     }
