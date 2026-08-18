@@ -415,10 +415,6 @@ export async function applySkin(skinData) {
                        if (tex.source.resolution !== 1) tex.source.resolution = 1;
                     } catch {}
                 }
-                // Log gameplay texture sizes for debugging disc/slider mismatch
-                if (key.match(/disc|hitcircle\.png|approachcircle|sliderb\.png/)) {
-                   clog("skin-loader", "texture", key, "source.w=" + (tex.source.width||0), "source.h=" + (tex.source.height||0), "res=" + (tex.source.resolution||1), "is2x=" + skinData.textures[key].is2x, "logical.w=" + ((tex.source.width||0)/(tex.source.resolution||1)));
-                }
                 // Texture size normalization for FONT textures only (score/combo digits).
                 // Gameplay textures (disc, approachcircle, sliderb) are 128px and
                 // hitSpriteScale = circleRadius/64 handles their sizing. Font textures
@@ -570,24 +566,9 @@ export async function applySkin(skinData) {
       window.game.allowSliderBallTint = !!c.allowSliderBallTint;
    }
 
-    // Update hitSpriteScale based on the ACTUAL loaded disc texture size.
-    // Pixi 8 sprites render at (source.width / source.resolution) * scale,
-    // so we need hitSpriteScale = (2 * circleRadius) / logicalWidth where
-    // logicalWidth = source.width / source.resolution. This ensures the
-    // disc fills exactly 2*circleRadius (matching the slider body width).
     if (window.game && window.game.circleRadius) {
-       var discTex = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
-       var logicalW = 128; // fallback for 128px textures at resolution=1
-       if (discTex && discTex.source) {
-          var srcW = discTex.source.width || 128;
-          var srcRes = discTex.source.resolution || 1;
-          logicalW = srcW / srcRes;
-       }
-       window.game.hitSpriteScale = (2 * window.game.circleRadius) / logicalW;
+       window.game.hitSpriteScale = window.game.circleRadius / 60;
        window.game.hitRadius = window.game.circleRadius;
-       clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale.toFixed(6),
-            "hitRadius", window.game.hitRadius.toFixed(4),
-            "logicalW", logicalW.toFixed(1), "circleRadius", window.game.circleRadius.toFixed(4));
     }
 
     // Apply aspect-ratio specific overrides — ONLY for skins that ship
@@ -679,16 +660,9 @@ export async function applyAspectRatioOverlay() {
    }
    clog("skin-loader", "aspect overlay applied", aspect, files.length + " files");
 
-    // Re-apply hitSpriteScale after aspect overlay using actual texture logical size
+    // Re-apply hitSpriteScale after aspect overlay
     if (window.game && window.game.circleRadius) {
-       var discTex2 = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
-       var logicalW2 = 128;
-       if (discTex2 && discTex2.source) {
-          var srcW2 = discTex2.source.width || 128;
-          var srcRes2 = discTex2.source.resolution || 1;
-          logicalW2 = srcW2 / srcRes2;
-       }
-       window.game.hitSpriteScale = (2 * window.game.circleRadius) / logicalW2;
+       window.game.hitSpriteScale = window.game.circleRadius / 60;
     }
 
    // Listen for resize to re-apply on aspect change

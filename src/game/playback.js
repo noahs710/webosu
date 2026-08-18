@@ -406,10 +406,7 @@ function Playback(game, osu, track) {
     // hitSpriteScale = Scale so that texture_pixels * hitSpriteScale = lazer_size.
     // (128 * Scale = 128 * Radius/64 = 2*Radius — correct.)
     self.circleRadius = 32 * (1 - 0.7 * lazerDifficultyRange(this.CS, 0, 0.5, 1)) * 1.00041;
-    // hitSpriteScale: set so the disc texture fills 2*circleRadius (matching the slider body width).
-    // The skin-loader will update this from the actual loaded texture size, but set a
-    // sensible default for 128px textures: (2*circleRadius) / 128 = circleRadius / 64.
-    self.hitSpriteScale = self.circleRadius / 64;
+    self.hitSpriteScale = self.circleRadius / 60;
     self.hitRadius = self.circleRadius;
    // Lazer hit windows (when flag on) use floor-0.5 logic; else legacy
    if (window.FEATURES && window.FEATURES.lazerSliderJudging) {
@@ -739,11 +736,11 @@ function Playback(game, osu, track) {
             judge.texture = initTex;
          judge.anchor.set(0.5);
           judge.scale.set(
-             0.5 * this.hitSpriteScale,
-             0.5 * this.hitSpriteScale,
+             0.85 * this.hitSpriteScale,
+             0.85 * this.hitSpriteScale,
           );
-          judge.baseScaleX = 0.5 * this.hitSpriteScale;
-          judge.baseScaleY = 0.5 * this.hitSpriteScale;
+          judge.baseScaleX = 0.85 * this.hitSpriteScale;
+          judge.baseScaleY = 0.85 * this.hitSpriteScale;
          if (initTex === PIXI.Texture.WHITE) judge.tint = 0x66ccff;
          judge.eventMode = "none";
          judge.cullable = false;
@@ -882,11 +879,11 @@ function Playback(game, osu, track) {
       let bx =
          judge.baseScaleX != null
             ? judge.baseScaleX
-             : 0.5 * this.hitSpriteScale;
+             : 0.85 * this.hitSpriteScale;
        let by =
           judge.baseScaleY != null
              ? judge.baseScaleY
-             : 0.5 * this.hitSpriteScale;
+             : 0.85 * this.hitSpriteScale;
       if (judge.useSprites) {
          // sprite uses uniform scale, preserve aspect
          judge.scale.set(bx * popScale, by * popScale);
@@ -1662,11 +1659,11 @@ function Playback(game, osu, track) {
       let index = hit.index + 1;
       let basedep = 4.9999 - 0.0001 * hit.hitIndex;
 
-      hit.base = newHitSprite("disc.png", basedep, 1.0);
+      hit.base = newHitSprite("disc.png", basedep, 0.5);
       hit.base.tint = combos[hit.combo % combos.length];
 
-      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 1.0);
-      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 0.92);
+      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 0.5);
+      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 0.46);
       hit.glow.tint = combos[hit.combo % combos.length];
       hit.glow.blendMode = "add";
       hit.burst = newHitSprite("hitburst.png", 8.00005 + 0.0001 * hit.hitIndex);
@@ -2671,9 +2668,9 @@ function Playback(game, osu, track) {
           // contact (diff=0) is also at hitSpriteScale * 1.0 — its ring aligns
           // with the disc's outer edge. (The old 0.5 * hitSpriteScale was from
            let scalemul = (diff / this.approachTime) * this.approachScale + 1;
-           hit.approach.scale.set(this.hitSpriteScale * scalemul);
+           hit.approach.scale.set(0.5 * this.hitSpriteScale * scalemul);
         } else {
-           hit.approach.scale.set(this.hitSpriteScale);
+           hit.approach.scale.set(0.5 * this.hitSpriteScale);
         }
       if (diff <= this.approachTime && diff > approachFullAppear) {
          // approach circle fading in
