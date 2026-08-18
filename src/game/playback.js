@@ -406,7 +406,10 @@ function Playback(game, osu, track) {
     // hitSpriteScale = Scale so that texture_pixels * hitSpriteScale = lazer_size.
     // (128 * Scale = 128 * Radius/64 = 2*Radius — correct.)
     self.circleRadius = 32 * (1 - 0.7 * lazerDifficultyRange(this.CS, 0, 0.5, 1)) * 1.00041;
-    self.hitSpriteScale = self.circleRadius / 64; // lazer: texture drawn at Scale = Radius/64
+    // hitSpriteScale: set so the disc texture fills 2*circleRadius (matching the slider body width).
+    // The skin-loader will update this from the actual loaded texture size, but set a
+    // sensible default for 128px textures: (2*circleRadius) / 128 = circleRadius / 64.
+    self.hitSpriteScale = self.circleRadius / 64;
     self.hitRadius = self.circleRadius;
    // Lazer hit windows (when flag on) use floor-0.5 logic; else legacy
    if (window.FEATURES && window.FEATURES.lazerSliderJudging) {

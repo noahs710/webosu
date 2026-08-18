@@ -570,14 +570,25 @@ export async function applySkin(skinData) {
       window.game.allowSliderBallTint = !!c.allowSliderBallTint;
    }
 
-    // Update hitSpriteScale based on default texture size.
-    // Original webosu used circleRadius/60 (visible radius of default 128px texture).
-    // Texture normalization via source.resolution ensures custom skins render at
-    // the same on-screen size, so /60 stays correct for all skins.
+    // Update hitSpriteScale based on the ACTUAL loaded disc texture size.
+    // This ensures disc and slider are the same width regardless of whether
+    // the skin ships 128px or 256px (@2x) textures. The disc should be
+    // 2*circleRadius wide (matching the slider body), so:
+    //   hitSpriteScale = (2 * circleRadius) / texturePixelWidth
     if (window.game && window.game.circleRadius) {
-       window.game.hitSpriteScale = window.game.circleRadius / 64;
+       var discTex = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
+       var texW = 128; // fallback
+       if (discTex && discTex.source) {
+          texW = discTex.source.width || discTex.orig?.width || 128;
+          // If resolution > 1, the source.width is already the pixel size;
+          // the logical size is source.width / resolution. We want the PIXEL
+          // size so the sprite at hitSpriteScale fills 2*circleRadius.
+       }
+       window.game.hitSpriteScale = (2 * window.game.circleRadius) / texW;
        window.game.hitRadius = window.game.circleRadius;
-       clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale, "hitRadius", window.game.hitRadius);
+       clog("skin-loader", "hitSpriteScale", window.game.hitSpriteScale.toFixed(6),
+            "hitRadius", window.game.hitRadius.toFixed(4),
+            "discTexW", texW, "circleRadius", window.game.circleRadius.toFixed(4));
     }
 
     // Apply aspect-ratio specific overrides — ONLY for skins that ship
@@ -669,9 +680,14 @@ export async function applyAspectRatioOverlay() {
    }
    clog("skin-loader", "aspect overlay applied", aspect, files.length + " files");
 
-    // Re-apply hitSpriteScale if aspect changed anything
+    // Re-apply hitSpriteScale after aspect overlay using actual texture size
     if (window.game && window.game.circleRadius) {
-       window.game.hitSpriteScale = window.game.circleRadius / 64;
+       var discTex2 = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
+       var texW2 = 128;
+       if (discTex2 && discTex2.source) {
+          texW2 = discTex2.source.width || discTex2.orig?.width || 128;
+       }
+       window.game.hitSpriteScale = (2 * window.game.circleRadius) / texW2;
     }
 
    // Listen for resize to re-apply on aspect change
