@@ -19,11 +19,9 @@ import { log, warn } from "./logger.js";
          this._g.eventMode = 'none';
          this._g.cullable = false;
          this.addChild(this._g);
-      // Pixi v8: ensure snake animates at full framerate — draw every frame when visible
+      // Pixi v8: always redraw when visible to keep snake animations smooth
       this.onRender = () => {
-         // Always draw when visible to keep snake in sync with ticker; dirty flag still
-         // optimizes static sliders but active snakes must not skip frames.
-         if (this.visible && (this._dirty || this._startt !== this._endt)) {
+         if (this.visible) {
             this._draw();
             this._dirty = false;
          } else if (this._dirty) {
