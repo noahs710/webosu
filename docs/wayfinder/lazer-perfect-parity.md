@@ -12,6 +12,50 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 - **Standing preferences**: honest wording — never claim "exactly like lazer" or "no deviation"; publish measured deltas. No from-scratch engine rewrite (port, don't rewrite). No external DB/infra (Fly.io-alone). No mania/taiko/catch, no multiplayer lazer-compat, no editor (all out of scope).
 - **Tracker**: local-markdown at `docs/wayfinder/tickets/` (no GitHub Issues tracker configured). Map = this file; tickets = `docs/wayfinder/tickets/T<NN>-<slug>.md`. Blocking edges recorded in each ticket's `## Blocks` / `## Blocked by` sections. Frontier = open tickets with all `Blocked by` closed.
 
+## M1 audit
+
+Rules enforced by M1 (parser unification + curve contract + parity constants). Every subsequent PR must respect these. The implementation ticket is [T18](tickets/T18-m1-parse-curves-audit.md).
+
+When a player-facing constant conflicts between the `ppy/osu` source and `osu.ppy.sh` wiki, **wiki wins** (per §19 of `docs/lazer-mechanics.md`).
+
+| # | Rule | Pin | Verified by |
+|---|------|-----|-------------|
+| M1.1 | `.osu` parser is single-sourced at `src/game/parse/track.js`. Both main-thread (`osu.js`) and worker (`beatmap-worker.js`) paths call `parseOsz` / `parseTrackText`; neither path inlines a `Track` constructor. | `src/game/parse/track.js` (new) | `tests/parser/golden-map.spec.mjs` (worker output ≡ main output for one fixture beatmap) |
+| M1.2 | `parseTrackText` is a pure functional export — no globals, no shared mutable state. Calling it twice on the same input yields identical `TrackData[]`. | `src/game/parse/track.js#parseTrackText` | `tests/parser/golden-map.spec.mjs` (idempotent-call assertion) |
+| M1.3 | Stack offset is `4/4` osu-pixels (lazer parity). Source of truth in `stackHitObjects`. The stable-era `stackScale * 6.4` math is dead. | `src/game/parse/track.js#stackHitObjects` | `tests/lazer-parity.spec.mjs` (overlapping hits offset by exactly 4 px; no `stackScale * 6.4` in source) |
+| M1.4 | Curve contract is `pointAtInto(t: number, out: Point): Point` only. Abstract base in `curves/curve.js`. No `pointAt(t)` callers in the per-frame hot path. | `src/game/curves/curve.js` (new abstract) | `tests/curves/allocation.spec.mjs` (zero allocations past warmup on a 60-frame slider trace) + grep audit (no `\.pointAt\(` outside the implementer files) |
+| M1.5 | `SliderMesh` binds `pointAtInto` at slider-create time and reuses one `Point` (`_tmpPt1`) per slider across frames. | `src/game/playback.js#createSlider` | `tests/curves/allocation.spec.mjs` (slider path sampling allocates ≤ 1024 bytes over 60 frames) |
+| M1.6 | `lazerHitWindowsLinear` is removed (no production callers). The wiki-anchored `lazerHitWindows(OD) = 80 - 6·OD` lives at `src/game/lazerHpTables.js#lazerHitWindows`. | `src/game/lazerHpTables.js` (export removed) | `tests/lazer-parity.spec.mjs` (`lazerHitWindowsLinear` not imported anywhere; `lazerHitWindows(OD)` matches wiki at OD∈{0,5,10}) |
+| M1.7 | `beatmap-worker.js` is a pass-through to `parseOsz` (~50 LOC). The worker is a thin boundary; all parsing logic lives in `parse/track.js`. | `src/game/beatmap-worker.js` | `tests/parser/golden-map.spec.mjs` (worker output ≡ main output) + LOC count assertion in `scripts/headless-visual-bench.js` |
+| M1.8 | No stable-era math in `playback.js`. Forbidden patterns: `stackScale * 6.4`, `200 - 10*OD` for hit windows, `(109 - 9*CS) / 2` for circle radius. Replacements: `4/4` offset, `lazerHitWindows(OD)`, `32 * (1 - 0.7 * lazerDifficultyRange(CS, 0, 0.5, 1))`. | `src/game/playback.js` | grep audit (none of the forbidden patterns in source) |
+| M1.9 | `SliderJudge` and `SliderScorer` are two separate classes with non-overlapping responsibilities. `SliderJudge` owns per-frame *decision* state (current position, edge detection — read every frame in `playback.js:3046,3057,3218-3222`). `SliderScorer` owns score *event emission* (typed-pipe, score overlay updates). Adding a new judgment path edits the *judge* side; adding a new score-event type edits the *scorer* side. Neither is dead. | `src/game/slider-judge.js` + `src/game/slider-scorer.js` | header comments in both files; `tests/lazer-parity.spec.mjs` (both classes instantiate via `playback.js#createSlider`) |
+| M1.10 | Audit doc canon lives at this file (the `## M1 audit` section). No duplicate `lazer-parity-audit.md` exists. Foundational docs that the audit cites live at `docs/lazer-mechanics.md` (lazer ruleset reference, 20 sections, §19 is the wiki-as-source-of-truth index). | this file + `docs/lazer-mechanics.md` | repo grep (no `docs/lazer-parity-audit.md`); `git log` on `docs/lazer-mechanics.md` |
+
+### Wiki-anchored constants (lazer parity; wiki wins over ppy/osu source)
+
+These constants are the canonical values for every subsequent PR. Any value that conflicts with `osu.ppy.sh` wiki is wrong.
+
+- **Hit windows**: `great = 80 - 6·OD`, `ok = 140 - 8·OD`, `meh = 200 - 10·OD`, `miss = 400` ms. Lives at `lazerHpTables.js#lazerHitWindows`.
+- **Mod multipliers** (lazer not stable): EZ 0.50x, NF 0.50x, HT 0.30x, HR 1.06x, DT 1.10x, NC 1.10x, HD 1.06x, FL 1.12x, AT 1.00x, RX 0.10x, AP 0.10x, SO 0.90x, CL 0.96x, TP 0.10x.
+- **Spinner min spins/sec**: `OD < 5 ? 1.5 + 0.2·OD : 1.25 + 0.25·OD`. Spins are counted in half-revolutions.
+- **Circle radius**: `32 * (1 - 0.7 * lazerDifficultyRange(CS, 0, 0.5, 1))` (T13 D4).
+- **Stack offset**: `4/4` osu-pixels (M1.3).
+- **Hard Rock direction**: CS +30%, HP/OD/AR +40%, all capped at 10. Playfield flipped vertically: `y → 384 - y`.
+- **Score V2**: `score = round(500000 * acc * comboProgress + 500000 * acc^5 * accuracyProgress + bonusPortion) * scoreMultiplier` (T13 D1).
+- **HP**: no single-hit loss cap (T13 D2); last-in-combo bonus +0.07/+0.05/+0.03 on the last hit of each combo (T13 D3).
+
+### M1 boundaries
+
+M1 does NOT include:
+
+- PIXI HUD layer separation (deferred to M2).
+- MeshRope opt-in toggle for sliders (deferred to M2; player-settings toggle with inline explanation is the M2 plan).
+- v8 pooling, GCSystem, culler plugin (deferred to M3).
+- A streaming `.osu` parser rewrite (M1 is a refactor; the existing parser logic is preserved).
+- A from-scratch engine rewrite (per the standing preferences above).
+
+M1 DOES include everything in [T18](tickets/T18-m1-parse-curves-audit.md)'s `### Scope` section.
+
 ## Decisions so far
 
 - [T01 — Commit &amp; stabilize the in-flight lazer-parity-mega work](tickets/T01-commit-mega.md) — `task`, AFK. Resolved: 4 commits landed (`d673293` core, `c70594e` openspec, `14f77fa` wayfinder, `b0996c0` gitignore). typecheck 121/121, backend 53/53, lazer parity 87/87, conformance 4/4 (goldens regenerated after fixing a harness crash — fresh page per skin), headless-play/mod-flashlight/settings/error-popup/crash all 0 pageerrors. tasks.md reconciled (3.1/3.3/3.4 → `[ ]` per audit; 2.0 added for D4 circle-radius bug). Stray runtime artifacts gitignored. Scope-creep flagged for T14: aspect-ratio overlay in `skin-loader.js`.
@@ -31,6 +75,7 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 ## Frontier (open, unblocked, unclaimed)
 
 - **T06 — Rollout: flip the 4 feature flags on, remove legacy code, ship** (`grilling`, HITL) — flip order, validation gates, legacy deletion, score migration policy, release cadence, AGENTS.md decision. Needs user. `docs/wayfinder/tickets/T06-rollout-flags.md`
+- **T18 — M1 refactor: parse unification, curve contract, parity audit** (`task`, HITL) — three-phase refactor (Phase 0 audit, Phase 1 single-source parser, Phase 2 `pointAtInto`-only curve contract) on branch `codex/refactor-m1-parse-curves-audit`. Audit rules appended above as `## M1 audit`. Peer-PR target. `docs/wayfinder/tickets/T18-m1-parse-curves-audit.md`
 
 ## Open, blocked (not on the frontier)
 
