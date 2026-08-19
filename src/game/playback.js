@@ -377,48 +377,60 @@ function Playback(game, osu, track) {
          classic: game.classic,
       },
    );
-   self.scoreOverlay.onfail = function () {
-      if (!self.ended) {
-         self.ended = true;
-         self.pause = function () {};
-         // Hard-stop the audio: pause() may return false if the source is already
-         // null, but the audio context might still be playing. Try pause first,
-         // then disconnect the gain node as a fallback.
-         if (self.osu && self.osu.audio) {
-            try { self.osu.audio.pause(); } catch (e) {}
-            try { if (self.osu.audio.gain) self.osu.audio.gain.gain.value = 0; } catch (e) {}
-         }
-         self.game.paused = true;
-         self.scoreOverlay.visible = false;
-         self.scoreOverlay.showSummary(
-            self.track.metadata,
-            self.errorMeter.record,
-            self.retry,
-            self.quit,
-         );
-      }
-   };
+    self.scoreOverlay.onfail = function () {
+       if (!self.ended) {
+          self.ended = true;
+          self.pause = function () {};
+          // Hard-stop the audio: pause() may return false if the source is already
+          // null, but the audio context might still be playing. Try pause first,
+          // then disconnect the gain node as a fallback.
+          if (self.osu && self.osu.audio) {
+             try { self.osu.audio.pause(); } catch (e) {}
+             try { if (self.osu.audio.gain) self.osu.audio.gain.gain.value = 0; } catch (e) {}
+          }
+          self.game.paused = true;
+          self.scoreOverlay.visible = false;
+          self.scoreOverlay.showSummary(
+             self.track.metadata,
+             self.errorMeter.record,
+             self.retry,
+             self.quit,
+          );
+       }
+    };
+    // HP bar lives inside the playfield frame (lazer layout). The score overlay
+    // keeps the HP state/textures; the sprites are reparented to the playfield
+    // so they inherit its 512×384 osu-pixel coordinate system.
+    if (self.scoreOverlay.attachHPBarToPlayfield) {
+       self.scoreOverlay.attachHPBarToPlayfield(self.gamefield);
+    }
     // Lazer CS formula (ppy/osu OsuHitObject.cs + LegacyRulesetExtensions.cs):
     //   Scale = (1 - 0.7 * DifficultyRange(CS, 0, 0.5, 1)) / 2 * 1.00041
     //   Radius = OBJECT_RADIUS * Scale = 64 * Scale
-    // The hitcircle texture (128px) is drawn at Scale, so the texture
-    // fills exactly 2*Radius = 128*Scale pixels on screen.
-    // hitSpriteScale = Scale so that texture_pixels * hitSpriteScale = lazer_size.
-    // (128 * Scale = 128 * Radius/64 = 2*Radius — correct.)
+    // The hitcircle texture (default 128 logical px) is drawn at Scale so the
+    // texture fills exactly 2*Radius on screen: hitSpriteScale = 2*Radius / discTexW.
+    // We measure the actual texture width so this works for any skin size — the
+    // old hardcoded R/64 broke 64px synth textures and @2x variants where the
+    // logical width is 128 but the source was 256px. Pixi v8 returns the LOGICAL
+    // width from `texture.width` (raw / resolution), so a 256px @2x disc reads
+    // as 128 — no per-skin normalisation needed.
+    // See docs/lazer-mechanics.md §1.6.
     self.circleRadius = 32 * (1 - 0.7 * lazerDifficultyRange(this.CS, 0, 0.5, 1)) * 1.00041;
-    self.hitSpriteScale = self.circleRadius / 60;
+    {
+       const discTex = window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"];
+       const discTexW = discTex?.width || discTex?.orig?.width || 128;
+       self.hitSpriteScale = (2 * self.circleRadius) / discTexW;
+    }
     self.hitRadius = self.circleRadius;
-   // Lazer hit windows (when flag on) use floor-0.5 logic; else legacy
-   if (window.FEATURES && window.FEATURES.lazerSliderJudging) {
-      const w = lazerHitWindows(this.OD);
-      self.MehTime = w.meh;
-      self.GoodTime = w.ok;
-      self.GreatTime = w.great;
-   } else {
-      self.MehTime = 200 - 10 * this.OD;
-      self.GoodTime = 140 - 8 * this.OD;
-      self.GreatTime = 80 - 6 * this.OD;
-   }
+    // Lazer hit windows: floor(window) - 0.5 per OsuHitWindows.cs.
+    // (Phase 7 rollout: lazerSliderJudging flag is always-on; legacy
+    // 80-6·OD / 140-8·OD / 200-10·OD formulas removed.)
+    {
+       const w = lazerHitWindows(this.OD);
+       self.MehTime = w.meh;
+       self.GoodTime = w.ok;
+       self.GreatTime = w.great;
+    }
    self.errorMeter = new ErrorMeterOverlay(
       {
          width: game.window.innerWidth,
@@ -445,6 +457,18 @@ function Playback(game, osu, track) {
          hit.objectFadeOutOffset = self.MehTime;
       }
    }
+   // For sliders: the head disc fades out WITH the body (not at hit.time + MehTime)
+   // so the visual head/body stay in sync throughout the slider. The head judgement
+   // is still scored at hit.time + MehTime (separate code path), so accuracy is
+   // preserved — only the visual fade-out is shifted. This fixes the "janky" look
+   // where the disc disappears well before the slider track ends.
+   for (let i = 0; i < self.hits.length; ++i) {
+      let hit = self.hits[i];
+      if (hit.type == "slider") {
+         hit.objectFadeOutOffset = hit.sliderTimeTotal;
+         hit.circleFadeOutTime = Math.max(200, hit.sliderTimeTotal * 0.3);
+      }
+   }
 
    for (let i = 0; i < self.hits.length; ++i) {
       if (self.hits[i].type == "slider") {
@@ -453,8 +477,12 @@ function Playback(game, osu, track) {
             self.hits[i].fadeOutDuration =
                self.hits[i].sliderTimeTotal - self.hits[i].fadeOutOffset;
          } else {
+            // Non-HD: hold the body fully visible until the slider ends, then
+            // fade out over the head circle's fade-out window (so the slider
+            // disc and body fade together instead of the body snapping to 0
+            // the instant the slider ends).
             self.hits[i].fadeOutOffset = self.hits[i].sliderTimeTotal;
-            self.hits[i].fadeOutDuration = 300;
+            self.hits[i].fadeOutDuration = Math.max(300, self.MehTime * 2);
          }
       }
    }
@@ -735,12 +763,12 @@ function Playback(game, osu, track) {
          if (judge.texture !== initTex || !judge.texture?.valid)
             judge.texture = initTex;
          judge.anchor.set(0.5);
-          judge.scale.set(
-             0.85 * this.hitSpriteScale,
-             0.85 * this.hitSpriteScale,
-          );
-          judge.baseScaleX = 0.85 * this.hitSpriteScale;
-          judge.baseScaleY = 0.85 * this.hitSpriteScale;
+         judge.scale.set(
+            0.5 * this.hitSpriteScale,
+            0.5 * this.hitSpriteScale,
+         );
+         judge.baseScaleX = 0.5 * this.hitSpriteScale;
+         judge.baseScaleY = 0.5 * this.hitSpriteScale;
          if (initTex === PIXI.Texture.WHITE) judge.tint = 0x66ccff;
          judge.eventMode = "none";
          judge.cullable = false;
@@ -914,8 +942,8 @@ function Playback(game, osu, track) {
       }
    };
 
-   // T10: hit burst sprite (scale 1.0 -> 1.5, alpha 1 -> 0 over 200ms) — pooled
-   this.createHitBurst = function (x, y, time) {
+    // T10: hit burst sprite (scale 1.0 -> 1.5, alpha 1 -> 0 over 200ms) — pooled
+    this.createHitBurst = function (x, y, time) {
       if (!window.Skin || !window.Skin?.["hitburst.png"]) return;
       const tex = window.Skin?.["hitburst.png"] || PIXI.Texture.WHITE;
       let arr = self._spritePool.get(tex);
@@ -934,8 +962,46 @@ function Playback(game, osu, track) {
       s._pooledTex = tex;
       self.gamefield.addChild(s);
       self._hitBursts.push(s);
-   };
-   // T11: combo color flash (scale 1.0 -> 2.0, alpha 0.6 -> 0 over 100ms)
+    };
+    // T14: particle burst (50/100/300) — radial spray of small particles around
+    // the hit circle on judgement. Uses skin-loader textures that ship with
+    // most modern skins. Texture is per-result (50=meh, 100=ok, 300=great).
+    this._particlePool = null;
+    this._particleBursts = [];
+    this.createParticleBurst = function (x, y, points, time) {
+      // Lazy init the pool — one sprite per direction (8-way) per result-class.
+      if (!this._particlePool) {
+         this._particlePool = { 50: [], 100: [], 300: [] };
+      }
+      let skinKey = "particle" + (points === 300 ? 300 : points >= 100 ? 100 : 50) + ".png";
+      const tex = window.Skin?.[skinKey];
+      if (!tex) return;
+      // Use a per-frame sprite list — each particle has its own velocity and lifetime.
+      const total = 12;
+      let arr = this._particlePool[skinKey];
+      for (let i = 0; i < total; i++) {
+         let s = arr.length ? arr.pop() : new PIXI.Sprite(tex);
+         if (s.texture !== tex) s.texture = tex;
+         s.anchor.set(0.5);
+         s.x = x;
+         s.y = y;
+         s.scale.set(this.hitSpriteScale * 0.4);
+         s.alpha = 1;
+         s.visible = true;
+         s.eventMode = "none";
+         s.cullable = false;
+         s._pooledTex = tex;
+         s._t = 0;
+         s._life = 600; // ms
+         // 8-way radial velocity with a small random offset so the ring isn't perfect.
+         const angle = (i / total) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+         const speed = this.hitSpriteScale * (60 + Math.random() * 30);
+         s._vx = Math.cos(angle) * speed;
+         s._vy = Math.sin(angle) * speed;
+         self.gamefield.addChild(s);
+         this._particleBursts.push(s);
+      }
+    };
    this.createComboFlash = function (x, y, color, time) {
       var g;
       try {
@@ -967,34 +1033,54 @@ function Playback(game, osu, track) {
       self.gamefield.addChild(g);
       self._comboFlashes.push(g);
    };
-   this.updateEffects = function (time) {
-      for (let i = self._hitBursts.length - 1; i >= 0; i--) {
-         let s = self._hitBursts[i];
-         let t = time - s._burstT0;
-         if (t >= 200) {
-            self.gamefield.removeChild(s);
-            self._releaseToPool(s);
-            self._hitBursts.splice(i, 1);
-         } else {
-            let p = t / 200;
-            s.scale.set(self.hitSpriteScale * (1 + 0.5 * p));
-            s.alpha = 1 - p;
-         }
-      }
-      for (let i = self._comboFlashes.length - 1; i >= 0; i--) {
-         let g = self._comboFlashes[i];
-         let t = time - g._flashT0;
-         if (t >= 100) {
-            self.gamefield.removeChild(g);
-            g.destroy();
-            self._comboFlashes.splice(i, 1);
-         } else {
-            let p = t / 100;
-            g.scale.set(1 + p);
-            g.alpha = 0.6 * (1 - p);
-         }
-      }
-   };
+    this.updateEffects = function (time) {
+       const dt = (window.currentFrameInterval || 16.67) / 16.67;
+       for (let i = self._hitBursts.length - 1; i >= 0; i--) {
+          let s = self._hitBursts[i];
+          let t = time - s._burstT0;
+          if (t >= 200) {
+             self.gamefield.removeChild(s);
+             self._releaseToPool(s);
+             self._hitBursts.splice(i, 1);
+          } else {
+             let p = t / 200;
+             s.scale.set(self.hitSpriteScale * (1 + 0.5 * p));
+             s.alpha = 1 - p;
+          }
+       }
+       // Particle bursts (50/100/300) — radial spray with velocity + fade.
+       for (let i = self._particleBursts.length - 1; i >= 0; i--) {
+          let s = self._particleBursts[i];
+          s._t += dt * 16.67;
+          if (s._t >= s._life) {
+             self.gamefield.removeChild(s);
+             let pool = self._particlePool && self._particlePool[s._pooledTex];
+             if (pool && pool.length < 96) pool.push(s);
+             else s.destroy();
+             self._particleBursts.splice(i, 1);
+          } else {
+             s.x += s._vx * dt;
+             s.y += s._vy * dt;
+             // Drag — particles slow down over their lifetime.
+             s._vx *= 0.92;
+             s._vy *= 0.92;
+             s.alpha = clamp01(1 - s._t / s._life);
+          }
+       }
+       for (let i = self._comboFlashes.length - 1; i >= 0; i--) {
+          let g = self._comboFlashes[i];
+          let t = time - g._flashT0;
+          if (t >= 100) {
+             self.gamefield.removeChild(g);
+             g.destroy();
+             self._comboFlashes.splice(i, 1);
+          } else {
+             let p = t / 100;
+             g.scale.set(1 + p);
+             g.alpha = 0.6 * (1 - p);
+          }
+       }
+    };
 
    this.createBackground = function () {
       async function loadBackground(uri) {
@@ -1528,7 +1614,7 @@ function Playback(game, osu, track) {
             const dist = Math.hypot(mx - hit.x, my - hit.y);
             const t = Math.min(1, dist / maxDist);
             const scale = scaleNear + (scaleFar - scaleNear) * t;
-            if (hit.base) hit.base.scale.set(this.hitSpriteScale * 0.5 * scale);
+            if (hit.base) hit.base.scale.set(this.hitSpriteScale * scale);
          }
       }
       // Transform (rotate/translate/scale around playfield center)
@@ -1659,19 +1745,20 @@ function Playback(game, osu, track) {
       let index = hit.index + 1;
       let basedep = 4.9999 - 0.0001 * hit.hitIndex;
 
-      hit.base = newHitSprite("disc.png", basedep, 0.5);
+      hit.base = newHitSprite("disc.png", basedep, 1.0);
       hit.base.tint = combos[hit.combo % combos.length];
 
-      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 0.5);
-      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 0.46);
+      hit.circle = newHitSprite("hitcircleoverlay.png", basedep, 1.0);
+      hit.glow = newHitSprite("ring-glow.png", basedep + 2, 0.92);
       hit.glow.tint = combos[hit.combo % combos.length];
       hit.glow.blendMode = "add";
-      hit.burst = newHitSprite("hitburst.png", 8.00005 + 0.0001 * hit.hitIndex);
+      hit.burst = newHitSprite("hitburst.png", 8.00005 + 0.0001 * hit.hitIndex, 0.92);
       hit.burst.visible = false;
 
       hit.approach = newHitSprite(
          "approachcircle.png",
          8 + 0.0001 * hit.hitIndex,
+         1.0,
       );
       if (
          window.game &&
@@ -1716,26 +1803,35 @@ function Playback(game, osu, track) {
       // Multi-digit combo number rendering (supports 1-4+ digits, combos >99).
       // Leftmost digit anchors x=1 (right-aligned to next), rightmost x=0 (left-aligned),
       // middle digits x=0.5 (centered). HitCircleOverlap applied between each pair.
+      // The number scale is computed from the actual loaded textures so the number
+      // stays proportional to the disc regardless of skin size — default osu! has
+      // disc=128px / number=64px (ratio 0.5), some HD skins use disc=128 / num=80.
       const digits = index.toString().split("").map(Number);
       const digitCount = digits.length;
+      // Compute the number-to-disc ratio from the FIRST available digit texture.
+      {
+         let numTexW = 0;
+         for (let d = 0; d <= 9 && numTexW === 0; d++) {
+            const t = window.Skin?.[hitNumberKey(d)];
+            if (t && (t.width || t.orig?.width)) numTexW = t.width || t.orig.width;
+         }
+         const discTexW = (window.Skin?.["disc.png"] || window.Skin?.["hitcircle.png"])?.width || 128;
+         hit._numRatio = numTexW ? numTexW / discTexW : 0.5;
+      }
+      // Tighter ratio for multi-digit so they fit inside the disc with proper HitCircleOverlap.
+      hit._numRatioEffective = digitCount === 1 ? hit._numRatio : hit._numRatio * 0.88;
       for (let di = 0; di < digitCount; di++) {
          const isLeftmost = di === digitCount - 1; // most-significant digit (left)
          const isRightmost = di === 0; // least-significant digit (right)
          const anchorX = 0.5; // always center the number inside the circle
-         // Normalize number scale to the disc texture size so different skins
-         // don't produce tiny or huge numbers. The osu! default disc is 128px
-         // and default number is ~64px, so the ratio is 0.5. We compute the
-         // actual ratio from the loaded textures and use that instead of a
-         // fixed 0.4/0.35.
          var numTexKey = hitNumberKey(digits[di]);
-          var scalemul = digitCount === 1 ? 0.4 : 0.32;
          hit.numbers.push(
             newHitSprite(
                numTexKey,
                basedep,
-               scalemul,
+               hit._numRatioEffective,
                anchorX,
-               0.5, // centered vertically (was 0.47 — off-center)
+               0.5, // centered vertically
             ),
          );
       }
@@ -1885,30 +1981,40 @@ function Playback(game, osu, track) {
       let nticks = Math.floor(hit.sliderTimeTotal / tickDuration) + 1;
       for (let i = 0; i < nticks; ++i) {
          let t = hit.time + i * tickDuration;
-         // Question: are ticks offset to the slider start or its timing point?
-         let pos = repeatclamp((i * tickDuration) / hit.sliderTime);
-         if (Math.min(pos, 1 - pos) * hit.sliderTime <= 10)
-            // omit ticks near slider end (within 10ms)
-            continue;
-         let at = hit.curve.pointAt(pos);
-         hit.ticks.push(newSprite("sliderscorepoint.png", at.x, at.y));
-         hit.ticks[hit.ticks.length - 1].appeartime = t - 2 * tickDuration;
-         hit.ticks[hit.ticks.length - 1].time = t;
-         hit.ticks[hit.ticks.length - 1].result = false;
-      }
+          // Question: are ticks offset to the slider start or its timing point?
+          let pos = repeatclamp((i * tickDuration) / hit.sliderTime);
+          if (Math.min(pos, 1 - pos) * hit.sliderTime <= 10)
+             // omit ticks near slider end (within 10ms)
+             continue;
+           let at = hit.curve.pointAtInto(pos, self._tmpPt1);
+          // Slider tick texture: sliderscorepoint.png is the laser default; older
+          // skins use sliderpoint10.png (small) or sliderpoint30.png (large). Use
+          // whichever ships in the skin.
+          let tickTex =
+             window.Skin?.["sliderscorepoint.png"] ||
+             window.Skin?.["sliderpoint10.png"] ||
+             window.Skin?.["sliderpoint30.png"];
+          let tickKey = tickTex
+             ? (window.Skin?.["sliderscorepoint.png"] ? "sliderscorepoint.png" : "sliderpoint10.png")
+             : "sliderscorepoint.png";
+          hit.ticks.push(newSprite(tickKey, at.x, at.y));
+          hit.ticks[hit.ticks.length - 1].appeartime = t - 2 * tickDuration;
+          hit.ticks[hit.ticks.length - 1].time = t;
+          hit.ticks[hit.ticks.length - 1].result = false;
+       }
 
       // slider end circle (skinnable via sliderendcircle.png)
       if (window.Skin?.["sliderendcircle.png"]) {
          let end = hit.curve.curve[hit.curve.curve.length - 1];
          try {
-            hit.endCircle = newSprite("sliderendcircle.png", end.x, end.y, 0.5);
+            hit.endCircle = newSprite("sliderendcircle.png", end.x, end.y, 1.0);
             hit.endCircle.tint = combos[hit.combo % combos.length];
             if (window.Skin?.["sliderendcircleoverlay.png"]) {
                hit.endOverlay = newSprite(
                   "sliderendcircleoverlay.png",
                   end.x,
                   end.y,
-                  0.5,
+                  1.0,
                );
             }
          } catch (e) {
@@ -1952,7 +2058,7 @@ function Playback(game, osu, track) {
          );
          ballTex = window.Skin?.["sliderb" + frameIdx + ".png"] || ballTex;
       }
-      hit.ball = newSprite(ballTex, hit.x, hit.y, 0.5);
+      hit.ball = newSprite(ballTex, hit.x, hit.y, 1.0);
       hit.ball.visible = false;
       if (window.game && window.game.allowSliderBallTint) {
          try {
@@ -2028,13 +2134,35 @@ function Playback(game, osu, track) {
           hit.objects.push(sprite);
           return sprite;
        }
-      hit.base = newsprite("spinnerbase.png");
-      hit.progress = newsprite("spinnerprogress.png");
-      hit.top = newsprite("spinnertop.png");
-      if (this.modhidden) {
-         hit.progress.visible = false;
-         hit.base.visible = false;
-      }
+       hit.base = newsprite("spinnerbase.png");
+       hit.progress = newsprite("spinnerprogress.png");
+       hit.top = newsprite("spinnertop.png");
+       // Spinner approach circle (auto-fade in with the base)
+       hit.approach = window.Skin?.["spinner-approachcircle.png"]
+          ? newsprite("spinner-approachcircle.png")
+          : null;
+       // Spinner warning (flashes near endTime when not enough spin)
+       if (window.Skin?.["spinner-warning.png"]) {
+          hit.warning = newsprite("spinner-warning.png");
+          hit.warning.visible = false;
+          hit.warning.alpha = 0;
+       }
+       // Spinner "CLEAR" text overlay — shown when rotationRequired is reached
+       if (window.Skin?.["spinner-clear.png"]) {
+          hit.clearLabel = newsprite("spinner-clear.png");
+          hit.clearLabel.visible = false;
+          hit.clearLabel.alpha = 0;
+       }
+       // Spinner RPM display
+       if (window.Skin?.["spinner-rpm.png"]) {
+          hit.rpmDisplay = newsprite("spinner-rpm.png");
+          hit.rpmDisplay.visible = false;
+          hit.rpmDisplay.alpha = 0;
+       }
+       if (this.modhidden) {
+          hit.progress.visible = false;
+          hit.base.visible = false;
+       }
 
       hit.judgements.push(
          this.createJudgement(hit.x, hit.y, hit.endTime + 233),
@@ -2505,20 +2633,30 @@ function Playback(game, osu, track) {
       if (hit.type === "slider" && hit.sliderScorer) {
          try { hit.sliderScorer.recordHead(points > 0); } catch {}
       }
-      // T11: combo color flash when combo goes 0 -> 1
-      if (prevCombo === 0 && this.scoreOverlay.combo === 1 && points > 0) {
-         try {
-            let col =
-               typeof combos !== "undefined" && combos.length
-                  ? combos[hit.combo % combos.length]
-                  : 0xffffff;
-            let fx =
-               hit.x != null ? hit.x : hit.basex != null ? hit.basex : 256;
-            let fy =
-               hit.y != null ? hit.y : hit.basey != null ? hit.basey : 192;
-            self.createComboFlash(fx, fy, col, time);
-         } catch (e) {}
-      }
+       // T11: combo color flash when combo goes 0 -> 1
+       if (prevCombo === 0 && this.scoreOverlay.combo === 1 && points > 0) {
+          try {
+             let col =
+                typeof combos !== "undefined" && combos.length
+                   ? combos[hit.combo % combos.length]
+                   : 0xffffff;
+             let fx =
+                hit.x != null ? hit.x : hit.basex != null ? hit.basex : 256;
+             let fy =
+                hit.y != null ? hit.y : hit.basey != null ? hit.basey : 192;
+             self.createComboFlash(fx, fy, col, time);
+             // T14: particle burst on combo-break-recovery
+             self.createParticleBurst(fx, fy, points, time);
+          } catch (e) {}
+       }
+       // T14: particle burst on every successful hit (50/100/300)
+       if (points > 0 && hit.type !== "spinner") {
+          try {
+             let fx = hit.x != null ? hit.x : (hit.basex != null ? hit.basex : 256);
+             let fy = hit.y != null ? hit.y : (hit.basey != null ? hit.basey : 192);
+             self.createParticleBurst(fx, fy, points, time);
+          } catch (e) {}
+       }
       if (points > 0) {
          try {
             if (hit.type == "spinner")
@@ -2662,15 +2800,15 @@ function Playback(game, osu, track) {
       let diff = hit.time - time; // milliseconds before time of circle
        // update approach circle
        let approachFullAppear = this.approachTime - this.approachFadeInTime;
-        if (diff <= this.approachTime && diff > 0) {
+         if (diff <= this.approachTime && diff > 0) {
           // approaching — approach circle shrinks from 4x to 1x the disc scale.
           // The disc is at hitSpriteScale * 1.0, so the approach circle at
           // contact (diff=0) is also at hitSpriteScale * 1.0 — its ring aligns
-          // with the disc's outer edge. (The old 0.5 * hitSpriteScale was from
+          // with the disc's outer edge.
            let scalemul = (diff / this.approachTime) * this.approachScale + 1;
-           hit.approach.scale.set(0.5 * this.hitSpriteScale * scalemul);
+           hit.approach.scale.set(this.hitSpriteScale * scalemul);
         } else {
-           hit.approach.scale.set(0.5 * this.hitSpriteScale);
+           hit.approach.scale.set(this.hitSpriteScale);
         }
       if (diff <= this.approachTime && diff > approachFullAppear) {
          // approach circle fading in
@@ -2784,30 +2922,24 @@ function Playback(game, osu, track) {
             let t = clamp01(
                (time - (hit.time - this.approachTime)) / this.approachTime,
             );
-            hit.body.endt = t;
-            if (hit.reverse) {
-               hit.curve.pointAtInto
-                  ? hit.curve.pointAtInto(t, self._tmpPt1)
-                  : (self._tmpPt1 = hit.curve.pointAt(t));
-               hit.reverse.x = self._tmpPt1.x;
-               hit.reverse.y = self._tmpPt1.y;
-               if (t < 0.5) {
-                  hit.curve.pointAtInto
-                     ? hit.curve.pointAtInto(t + 0.005, self._tmpPt2)
-                     : (self._tmpPt2 = hit.curve.pointAt(t + 0.005));
-                  hit.reverse.rotation = Math.atan2(
-                     self._tmpPt1.y - self._tmpPt2.y,
-                     self._tmpPt1.x - self._tmpPt2.x,
-                  );
-               } else {
-                  hit.curve.pointAtInto
-                     ? hit.curve.pointAtInto(t - 0.005, self._tmpPt2)
-                     : (self._tmpPt2 = hit.curve.pointAt(t - 0.005));
-                  hit.reverse.rotation = Math.atan2(
-                     self._tmpPt2.y - self._tmpPt1.y,
-                     self._tmpPt2.x - self._tmpPt1.x,
-                  );
-               }
+             hit.body.endt = t;
+             if (hit.reverse) {
+                hit.curve.pointAtInto(t, self._tmpPt1);
+                hit.reverse.x = self._tmpPt1.x;
+                hit.reverse.y = self._tmpPt1.y;
+                if (t < 0.5) {
+                   hit.curve.pointAtInto(t + 0.005, self._tmpPt2);
+                   hit.reverse.rotation = Math.atan2(
+                      self._tmpPt1.y - self._tmpPt2.y,
+                      self._tmpPt1.x - self._tmpPt2.x,
+                   );
+                } else {
+                   hit.curve.pointAtInto(t - 0.005, self._tmpPt2);
+                   hit.reverse.rotation = Math.atan2(
+                      self._tmpPt2.y - self._tmpPt1.y,
+                      self._tmpPt2.x - self._tmpPt1.x,
+                   );
+                }
             }
          }
       }
@@ -2841,10 +2973,8 @@ function Playback(game, osu, track) {
          // clamp t
          t = repeatclamp(Math.min(t, hit.repeat));
 
-         // Update ball and follow circle position — reuse tmp point to avoid alloc
-         hit.curve.pointAtInto
-            ? hit.curve.pointAtInto(t, self._tmpPt1)
-            : (self._tmpPt1 = hit.curve.pointAt(t));
+          // Update ball and follow circle position — reuse tmp point to avoid alloc
+          hit.curve.pointAtInto(t, self._tmpPt1);
 
          hit.follow.x = self._tmpPt1.x;
          hit.follow.y = self._tmpPt1.y;
@@ -2991,7 +3121,6 @@ function Playback(game, osu, track) {
             );
             let ballscale =
                (1 + (0.15 * timeAfter) / this.ballFadeOutTime) *
-               0.5 *
                this.hitSpriteScale;
             hit.ball.scale.x = hit.ball.scale.y = ballscale;
          }
@@ -3185,6 +3314,51 @@ function Playback(game, osu, track) {
          hit.progress.scale.set(0.6 * (0.13 + 0.87 * clamp01(progress)));
       } else {
          hit.progress.scale.set(0);
+      }
+
+      // Spinner approach circle: shrinks from full to the base radius as hit approaches
+      if (hit.approach) {
+         if (time >= hit.time - self.spinnerZoomInTime && time < hit.time) {
+            let p = (time - (hit.time - self.spinnerZoomInTime)) / self.spinnerZoomInTime;
+            hit.approach.scale.set(4 - 3 * clamp01(p)); // 4x → 1x
+            hit.approach.alpha = 1;
+         } else {
+            hit.approach.alpha = 0;
+         }
+      }
+      // Spinner warning: pulse near the end when not enough spin
+      if (hit.warning) {
+         const remaining = hit.endTime - time;
+         const started = time >= hit.time;
+         if (started && remaining < 1500 && progress < 1) {
+            // pulse alpha 0..1 at 4Hz
+            const pulse = 0.5 + 0.5 * Math.sin((time - hit.time) * 0.025);
+            hit.warning.alpha = pulse;
+            hit.warning.visible = true;
+         } else {
+            hit.warning.alpha = 0;
+            hit.warning.visible = false;
+         }
+      }
+      // Spinner clear: show "CLEAR" label once rotationRequired is reached
+      if (hit.clearLabel) {
+         if (progress >= 1 && time < hit.endTime) {
+            hit.clearLabel.alpha = 1;
+            hit.clearLabel.visible = true;
+         } else {
+            hit.clearLabel.alpha = 0;
+            hit.clearLabel.visible = false;
+         }
+      }
+      // Spinner RPM display: appears when player is actively spinning
+      if (hit.rpmDisplay) {
+         if (started && this.game.down && progress < 1) {
+            hit.rpmDisplay.alpha = 1;
+            hit.rpmDisplay.visible = true;
+         } else {
+            hit.rpmDisplay.alpha = 0;
+            hit.rpmDisplay.visible = false;
+         }
       }
 
       if (time >= hit.endTime) {
