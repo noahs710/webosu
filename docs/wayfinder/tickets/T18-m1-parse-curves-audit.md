@@ -38,7 +38,7 @@ This ticket graduates those three problems into one M1 refactor with three phase
   - `parseTrackText(text, opts?) -> TrackData[]`
   - `stackHitObjects(tracks, opts?) -> void` (mutates in-place; lazer 4/4 offset)
   - `decodeHitObject(line, currentTime, hasKey) -> HitObjectData`
-- `TrackData` and `HitObjectData` are plain data objects (not classes) — frozen via `Object.freeze` to make the immutability contract visible.
+- `TrackData` and `HitObjectData` are plain data objects (not classes) — single source of truth for shape.
 - `src/game/osu.js`: replace inline `Track` constructor + `decode` + `calculateCurve` + `stackHitObjects` with calls into `parse/track.js`. Keep the public API surface (`window.osu`, the `loaded` callback) intact.
 - `src/game/beatmap-worker.js`: drop from 341 LOC to ~50 by calling `parseOsz` (with the worker just being the boundary that calls `parseOsz` and `postMessage`s the result).
 - Add `tests/parser/golden-map.spec.mjs`: parses one fixture beatmap via both paths and asserts the `tracks[]` output is byte-identical (JSON.stringify equality). This is the regression guard for future drift.
