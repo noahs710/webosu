@@ -92,11 +92,43 @@ The three phases are co-dependent: the audit doc is meaningless without the code
 
 ## Status
 
-pending
+done
 
 ## Resolution
 
-(pending — code change not yet committed)
+Branch `codex/refactor-m1-parse-curves-audit`. 6 commits:
+
+1. `cdc15b3` docs: M1 audit rules + T18 ticket (audit doc append)
+2. `61a2419` M1 Phase 1: single-source .osu parser (parse/track.js + osu.js + beatmap-worker.js)
+3. `c6ad624` M1 Phase 2: pointAtInto-only curve contract (Curve.js + playback.js)
+4. `cc5e9a3` M1.6: remove lazerHitWindowsLinear export
+5. `55fd9b5` M1.9: pin SliderJudge vs SliderScorer contract in headers
+6. `37d7392` M1 tests: parser golden, lazer-parity, curve allocation (3 new files, 41 assertions)
+7. `f88c31b` docs: T18 ticket — drop the freeze claim from TrackData spec
+
+### Stats
+- `src/game/parse/track.js` (new): 425 LOC, single-source .osu parser
+- `src/game/beatmap-worker.js` (refactored): 356 → 22 LOC (M1.7, ~50 LOC budget)
+- `src/game/osu.js` (refactored): 597 → 184 LOC (Track class removed; calls parseTrackText)
+- `src/game/curves/Curve.js` (extended): 8 → 41 LOC (abstract base contract documented)
+- `src/game/playback.js` (3 lines): pointAt → pointAtInto at lines 1989, 2929 (M1.4)
+- `src/game/lazerHpTables.js` (M1.6): lazerHitWindowsLinear export removed
+- `src/game/slider-judge.js` + `src/game/slider-scorer.js` (M1.9): header comments document the two-class split
+
+### Tests (41 assertions, all passing)
+- `tests/lazer-parity.spec.mjs`: 19/19
+- `tests/parser/golden-map.spec.mjs`: 16/16
+- `tests/curves/allocation.spec.mjs`: 6/6
+
+### Verification (no regression)
+- typecheck 121/121 (no change — pure refactor)
+- npm test 53/53 (no change)
+- test:lazer 110/110 (no change — lazerHitWindowsLinear removal didn't touch any test)
+- headless-game: 0 pageerrors, 0 FATAL, 1301 hits, 576 sliders, 0 despawned
+- visual-bench: p50=16.5ms (5/5 runs within tolerance), fps ~58
+
+### Behaviour changes (intentional)
+- The worker output's `colors` array now defaults to `[[96,159,159], ...]` (matching `osu.js`'s prior default) instead of `[[255,128,64], ...]` (the prior worker default). This unifies the main-thread and worker paths so subsequent PRs don't drift. `playback.js`'s `convertcolor` handles either form, so no visual diff.
 
 ## Blocks
 
