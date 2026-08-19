@@ -1,5 +1,11 @@
 // SliderJudge — accumulates tick/edge/follow results for a slider and computes
-// the final lazer judgement at slider end.
+// the final lazer judgement at slider end. Per M1.9, this class owns the
+// *decision* state only: it tracks what was hit/missed per part. The score
+// *event emission* (typed-pipe, score overlay updates) is owned by
+// slider-scorer.js. The two classes cooperate via playback.js#createSlider:
+// playback reads SliderJudge state every frame to drive the slider body
+// (head-gates-tracking, current edge, current tick), and playback reads
+// SliderScorer state to drive the score pipeline.
 //
 // Lazer slider scoring (OsuSliderJudgement + OsuHealthProcessor):
 //   - Each tick (SmallTick/LargeTick) scores immediately: tick hit = +10 score,

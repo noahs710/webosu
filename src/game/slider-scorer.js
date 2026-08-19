@@ -1,9 +1,16 @@
 // SliderScorer — lazer-faithful nested-part slider judgement seam (lazer-parity-mega).
 //
 // Owns one slider's nested hit objects (head / ticks / repeats / tail) and the
-// typed scoring transitions. Pure logic: no PIXI, no globals except the scoreSink
-// passed in. Headless-testable in Node. playback.js feeds it timing + tracking
-// facts each frame; the scorer decides what was judged and drives the typed pipe.
+// typed scoring transitions. Per M1.9, this class owns the *score event
+// emission* (typed-pipe, score overlay updates). The per-frame *decision*
+// state (current position, edge detection, accumulator) is owned by
+// slider-judge.js. The two classes cooperate via playback.js#createSlider:
+// playback reads SliderJudge state every frame to drive the slider body,
+// and playback feeds SliderScorer with timing + tracking facts; the scorer
+// decides what was judged and drives the typed pipe.
+//
+// Pure logic: no PIXI, no globals except the scoreSink passed in.
+// Headless-testable in Node.
 //
 // Model (verified against ppy/osu master):
 //   - head  (SliderHeadCircle): standard circle judgement, judged at startTime.
