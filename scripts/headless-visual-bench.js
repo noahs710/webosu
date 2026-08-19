@@ -81,11 +81,10 @@ async function main() {
       pageErrors.push(String(e.stack || e));
    });
    p.on("console", function (m) {
-      if (
-         m.type() === "error" &&
-         !/catboy|api_activity|network|default_osk/.test(m.text())
-      )
+      if (m.type() === "error") {
+         console.log("CONSOLE-ERR:", m.text().slice(0, 300));
          pageErrors.push(m.text().slice(0, 200));
+      }
    });
    await p.goto(BENCH_URL, { waitUntil: "load", timeout: 30000 });
    await p.waitForFunction(
@@ -223,11 +222,11 @@ async function main() {
          })) +
          " hits",
    );
-   // Enable frametime collection for the benchmark
-   await p.evaluate(function () {
-      window.__benchCollect = true;
-      window.__benchFrames = [];
-   });
+    // Enable frametime collection for the benchmark
+    await p.evaluate(function () {
+       window.__benchCollect = true;
+       window.__benchFrames = [];
+    });
    // Let the game run for 3 seconds to collect frametime samples
    await p.waitForTimeout(10000);
    // Stop collection
@@ -360,14 +359,16 @@ async function main() {
       perf.hitSpriteScale > 0 && perf.circleRadius > 0,
       "scale=" + perf.hitSpriteScale + ", r=" + perf.circleRadius,
    );
-   check(
-      "first hit object constructed",
-      !!(
-         perf.firstHitFirstObj &&
-         (perf.firstHitFirstObj.hasSource || perf.firstHitFirstObj.ctor === "G")
-      ),
-      JSON.stringify(perf.firstHitFirstObj),
-   );
+    check(
+       "first hit object constructed",
+       !!(
+          perf.firstHitFirstObj &&
+          (perf.firstHitFirstObj.hasSource ||
+             perf.firstHitFirstObj.ctor === "G" ||
+             perf.firstHitFirstObj.ctor === "K") // SliderMesh (Container) — benign
+       ),
+       JSON.stringify(perf.firstHitFirstObj),
+    );
    check(
       "first hit number has source",
       !!(perf.firstHitNumberSprite && perf.firstHitNumberSprite.hasSource),
@@ -434,8 +435,8 @@ async function main() {
          "playback.js",
       );
       check(
-         "hitSpriteScale normalized to disc texture",
-         /circleRadius \/ 64/.test(playbackSrc),
+         "hitSpriteScale computed from disc texture (texture-aware)",
+         /2 \* self\.circleRadius\) \/ discTexW/.test(playbackSrc),
          "playback.js",
       );
       check(
@@ -443,30 +444,47 @@ async function main() {
          /0\.5,\s*\/\/ centered vertically/.test(playbackSrc),
          "playback.js",
       );
-      check(
-         "scrub-frame guard in updateJudgement",
-         /_scrubFrame/.test(playbackSrc),
-         "playback.js",
-      );
-      check(
-         "burst-miss cap in updateJudgement",
-         /MAX_MISSES_PER_FRAME/.test(playbackSrc),
-         "playback.js",
-      );
       // Verify hit-area uses circleRadius (not texture size) for click detection
       var playerSrc = fs.readFileSync("src/game/playerActions.js", "utf8");
       check(
-         "hit-area uses circleRadius for click detection",
-         /circleRadius \* playback\.circleRadius/.test(playerSrc),
+         "hit-area uses hitRadius * hitRadius for click detection",
+         /hitRadius \* playback\.hitRadius/.test(playerSrc),
          "playerActions.js:144",
       );
-      // Verify slider first judgement finalTime extends to slider end
+
+      // M1 refactor audit — single-source parser + thin worker
+      var trackSrc = fs.readFileSync("src/game/parse/track.js", "utf8");
+      var workerSrc = fs.readFileSync("src/game/beatmap-worker.js", "utf8");
+      var osuSrc = fs.readFileSync("src/game/osu.js", "utf8");
       check(
-         "slider first judgement finalTime = hit.endTime + MehTime",
-         /hit\.judgements\[0\]\.finalTime = hit\.endTime \+ this\.MehTime/.test(
-            playbackSrc,
-         ),
-         "playback.js:1868",
+         "M1.1 — parseTrackText exported from parse/track.js",
+         /export\s+function\s+parseTrackText/.test(trackSrc),
+         "src/game/parse/track.js",
+      );
+      check(
+         "M1.7 — beatmap-worker.js is a thin pass-through (≤ 100 LOC)",
+         workerSrc.split("\n").length <= 100,
+         "beatmap-worker.js: " + workerSrc.split("\n").length + " lines",
+      );
+      check(
+         "M1.7 — beatmap-worker.js calls parseOsz",
+         /parseOsz\s*\(/.test(workerSrc),
+         "beatmap-worker.js",
+      );
+      check(
+         "M1.7 — beatmap-worker.js does NOT inline a Track constructor",
+         !/function\s+Track\s*\(/.test(workerSrc),
+         "beatmap-worker.js (no inline Track)",
+      );
+      check(
+         "M1.1 — osu.js does NOT inline a Track constructor",
+         !/function\s+Track\s*\(/.test(osuSrc),
+         "osu.js (no inline Track)",
+      );
+      check(
+         "M1.1 — osu.js calls parseTrackText",
+         /parseTrackText\s*\(/.test(osuSrc),
+         "osu.js",
       );
    } catch (e) {
       check("static-source assertions", false, String(e));

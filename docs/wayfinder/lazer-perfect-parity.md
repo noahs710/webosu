@@ -14,7 +14,7 @@ Every **reducible** gap between webosu! and native osu!lazer is closed (Track A 
 
 ## M1 audit
 
-Rules enforced by M1 (parser unification + curve contract + parity constants). Every subsequent PR must respect these. The implementation ticket is [T18](tickets/T18-m1-parse-curves-audit.md).
+Rules enforced by M1 (parser unification + curve contract + parity constants). Every subsequent PR must respect these. The implementation ticket is [T18](tickets/T18-m1-parse-curves-audit.md). Run `npm run test:m1` to verify all rules at once (41 assertions across `tests/lazer-parity.spec.mjs`, `tests/parser/golden-map.spec.mjs`, `tests/curves/allocation.spec.mjs`).
 
 When a player-facing constant conflicts between the `ppy/osu` source and `osu.ppy.sh` wiki, **wiki wins** (per §19 of `docs/lazer-mechanics.md`).
 
